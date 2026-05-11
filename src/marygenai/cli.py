@@ -1,0 +1,36 @@
+import typer
+from rich.console import Console
+
+from marygenai import __version__
+from marygenai.settings import get_settings
+
+app = typer.Typer(help="MaryGenAI POC utilities.", no_args_is_help=True)
+console = Console()
+
+
+@app.callback()
+def main() -> None:
+    """Run MaryGenAI POC utilities."""
+
+
+@app.command()
+def info() -> None:
+    """Show local project configuration."""
+    settings = get_settings()
+    console.print(
+        {
+            "version": __version__,
+            "data_dir": str(settings.data_dir),
+            "temp_dir": str(settings.temp_dir),
+        }
+    )
+
+
+@app.command()
+def version() -> None:
+    """Show the package version."""
+    console.print(__version__)
+
+
+if __name__ == "__main__":
+    app()
