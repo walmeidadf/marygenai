@@ -85,9 +85,11 @@ Conclusion: Europe PMC and Unpaywall are useful enrichment sources. Europe PMC c
 discover DOI/`PMCID` for PMID-only records, and those DOI values can feed Unpaywall
 in the same pass.
 
-## Next POC
+## Recent POCs
 
 ### POC 6: Small Full-Text And PDF Sample
+
+Status: completed first small HTML/XML-first pass on 2026-05-13.
 
 Goal: test extraction value and difficulty on a small, mixed sample from the access
 resolver outputs.
@@ -130,10 +132,142 @@ Guardrails:
 - preserve raw payloads, extraction method, source URL, confidence, and review
   state for every extracted field.
 
+First run:
+
+- run id: `20260513T215843Z`;
+- command: `uv run python pocs/pdf_samples/sample_full_text.py run`;
+- sample records: 10;
+- selected HTML sources: 8;
+- selected XML sources: 1;
+- records without usable text: 1;
+- supplemental PDFs downloaded: 1;
+- field extraction candidates: 58;
+- all extracted fields marked `needs_review`.
+
+Initial interpretation:
+
+- PMC HTML is the best first-choice full-text source when `PMCID` is available.
+- Europe PMC rendered article pages are not reliable non-browser fetch targets;
+  use Europe PMC XML when available, otherwise fall back to PMC HTML for records
+  with `PMCID`.
+- Unpaywall PDF URLs are useful candidates, but publisher-hosted PDFs may return
+  403 and should not be assumed retrievable.
+- Heuristic extraction can surface candidate evidence, but it is too noisy for
+  final normalized fields. The next extraction test should compare a small local
+  or remote LLM against the saved text samples.
+- HITL remains mandatory for dosage, adverse events, arms/comparators, protocol
+  details, and any field inferred from full text.
+
+### POC 6b: LLM Evidence Extraction And Schema Normalization
+
+Status: completed first three-record comparison on 2026-05-13.
+
+Goal: test whether LLMs add value after HTML/XML text extraction, without making
+the LLM responsible for final truth.
+
+Design:
+
+- use the saved POC 6 text samples as inputs;
+- split extraction into two stages:
+  1. extract candidate evidence snippets and candidate values from section-scoped
+     text;
+  2. normalize candidates into strict Pydantic models;
+- keep `needs_review=true` for every field candidate;
+- compare local Ollama `qwen3:8b` against Groq single-record calls;
+- avoid full-manifest LLM runs until rate limits, latency, and output quality are
+  understood.
+
+Early LLM observations:
+
+- local `qwen3:8b` can produce useful narrative/evidence output, but did not
+  reliably follow strict JSON instructions on long article contexts;
+- Groq produced better JSON for a single case report, but back-to-back free-tier
+  calls hit `429 Too Many Requests`;
+- section selection and smaller prompts are likely more important than trying
+  larger models first.
+
+Deliverables:
+
+- Pydantic schemas for field candidate extraction outputs;
+- a small comparison report for at least three records: clinical dosage, case
+  report, and randomized controlled trial;
+- documentation of which fields are suitable for prefill versus manual-only
+  review.
+
+First POC 6b run:
+
+- baseline run id: `20260513T225432Z`;
+- Ollama run id: `20260513T225437Z`;
+- Groq comparison run id: `20260513T230004Z`;
+- OpenRouter router run id: `20260513T230053Z`;
+- records tested: `340`, `164`, and `43`;
+- all normalized output fields retained `needs_review=true`.
+
+Findings:
+
+- the two-stage architecture worked: candidate snippets are accepted only after
+  strict Pydantic normalization;
+- heuristic extraction is useful as a baseline but too noisy for final values;
+- Ollama `qwen3:8b` can help find evidence in smaller contexts, but it failed
+  strict JSON parsing on two of the three records;
+- Groq produced parseable candidates for all three records with smaller prompts
+  and a 12-second delay, but token-per-minute limits reached zero on the third
+  call;
+- OpenRouter free access worked through `openrouter/free` for record `164`, while
+  explicit free model tests showed JSON truncation and `429` risk.
+
+Next step before broader extraction: improve section selection, add
+rate-limit-aware retry/backoff, and design a human-review export over the
+normalized candidate fields.
+
+## Recommended Next Session
+
+### POC 6c: Review Export And Better Evidence Selection
+
+Status: proposed next.
+
+Goal: turn the POC 6b normalized candidates into something a human reviewer can
+inspect efficiently, while improving prefill quality before any larger LLM run.
+
+Why this comes next:
+
+- POC 6b proved the two-stage shape, but the heuristic baseline still selects
+  neighboring evidence for several fields;
+- Groq can produce structured candidates on small prompts, but token budget is a
+  practical constraint;
+- OpenRouter free models are worth occasional comparison, but are not stable
+  enough to anchor the workflow;
+- every candidate still needs human review, so the next bottleneck is reviewer
+  ergonomics and review provenance rather than more extraction volume.
+
+Scope:
+
+- improve section ranking per field, especially for dosage, arms/comparators,
+  adverse events, population, and study design;
+- add a small review export under `data/normalized/pdf_samples` that preserves
+  reviewer-ready rows with source record id, title, field, candidate value,
+  evidence text, source section, provider, model, confidence, ontology version,
+  extractor version, and `needs_review`;
+- add rate-limit-aware retry/backoff for Groq and OpenRouter using `retry-after`
+  and reset headers;
+- run the improved flow again on records `340`, `164`, and `43`;
+- only after reviewer-export shape looks useful, expand to the remaining saved
+  POC 6 text samples.
+
+Success criteria:
+
+- all exported review rows retain enough provenance for a reviewer to approve,
+  edit, or reject a candidate;
+- field prefill quality improves on the known weak spots from POC 6b;
+- remote provider failures are recorded with actionable retry/rate-limit metadata;
+- no generated data or raw provider outputs are committed.
+
+After POC 6c, the best next branch is the PubMed discovery expansion POC below.
+
 ## Parallel Future Track
 
-After POC 6, run a PubMed discovery expansion POC to estimate additional candidate
-studies beyond the legacy dataset.
+After POC 6b, run a PubMed discovery expansion POC to estimate additional
+candidate studies beyond the legacy dataset.
 
 Priority queries should focus on higher-reputation evidence:
 

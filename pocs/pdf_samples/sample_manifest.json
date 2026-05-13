@@ -1,0 +1,92 @@
+[
+  {
+    "source_record_id": "340",
+    "sample_category": "direct_pmc_html",
+    "title": "Dosage Related Efficacy and Tolerability of Cannabidiol in Children With Treatment-Resistant Epileptic Encephalopathy: Preliminary Results of the CARE-E Study",
+    "preferred_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6616248/",
+    "fallback_pdf_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6616248/pdf/",
+    "target_fields": ["dosage", "treatment_duration", "adverse_events", "route_of_administration", "study_design", "population_details"],
+    "selection_reason": "Strong candidate for clinical dosage, tolerability, population, and treatment duration extraction from PMC HTML."
+  },
+  {
+    "source_record_id": "164",
+    "sample_category": "direct_pmc_html",
+    "title": "Combined tetrahydrocannabinol and cannabidiol to treat pain in epidermolysis bullosa: a report of three cases",
+    "preferred_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7379189/",
+    "fallback_pdf_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7379189/pdf/",
+    "target_fields": ["dosage", "treatment_duration", "adverse_events", "route_of_administration", "protocol_intervention_details", "population_details"],
+    "selection_reason": "Case report likely to expose dose, route, treatment duration, and outcome details in full text."
+  },
+  {
+    "source_record_id": "407",
+    "sample_category": "direct_pmc_html",
+    "title": "Preliminary evaluation of the efficacy, safety, and costs associated with the treatment of chronic pain with medical cannabis",
+    "preferred_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6007634/",
+    "fallback_pdf_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6007634/pdf/",
+    "target_fields": ["dosage", "treatment_duration", "adverse_events", "route_of_administration", "study_design", "population_details"],
+    "selection_reason": "Clinical pain record for testing efficacy, safety, cost, and patient population extraction."
+  },
+  {
+    "source_record_id": "171",
+    "sample_category": "direct_pmc_html",
+    "title": "Potential Adverse Drug Events and Drug-Drug Interactions with Medical and Consumer Cannabidiol (CBD) Use",
+    "preferred_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6678684/",
+    "fallback_pdf_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6678684/pdf/",
+    "target_fields": ["dosage", "adverse_events", "route_of_administration", "protocol_intervention_details"],
+    "selection_reason": "Adverse event and drug interaction oriented article for testing safety-field extraction."
+  },
+  {
+    "source_record_id": "43",
+    "sample_category": "europe_pmc_html_pdf",
+    "title": "Effects of cannabidiol on simulated driving and cognitive performance: A dose-ranging randomised controlled trial",
+    "preferred_url": "https://europepmc.org/articles/PMC9716488",
+    "fallback_pdf_url": "https://europepmc.org/articles/PMC9716488?pdf=render",
+    "target_fields": ["dosage", "treatment_duration", "adverse_events", "route_of_administration", "protocol_intervention_details", "arms_comparators_control_groups", "study_design", "population_details"],
+    "selection_reason": "Randomized controlled trial with dose-ranging design, arms, comparators, and protocol details."
+  },
+  {
+    "source_record_id": "18",
+    "sample_category": "europe_pmc_html_pdf",
+    "title": "The role of cannabis in pain management among people living with HIV who use drugs: A qualitative study",
+    "preferred_url": "https://europepmc.org/articles/PMC8580359",
+    "fallback_pdf_url": "https://europepmc.org/articles/PMC8580359?pdf=render",
+    "target_fields": ["route_of_administration", "protocol_intervention_details", "study_design", "population_details"],
+    "selection_reason": "Qualitative study for testing population and protocol extraction where dosage may be absent or narrative."
+  },
+  {
+    "source_record_id": "11",
+    "sample_category": "europe_pmc_html_pdf",
+    "title": "Cannabidiol as a Treatment for Mood Disorders: A Systematic Review",
+    "preferred_url": "https://europepmc.org/articles/PMC7385425",
+    "fallback_pdf_url": "https://europepmc.org/articles/PMC7385425?pdf=render",
+    "target_fields": ["dosage", "treatment_duration", "adverse_events", "route_of_administration", "study_design", "population_details"],
+    "selection_reason": "Systematic review for testing extraction from included-study summaries rather than a single intervention."
+  },
+  {
+    "source_record_id": "10",
+    "sample_category": "europe_pmc_html_pdf",
+    "title": "Are vaporizers a lower-risk alternative to smoking cannabis?",
+    "preferred_url": "https://europepmc.org/articles/PMC8975973",
+    "fallback_pdf_url": "https://europepmc.org/articles/PMC8975973?pdf=render",
+    "target_fields": ["adverse_events", "route_of_administration", "protocol_intervention_details", "arms_comparators_control_groups", "study_design", "population_details"],
+    "selection_reason": "Route and comparator-heavy record for evaluating HTML extraction around smoking versus vaporizing."
+  },
+  {
+    "source_record_id": "4",
+    "sample_category": "unpaywall_pdf",
+    "title": "Behavioral and pharmacological effects of cannabidiol (CBD) and the CBD analogue KLS-13019 in mouse models of pain and reinforcement",
+    "preferred_url": "https://doi.org/10.1111/bph.15486",
+    "fallback_pdf_url": "https://onlinelibrary.wiley.com/doi/pdfdirect/10.1111/bph.15486",
+    "target_fields": ["dosage", "treatment_duration", "route_of_administration", "protocol_intervention_details", "arms_comparators_control_groups", "study_design"],
+    "selection_reason": "Unpaywall publisher PDF candidate for animal protocol and intervention details."
+  },
+  {
+    "source_record_id": "15",
+    "sample_category": "unpaywall_pdf",
+    "title": "Cannabinoids, cannabis, and cannabis-based medicines for pain management: an overview of systematic reviews",
+    "preferred_url": "https://doi.org/10.1097/j.pain.0000000000001941",
+    "fallback_pdf_url": "http://links.lww.com/PAIN/B61",
+    "target_fields": ["dosage", "treatment_duration", "adverse_events", "route_of_administration", "study_design", "population_details"],
+    "selection_reason": "Unpaywall PDF candidate for testing review-level extraction from a non-PMC source."
+  }
+]

@@ -32,6 +32,15 @@ Candidate entities:
 - `extraction_run`;
 - `human_review`.
 
+POC 6 reinforced that field-level extraction records should store:
+
+- selected source URL and source format;
+- extraction method;
+- evidence text;
+- confidence;
+- review state;
+- errors and fallback attempts.
+
 ### Ontology Layer
 
 Versioned vocabularies and mappings stored under `ontology/`.
@@ -56,3 +65,49 @@ Deferred until after source POCs. Candidate storage approaches include:
 - Separate extraction from review.
 - Treat dosing and drug interactions as specialized extraction domains.
 - Prefer field-level provenance over a single record-level confidence score.
+
+## Full-Text Extraction Notes
+
+The first small full-text sample supports an HTML/XML-first architecture:
+
+- prefer PMC HTML when `PMCID` is available;
+- use Europe PMC full-text XML when it is available through the API;
+- do not rely on Europe PMC rendered article pages as static HTML extraction
+  targets;
+- keep PDF retrieval as a narrow fallback or supplemental artifact until text
+  extraction value justifies a parser;
+- route every extracted field through HITL before it becomes reviewed knowledge.
+
+The production pipeline should treat LLM extraction as an evidence-generation
+step, not as final truth. LLM outputs need the same field-level provenance and
+review state as heuristic extraction outputs.
+
+The preferred LLM shape is a two-stage flow:
+
+- first, extract candidate evidence snippets from section-scoped text;
+- then, normalize those candidates into strict Pydantic models.
+
+Small local models may be useful in the first stage, while hosted models can be
+used as comparison baselines for structured normalization. Both stages still feed
+HITL review.
+
+POC 6b confirmed this shape on records `340`, `164`, and `43`. The runner writes
+strict normalized records under `data/normalized/pdf_samples`, preserves provider
+and model provenance, records provider errors separately from accepted candidates,
+and forces every normalized field to `needs_review=true` and
+`review_state=needs_review`.
+
+Provider-specific notes from POC 6b:
+
+- heuristic extraction remains a useful deterministic baseline, but is too noisy
+  to prefill all fields without review;
+- local Ollama `qwen3:8b` can identify evidence on smaller case-report contexts,
+  but should not be trusted as the final JSON producer;
+- Groq structured calls were reliable for the three-record comparison when using
+  smaller section-selected prompts and a delay between calls, but token-per-minute
+  limits were tight;
+- OpenRouter free models are useful for exploration, but the free router can be
+  slow and explicit free models may return truncated JSON or hit `429`.
+
+The next architecture refinement should add provider retry/backoff based on
+rate-limit headers and improve section ranking before any broader LLM run.

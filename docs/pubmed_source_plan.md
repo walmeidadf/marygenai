@@ -351,6 +351,8 @@ Deliverables:
 
 Goal: test extraction value and difficulty on a small, selected sample only.
 
+Status: completed first small HTML/XML-first pass on 2026-05-13.
+
 Sample categories:
 
 - PMC full text;
@@ -367,6 +369,67 @@ Measure whether full text adds fields that abstracts usually miss:
 - study arms and interventions;
 - population details.
 
+Current run:
+
+- run id: `20260513T215843Z`;
+- command: `uv run python pocs/pdf_samples/sample_full_text.py run`;
+- sample records: 10;
+- selected HTML sources: 8;
+- selected XML sources: 1;
+- records without usable text: 1;
+- supplemental PDFs downloaded: 1;
+- field extraction candidates: 58;
+- human review state: 58 / 58 marked `needs_review`.
+
+Results:
+
+| Metric | Count |
+| --- | ---: |
+| HTML sources selected | 8 |
+| XML sources selected | 1 |
+| Unusable records | 1 |
+| Supplemental PDFs downloaded | 1 |
+| Records with fallbacks or errors | 5 |
+| Field extraction candidates | 58 |
+
+Field evidence coverage:
+
+| Field | Records with candidate evidence |
+| --- | ---: |
+| route of administration | 9 |
+| adverse events | 8 |
+| population details | 8 |
+| dosage | 7 |
+| study design | 7 |
+| treatment duration | 6 |
+| protocol/intervention details | 5 |
+| arms/comparators/control groups | 2 |
+
+Initial interpretation:
+
+- HTML/XML-first is the right technical shape. Direct PMC HTML extracted cleanly
+  enough for a first pass.
+- Europe PMC rendered article pages should not be treated as stable HTML fetch
+  targets. In this run they returned JavaScript-dependent placeholder text.
+  Europe PMC full-text XML is useful when available; PMC HTML is the practical
+  fallback when `PMCID` is known.
+- PDF should remain a fallback or supplemental path. One Unpaywall PDF candidate
+  was downloaded successfully, while a Wiley candidate returned 403.
+- Keyword extraction is useful as a baseline candidate finder, but it should not
+  be promoted as a production extractor. It sometimes selects adjacent or
+  contextually related sentences rather than the exact normalized value.
+- LLM extraction is implemented as an optional test path for Ollama and Groq, but
+  it was not executed in the first run because no local Ollama server or
+  `GROQ_API_KEY` was available in that session.
+- A follow-up spot test found that local `qwen3:8b` can produce useful evidence
+  summaries but does not reliably obey strict JSON on long article contexts. Groq
+  produced better JSON on a single case report, but back-to-back free-tier calls
+  hit `429 Too Many Requests`.
+- The next LLM iteration should use a two-stage design: evidence extraction first,
+  then Pydantic normalization.
+- HITL should be considered part of the extraction architecture, not a later
+  cleanup step. Every field candidate from this run remains `needs_review`.
+
 ## Continuous Crawler Gate
 
 Do not design a continuous crawler until the project has evidence from POCs 1-6.
@@ -382,13 +445,28 @@ A crawler design should only follow after the team can answer:
 
 ## Next Work
 
-Prepare POC 6: Small Full-Text And PDF Sample.
+POC 6b has now tested saved text samples with a strict candidate-evidence then
+Pydantic-normalization flow. The first comparison used records `340`, `164`, and
+`43`.
 
-The next implementation should choose a small, mixed sample from PMC, Europe PMC,
-and Unpaywall PDF candidates, then test extraction difficulty without committing to
-a broad PDF ingestion pipeline.
+POC 6b observations:
 
-After POC 6, prepare a PubMed discovery expansion POC to estimate how many
-additional higher-reputation studies exist beyond the legacy dataset. Prioritize
-systematic reviews, meta-analyses, randomized controlled trials, controlled
-clinical trials, double-blind trials, and placebo-controlled studies.
+- all normalized fields remain `needs_review=true`;
+- Groq generated parseable structured candidates for all three records when using
+  section-selected prompts, `--prompt-max-chars 3500`, and `--delay-seconds 12`;
+- Groq rate-limit headers showed token budget, not request count, as the practical
+  constraint in the three-record run;
+- Ollama `qwen3:8b` was useful for candidate evidence on the case report, but not
+  reliable enough for final JSON output;
+- OpenRouter `openrouter/free` worked for one case-report record, while explicit
+  free model tests showed truncation and `429` risks.
+
+The next source-track implementation should improve section ranking and
+rate-limit-aware retries before expanding LLM extraction beyond a few hand-picked
+records. Do not add a broad PDF parser until HTML/XML text extraction and review
+prefill behavior are better understood.
+
+After the LLM comparison, prepare a PubMed discovery expansion POC to estimate how
+many additional higher-reputation studies exist beyond the legacy dataset.
+Prioritize systematic reviews, meta-analyses, randomized controlled trials,
+controlled clinical trials, double-blind trials, and placebo-controlled studies.

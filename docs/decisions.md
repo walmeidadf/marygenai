@@ -38,3 +38,27 @@ For the publication-source track, PubMed is the current primary source for detec
 new candidate studies. It should be used to discover and prioritize records, while
 PMC, Europe PMC, Unpaywall, DOI, and publisher links should be used later for
 access enrichment. PubMed should not be treated as a direct file crawler.
+
+## 2026-05-13: Prefer HTML/XML Before PDF For Full-Text Extraction
+
+The first POC 6 sample showed that direct PMC HTML and structured full-text XML are
+better first-choice extraction inputs than PDF. Europe PMC rendered article pages
+should not be treated as stable static HTML fetch targets because they can return
+JavaScript-dependent placeholder content. When a `PMCID` is available, the
+pipeline should prefer PMC HTML and use Europe PMC full-text XML when available.
+PDF retrieval should remain a narrow fallback or supplemental artifact until a PDF
+parser is justified by extraction gaps.
+
+All full-text extraction outputs remain candidate evidence until human review.
+
+## 2026-05-13: Normalize LLM Evidence Through Strict Review-First Schemas
+
+POC 6b keeps LLM extraction out of the final-truth role. LLMs and heuristics may
+generate candidate evidence snippets and candidate values from section-scoped
+text, but normalized POC outputs must pass strict Pydantic models and every field
+must remain `needs_review=true` with `review_state=needs_review`.
+
+Provider behavior should be recorded as provenance and operational evidence.
+Local models may be useful for candidate discovery, while hosted models can be
+used for structured comparison. Rate-limit headers, provider errors, and rejected
+JSON are part of the POC result, not incidental noise.
