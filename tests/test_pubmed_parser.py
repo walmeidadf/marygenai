@@ -48,9 +48,11 @@ SAMPLE_XML = """\
       </Article>
     </MedlineCitation>
     <PubmedData>
+      <PublicationStatus>ppublish</PublicationStatus>
       <ArticleIdList>
         <ArticleId IdType="pubmed">12345</ArticleId>
         <ArticleId IdType="doi">10.1000/example</ArticleId>
+        <ArticleId IdType="pmc">PMC123456</ArticleId>
       </ArticleIdList>
     </PubmedData>
   </PubmedArticle>
@@ -65,13 +67,20 @@ def test_parse_pubmed_xml_extracts_validation_fields() -> None:
     record = records[0]
     assert record.pmid == "12345"
     assert record.doi == "10.1000/example"
+    assert record.pmcid == "PMC123456"
     assert record.title == "Cannabinoid evidence test."
     assert record.abstract == "First section.\nSecond section."
     assert record.journal == "Example Journal"
     assert record.publication_date == "2024-05-01"
+    assert record.publication_status == "ppublish"
     assert record.publication_types == ["Journal Article", "Review"]
     assert record.mesh_terms == ["Cannabinoids"]
     assert record.authors == ["Jane Smith", "Research Group"]
     assert record.languages == ["eng"]
     assert record.chemicals == ["Cannabidiol"]
+    assert record.article_ids == {
+        "doi": "10.1000/example",
+        "pmc": "PMC123456",
+        "pubmed": "12345",
+    }
     assert record.provenance["source"] == "pubmed"

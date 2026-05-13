@@ -58,3 +58,74 @@ Sparse fields:
 - starting dose and maximum dose: about 1%.
 
 These sparse fields should not be treated as reliable default metadata from abstract-only extraction.
+
+## Legacy Reconciliation POC
+
+The first local-only reconciliation pass ran on 2026-05-13.
+
+Results:
+
+- 7,347 legacy study rows parsed;
+- 3,805 rows with directly extracted `PMID`;
+- 1,676 rows with directly extracted `PMCID`;
+- 659 rows with directly extracted DOI;
+- 6,140 rows, or 83.6%, with `PMID`, `PMCID`, or DOI;
+- 1,207 rows need a resolver or manual review because only a canonical URL was
+  available.
+
+The reconciliation script is:
+
+```bash
+uv run python pocs/legacy_reconciliation/reconcile_legacy.py run
+```
+
+Outputs are local and ignored under `data/normalized/legacy_reconciliation/`.
+
+## Link Resolver POC
+
+The first local-only link resolver pass ran on 2026-05-13 using the reconciliation
+output above.
+
+Results:
+
+- 7,347 records classified;
+- 1,676 records with direct PMC full-text path from `PMCID`;
+- 3,805 PMID-only records requiring PubMed or Europe PMC enrichment;
+- 659 DOI records requiring Unpaywall or Europe PMC enrichment;
+- 1,207 publisher/other URL records requiring identifier extraction or title search.
+
+The resolver script is:
+
+```bash
+uv run python pocs/link_resolver/resolve_links.py run
+```
+
+Outputs are local and ignored under `data/normalized/link_resolver/`.
+
+## Access Enrichment POC
+
+The first Europe PMC plus Unpaywall enrichment pass ran on 2026-05-13.
+
+Results:
+
+- 20 resolver records sampled;
+- Europe PMC queried for 20 records;
+- Europe PMC found 15 records;
+- Unpaywall queried for 20 DOI lookups;
+- Unpaywall found 16 records;
+- Unpaywall marked 11 records as open access;
+- Unpaywall exposed 7 PDF URLs;
+- 10 records had open-access PDF candidates;
+- 1 record had an open-access landing candidate;
+- 4 records had metadata enrichment without full text;
+- 4 records were not enriched;
+- 0 records had enrichment errors.
+
+The enrichment script is:
+
+```bash
+uv run python pocs/access_enrichment/enrich_access.py run --limit-per-class 10
+```
+
+Outputs are local and ignored under `data/normalized/access_enrichment/` and
+`data/raw/access_enrichment/`.

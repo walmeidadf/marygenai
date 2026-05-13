@@ -23,3 +23,18 @@ PostgreSQL, NoSQL, graph databases, and file-based approaches remain open option
 ## 2026-05-10: Defer Review Interface Choice
 
 Human review is required, but Label Studio is not yet a fixed decision. Any review workflow must preserve field-level review provenance.
+
+## 2026-05-13: Treat PubMed As Metadata Hub Before Full-Text Crawling
+
+PubMed/NLM is the primary publication identity and metadata source for the next
+publication POCs. The project will first expand PubMed metadata testing, reconcile
+legacy PubMed/NLM links, and classify full-text availability through PMC, Europe
+PMC, Unpaywall, DOI, and publisher links before designing any continuous crawler or
+bulk PDF workflow.
+
+## 2026-05-13: Use PubMed As The Primary Study Discovery Source
+
+For the publication-source track, PubMed is the current primary source for detecting
+new candidate studies. It should be used to discover and prioritize records, while
+PMC, Europe PMC, Unpaywall, DOI, and publisher links should be used later for
+access enrichment. PubMed should not be treated as a direct file crawler.

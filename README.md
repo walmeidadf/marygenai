@@ -39,7 +39,16 @@ uv run marygenai info
 
 - [Project brief](docs/project_brief.md)
 - [Architecture approach](docs/architecture.md)
+- [Roadmap](docs/roadmap.md)
 - [Data sources](docs/data_sources.md)
+- [PubMed source plan](docs/pubmed_source_plan.md)
 - [Ontology notes](docs/ontology.md)
 - [Legacy dataset notes](docs/legacy_dataset.md)
 - [Decision log](docs/decisions.md)
+
+## Active POCs
+
+- PubMed expanded metadata: `uv run python pocs/pubmed/validate_pubmed.py batch --retmax 100`
+- Legacy reconciliation: `uv run python pocs/legacy_reconciliation/reconcile_legacy.py run`
+- Link resolver: `uv run python pocs/link_resolver/resolve_links.py run`
+- Access enrichment: `uv run python pocs/access_enrichment/enrich_access.py run --limit-per-class 25`

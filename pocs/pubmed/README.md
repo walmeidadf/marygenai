@@ -28,3 +28,34 @@ uv run python pocs/pubmed/validate_pubmed.py run \
   --query '"cannabidiol"[Title/Abstract] AND epilepsy[Title/Abstract]' \
   --retmax 50
 ```
+
+## POC 1: Expanded PubMed Metadata
+
+Run named batches of up to 200 records across several cannabinoid-focused query
+families:
+
+```bash
+uv run python pocs/pubmed/validate_pubmed.py batch --retmax 100
+```
+
+Planned query families:
+
+- broad cannabinoid query;
+- cannabidiol plus epilepsy;
+- THC plus pain;
+- cannabis plus adverse effects;
+- human, animal, in vitro, and review-focused filters where useful.
+
+The expanded POC should measure `PMID`, DOI, `PMCID`, abstract, MeSH headings,
+chemicals, keywords, publication types, publication status, authors, journal, date,
+and language. See [PubMed Source Plan](../../docs/pubmed_source_plan.md) for the
+full source plan.
+
+First completed run:
+
+- run id: `20260513T154941Z`;
+- query families: 8;
+- records fetched and normalized: 790;
+- DOI availability: 768 / 790;
+- `PMCID` availability: 415 / 790;
+- abstract availability: 778 / 790.

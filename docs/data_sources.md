@@ -4,18 +4,56 @@ This document tracks source candidates and what each POC should test.
 
 ## PubMed / NCBI E-utilities
 
-Primary candidate for biomedical publication metadata. It should be tested first because the legacy dataset is heavily PubMed/NLM-oriented.
+Primary candidate for biomedical publication identity and metadata. PubMed should
+act as the publication hub for `PMID`, DOI, abstract, MeSH, publication type, and
+related biomedical metadata. It should not be treated as the primary full-text or
+PDF crawler.
+
+PubMed is also the current primary source for detecting new candidate studies. New
+study discovery should prioritize systematic reviews, meta-analyses, randomized or
+controlled clinical trials, double-blind trials, and placebo-controlled studies
+before lower-evidence publication types.
+
+Current status:
+
+- basic `ESearch` plus `EFetch` mechanics are validated in the PubMed POC;
+- POC 1 expanded metadata batch ran on 2026-05-13 across 8 query families and
+  normalized 790 records;
+- POC 2 legacy reconciliation ran on 2026-05-13 and found 6,140 / 7,347 legacy
+  rows with directly extractable `PMID`, `PMCID`, or DOI;
+- POC 3 local link resolver ran on 2026-05-13 and classified 1,676 direct PMC
+  full-text paths, 3,805 PMID-only records, 659 DOI-only records, and 1,207
+  publisher-only records;
+- access enrichment ran a 10-record Europe PMC sample on 2026-05-13 and found
+  metadata for 7 records, including 5 open-access PDF candidates;
+- DOI, abstract, journal, publication date, publication type, and publication status
+  coverage were strong in the fetched sample;
+- `PMCID` coverage was useful but partial, so PMC should be the first full-text path
+  when available, not the only full-text path.
 
 POC questions:
 
 - How well do cannabinoid queries map to relevant results?
-- Which records include DOI, PMID, abstract, MeSH terms, publication type, authors, journal, and date?
+- How many candidate studies exist beyond the reconciled legacy dataset?
+- Which records include DOI, PMID, PMCID, abstract, MeSH terms, publication type,
+  authors, journal, and date?
 - Can publication type improve the legacy `study_type` taxonomy?
+- Can PubMed query filters reliably prioritize systematic reviews, meta-analyses,
+  randomized trials, controlled trials, and placebo-controlled studies?
 - How much parsing effort is required for XML?
+- How often can PubMed records be linked to PMC, Europe PMC, Unpaywall, DOI, or
+  publisher access paths?
 
 ## Europe PMC
 
 Candidate for metadata enrichment and open-access/full-text discovery.
+
+Current status:
+
+- implemented in the access enrichment POC;
+- first 10-record sample found 7 records and surfaced 5 open-access PDF candidates;
+- should be tested on a larger `PMID` and DOI sample before becoming a standard
+  resolver step.
 
 POC questions:
 
@@ -36,6 +74,15 @@ POC questions:
 ## Unpaywall
 
 Candidate for open-access metadata and PDF URL discovery.
+
+Unpaywall should be evaluated after PubMed records have DOI coverage metrics. Its
+first role is access classification and license discovery, not bulk PDF download.
+
+Current status:
+
+- implemented in the access enrichment POC;
+- first sampled pass with `UNPAYWALL_EMAIL` configured queried 20 DOI lookups,
+  found 16 records, marked 11 as open access, and exposed 7 PDF URLs.
 
 POC questions:
 
@@ -59,6 +106,9 @@ POC questions:
 ## PDF Samples
 
 PDFs should be tested only on a small sample at first.
+
+PDF and full-text processing should follow the resolver POCs. The project should
+classify full-text availability before downloading or parsing files.
 
 POC questions:
 

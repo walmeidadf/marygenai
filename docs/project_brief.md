@@ -24,6 +24,18 @@ The first real milestone is not a production crawler. It is an evidence-backed a
 
 > Which sources can populate which parts of the ontology, with what reliability and technical effort?
 
+The current publication-source plan treats PubMed as the primary publication
+identity and metadata hub, then uses PMC, Europe PMC, Unpaywall, DOI, and publisher
+links to classify full-text availability before any broad download or crawler
+strategy. See [PubMed Source Plan](pubmed_source_plan.md).
+
+For ongoing publication discovery, PubMed is the current primary source of new
+study detection. The preferred pipeline is PubMed discovery first, then identifier
+normalization, then access enrichment, then small full-text/PDF extraction samples.
+Priority should favor higher-reputation evidence such as systematic reviews,
+meta-analyses, randomized or controlled clinical trials, and placebo-controlled or
+double-blind designs.
+
 ## Non-Goals For Now
 
 - No user-facing medical tool.
