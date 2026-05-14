@@ -129,3 +129,21 @@ uv run python pocs/access_enrichment/enrich_access.py run --limit-per-class 10
 
 Outputs are local and ignored under `data/normalized/access_enrichment/` and
 `data/raw/access_enrichment/`.
+
+## Legacy-Anchored PubMed Discovery POC
+
+Implemented on 2026-05-14. The discovery POC uses the latest legacy reconciliation
+output as a curated identity index, then searches PubMed for high-evidence
+cannabinoid records that may sit outside the legacy dataset.
+
+Indexed identity signals:
+
+- `PMID`;
+- `PMCID`;
+- DOI;
+- canonical URL;
+- normalized title.
+
+The POC writes review-oriented outputs under
+`data/normalized/pubmed_discovery/` and does not download PDFs or retrieve full
+text. Missing legacy fields are not treated as errors.

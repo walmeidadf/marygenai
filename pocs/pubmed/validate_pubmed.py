@@ -264,18 +264,33 @@ class PubMedClient:
             params["email"] = self.email
         return params
 
-    def search(self, query: str, *, retmax: int, sort: str) -> dict[str, Any]:
+    def search(
+        self,
+        query: str,
+        *,
+        retmax: int,
+        sort: str,
+        datetype: str | None = None,
+        mindate: str | None = None,
+        maxdate: str | None = None,
+    ) -> dict[str, Any]:
+        params = {
+            "db": "pubmed",
+            "term": query,
+            "retmode": "json",
+            "retmax": retmax,
+            "sort": sort,
+        }
+        if datetype:
+            params["datetype"] = datetype
+        if mindate:
+            params["mindate"] = mindate
+        if maxdate:
+            params["maxdate"] = maxdate
+
         response = self.client.get(
             "/esearch.fcgi",
-            params=self.params(
-                {
-                    "db": "pubmed",
-                    "term": query,
-                    "retmode": "json",
-                    "retmax": retmax,
-                    "sort": sort,
-                }
-            ),
+            params=self.params(params),
         )
         response.raise_for_status()
         return response.json()["esearchresult"]

@@ -32,8 +32,8 @@ This means the next useful work is to learn how much of the legacy dataset and n
 search results can be anchored to stable identifiers such as `PMID`, `PMCID`, and
 `DOI`, then classify full-text availability before downloading or parsing files.
 
-The next PubMed-specific POC should be legacy-anchored discovery: run focused
-PubMed queries, compare each result against the curated legacy identity index, and
+The current PubMed-specific POC is legacy-anchored discovery: run focused PubMed
+queries, compare each result against the curated legacy identity index, and
 separate exact legacy matches from possible matches, new candidates, and records
 that need manual identity review. This should happen before any broad full-text
 retrieval for newly discovered records.
@@ -227,6 +227,110 @@ Initial interpretation:
   they need DOI, PubMed, Europe PMC, or publisher resolution.
 - Duplicate `PMID` groups are rare but real, so downstream normalized publication
   records should not assume one legacy row equals one publication.
+
+### POC 7: Legacy-Anchored PubMed Discovery
+
+Goal: identify strong-evidence PubMed records outside the curated legacy dataset.
+
+Status: implemented on 2026-05-14; first network run pending.
+
+The discovery POC:
+
+- builds an identity index from the latest
+  `data/normalized/legacy_reconciliation/*_records.jsonl` output;
+- indexes `PMID`, `PMCID`, DOI, canonical URL, and normalized title;
+- runs strong-evidence cannabinoid PubMed queries across systematic reviews,
+  meta-analyses, randomized trials, controlled trials, double-blind trials,
+  placebo-controlled studies, and priority areas including pain, epilepsy,
+  adverse effects, dependence, anxiety, cancer, and inflammation;
+- classifies each PubMed record as `in_legacy_exact`, `possible_legacy_match`,
+  `new_candidate`, or `needs_manual_identity_review`;
+- computes a transparent `priority_score` from publication type/design hints,
+  human/animal/in vitro signals, priority condition terms, DOI/`PMCID`, abstract
+  availability, and recency.
+- keeps fuzzy title matching conservative: newer PubMed records are not linked to
+  older legacy records unless a stable identifier or exact normalized title agrees.
+- marks `cannabinoid_focus` and `full_text_review_priority` in review exports so
+  HITL can prioritize high-value records that need manual full-text/PDF access.
+- exports `study_design` and `study_design_rank` using this hierarchy:
+  `Case Report < Case Series < Case-Control < Cohort Study <
+  Controlled Clinical Trial < Randomized Controlled Trial < Systematic Review <
+  Meta-Analysis`.
+
+Run:
+
+```bash
+uv run python -m pocs.pubmed_discovery.discover_pubmed run --retmax 100
+```
+
+Outputs are local and ignored under `data/normalized/pubmed_discovery/`:
+
+- `*_records.jsonl`;
+- `*_legacy_matches.jsonl`;
+- `*_new_candidates.jsonl`;
+- `*_review_export.csv`;
+- `*_summary.json`.
+
+Date-window runs are organized under paths such as
+`data/normalized/pubmed_discovery/pdat/2026-04/`. The POC also writes a local
+`_manifest.json` and skips matching completed windows by default, so monthly
+backfills do not need to hit PubMed again.
+
+### POC 8: NIH iCite Citation Enrichment
+
+Goal: evaluate whether citation and influence metrics improve review
+prioritization for PubMed discovery candidates.
+
+Status: implemented on 2026-05-14; first network run pending.
+
+NIH iCite exposes an API for PMID batches and fields such as citation count,
+Relative Citation Ratio, and translational indicators. The first POC should enrich
+the PubMed discovery candidate PMIDs rather than search independently, then compare
+whether citation metrics change the review queue in a useful way.
+
+Initial fields to evaluate:
+
+- total citations / `citedByPmidCount`;
+- Relative Citation Ratio;
+- cited-by clinical articles, when available;
+- human, animal, and molecular/cellular orientation;
+- Approximate Potential to Translate.
+
+Guardrails:
+
+- treat citation metrics as a prioritization signal, not as evidence quality;
+- account for recency bias, because newer studies have had less time to accrue
+  citations;
+- preserve the PubMed POC score and iCite score as separate columns;
+- do not let citation metrics overwrite `study_design_rank`, `cannabinoid_focus`,
+  or `full_text_review_priority`;
+- do not retrieve full text or download PDFs in this enrichment step.
+
+Run:
+
+```bash
+uv run python -m pocs.icite_enrichment.enrich_icite run \
+  --input-path data/normalized/pubmed_discovery/pdat/2026-04/20260514T220709Z_pubmed_discovery_records.jsonl
+```
+
+Outputs are local and ignored under `data/normalized/icite_enrichment/`:
+
+- `*_records.jsonl`;
+- `*_review_export.csv`;
+- `*_summary.json`.
+
+A local `_manifest.json` records the input path and file hash so the same
+discovery file is not queried again unless `--no-skip-existing` is used.
+
+Next evaluation:
+
+- pull older PubMed discovery windows so citation metrics have had enough time to
+  mature;
+- compare the original PubMed `priority_score` ranking against
+  `citation_priority_score`;
+- review whether highly cited records are genuinely better HITL candidates;
+- keep recency bias visible so citation-based sorting does not bury newer
+  high-value studies.
 
 ### POC 3: Full-Text Availability Resolver
 

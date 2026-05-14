@@ -93,6 +93,73 @@ Conclusion: Europe PMC and Unpaywall are useful enrichment sources. Europe PMC c
 discover DOI/`PMCID` for PMID-only records, and those DOI values can feed Unpaywall
 in the same pass.
 
+### POC 7: Legacy-Anchored PubMed Discovery
+
+Status: implemented on 2026-05-14; first network run pending.
+
+Goal: discover strong-evidence PubMed records outside the curated legacy dataset.
+
+Implementation:
+
+- reads the latest legacy reconciliation records and builds an identity index from
+  `PMID`, `PMCID`, DOI, canonical URL, and normalized title;
+- runs strong-evidence PubMed queries for systematic reviews, meta-analyses,
+  randomized/controlled trials, double-blind and placebo-controlled studies across
+  pain, epilepsy, adverse effects, dependence, anxiety, cancer, and inflammation;
+- classifies results as exact legacy matches, possible legacy matches, new
+  candidates, or manual identity-review records;
+- exports scored JSONL and CSV files for review without retrieving full text or
+  downloading PDFs.
+- ranks study design with the current evidence hierarchy:
+  `Case Report < Case Series < Case-Control < Cohort Study <
+  Controlled Clinical Trial < Randomized Controlled Trial < Systematic Review <
+  Meta-Analysis`.
+
+Expected command:
+
+```bash
+uv run python -m pocs.pubmed_discovery.discover_pubmed run --retmax 100
+```
+
+### POC 8: NIH iCite Citation Enrichment
+
+Status: implemented on 2026-05-14; first network run pending.
+
+Goal: enrich PubMed discovery candidates with citation and influence metrics for
+review prioritization.
+
+Implementation:
+
+- reads a PubMed discovery records JSONL/CSV, defaulting to the latest
+  `*_pubmed_discovery_records.jsonl`;
+- queries NIH iCite in PMID batches of up to 200;
+- preserves PubMed `priority_score`, `study_design_rank`, `cannabinoid_focus`, and
+  `full_text_review_priority`;
+- adds separate `icite_*` fields for citation count / cited-by PMID count,
+  Relative Citation Ratio, NIH percentile, clinical citation signals,
+  human/animal/molecular-cellular orientation, and Approximate Potential to
+  Translate when available;
+- computes a separate `citation_priority_score` for review queue experiments;
+- writes a local `_manifest.json` keyed by input path and file hash so the same
+  input is not queried repeatedly by default.
+
+Expected command:
+
+```bash
+uv run python -m pocs.icite_enrichment.enrich_icite run \
+  --input-path data/normalized/pubmed_discovery/pdat/2026-04/20260514T220709Z_pubmed_discovery_records.jsonl
+```
+
+Citation metrics remain prioritization signals, not evidence quality. Missing
+iCite metrics are not errors, and citation data must not override study design or
+human review requirements.
+
+Next evaluation: run POC 7 and POC 8 over older publication-date windows to test
+whether citation metrics improve candidate ordering once records have had time to
+accumulate citations. Compare the original PubMed discovery order against
+`citation_priority_score`, and explicitly watch for citation-only ranking
+under-prioritizing recent but important studies.
+
 ## Recent POCs
 
 ### POC 6: Small Full-Text And PDF Sample
