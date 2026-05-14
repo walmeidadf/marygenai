@@ -1,10 +1,15 @@
 import json
 
 from pocs.pdf_samples.extract_evidence import (
+    EXTRACTOR_VERSION,
     ExtractionProvider,
+    build_record,
+    build_review_export_rows,
     heuristic_candidates,
     normalize_candidates,
     parse_candidate_extraction,
+    retry_wait_seconds,
+    select_prompt_sections,
     text_to_sections,
 )
 from pocs.pdf_samples.sample_full_text import (
@@ -123,3 +128,62 @@ def test_poc6b_llm_candidate_parser_filters_to_target_fields() -> None:
 
     assert [candidate.field_name for candidate in extraction.candidates] == ["dosage"]
     assert extraction.candidates[0].needs_review is True
+
+
+def test_poc6c_section_selection_prioritizes_field_specific_sections() -> None:
+    sections = [
+        ("Discussion", "Cannabidiol and adverse events are discussed broadly."),
+        ("Methods", "Participants received oral cannabidiol at 20 mg/kg/day."),
+        ("References", "Dose and trial citations."),
+    ]
+
+    selected = select_prompt_sections(sections, ["dosage"], max_chars=500)
+
+    assert selected.startswith("[Methods]")
+    assert "[References]" not in selected
+    assert "Target fields likely here: dosage." in selected
+
+
+def test_poc6c_review_export_preserves_human_review_placeholders() -> None:
+    item = read_manifest(DEFAULT_MANIFEST_PATH)[0]
+    extraction = heuristic_candidates(
+        item,
+        [("Methods", "Participants received oral cannabidiol at 20 mg/kg/day.")],
+    )
+    record = build_record(
+        item=item,
+        text_path=DEFAULT_MANIFEST_PATH,
+        text="sample text",
+        provider_results=[],
+        heuristic_extraction=extraction,
+        run_id="test-run",
+        created_at="2026-05-14T00:00:00+00:00",
+    )
+
+    rows = build_review_export_rows(
+        records=[record],
+        ontology_version="test-ontology",
+        extractor_version=EXTRACTOR_VERSION,
+        created_at="2026-05-14T00:00:00+00:00",
+    )
+
+    dosage_row = next(row for row in rows if row.field_name == "dosage")
+    assert dosage_row.needs_review is True
+    assert dosage_row.review_state == "needs_review"
+    assert dosage_row.reviewer_identity is None
+    assert dosage_row.original_value == dosage_row.candidate_value
+    assert dosage_row.ontology_version == "test-ontology"
+
+
+def test_poc6c_retry_wait_uses_retry_after_before_reset_headers() -> None:
+    wait_seconds, reason = retry_wait_seconds(
+        {
+            "retry-after": "3",
+            "x-ratelimit-reset-tokens": "12s",
+        },
+        attempt=1,
+        retry_base_seconds=2,
+    )
+
+    assert wait_seconds == 3
+    assert reason == "retry-after"

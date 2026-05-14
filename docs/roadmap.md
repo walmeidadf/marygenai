@@ -23,10 +23,18 @@ The pipeline shape should be:
 
 This preserves two separate tracks:
 
-- legacy validation: use the legacy dataset to test the full local workflow end to
-  end;
-- new discovery: use PubMed queries to estimate how many additional candidate
-  studies exist beyond the legacy dataset.
+- legacy-anchored validation: use the curated legacy dataset as a trusted
+  reference for identity, inclusion, study classification, conditions, compounds,
+  and any populated field values;
+- new discovery: use PubMed queries to find relevant studies outside the legacy
+  dataset, then prioritize them for access enrichment and review.
+
+The legacy dataset is a high-trust curated reference produced with physician
+involvement. It should not be treated as disposable historical data. When a legacy
+field is populated, it can be used as a strong reference value for comparison and
+review. When a field is absent, especially dosage or treatment duration, the
+pipeline should distinguish between `not_reported`, `not_applicable`, and
+`needs_more_evidence` rather than assuming an extraction failure.
 
 ## Completed POCs
 
@@ -220,11 +228,11 @@ Next step before broader extraction: improve section selection, add
 rate-limit-aware retry/backoff, and design a human-review export over the
 normalized candidate fields.
 
-## Recommended Next Session
+## Recently Completed
 
 ### POC 6c: Review Export And Better Evidence Selection
 
-Status: proposed next.
+Status: completed first local review-export pass on 2026-05-14.
 
 Goal: turn the POC 6b normalized candidates into something a human reviewer can
 inspect efficiently, while improving prefill quality before any larger LLM run.
@@ -262,14 +270,71 @@ Success criteria:
 - remote provider failures are recorded with actionable retry/rate-limit metadata;
 - no generated data or raw provider outputs are committed.
 
-After POC 6c, the best next branch is the PubMed discovery expansion POC below.
+First POC 6c run:
 
-## Parallel Future Track
+- run id: `20260514T110018Z`;
+- command: `uv run python pocs/pdf_samples/extract_evidence.py run --source-record-id 340 --source-record-id 164 --source-record-id 43`;
+- records tested: `340`, `164`, and `43`;
+- providers: heuristic baseline only;
+- normalized fields: 20;
+- review export rows: 20;
+- provider errors: 0.
 
-After POC 6b, run a PubMed discovery expansion POC to estimate additional
-candidate studies beyond the legacy dataset.
+Implemented changes:
 
-Priority queries should focus on higher-reputation evidence:
+- field-specific section ranking for prompt selection and heuristic candidate
+  ordering, with stronger section hints for dosage, adverse events, population,
+  study design, and arms/comparators;
+- review export rows under `data/normalized/pdf_samples` with source record id,
+  title, field, candidate value, evidence text, source section, provider, model,
+  confidence, ontology version, extractor version, review placeholders, and
+  `needs_review=true`;
+- retry/backoff support for Groq and OpenRouter calls using `retry-after` and
+  rate-limit reset headers before exponential fallback;
+- summaries now include review export path, review row counts, rate-limit
+  headers, and retry events.
+
+Next validation:
+
+- run Groq and OpenRouter one provider at a time on the same three records when
+  API keys and rate budget are available;
+- inspect the review export with a human reviewer before expanding to the
+  remaining saved POC 6 text samples.
+
+## Recommended Next Session
+
+### POC 7: Legacy-Anchored PubMed Discovery
+
+Status: proposed next.
+
+Goal: find relevant PubMed records outside the curated legacy dataset while
+preserving the legacy dataset as the trusted reference for identity and inclusion.
+
+Why this comes next:
+
+- the project needs a repeatable way to detect new scientific publications beyond
+  the 7,347 legacy study rows;
+- POC 1 proved PubMed can provide strong publication identity and metadata;
+- POC 2 proved most legacy rows can be anchored to `PMID`, `PMCID`, DOI, or URL;
+- the missing piece is the association layer between fresh PubMed query results
+  and the existing curated legacy base.
+
+Scope:
+
+- create a legacy identity index from the latest legacy reconciliation output,
+  keyed by `PMID`, `PMCID`, DOI, canonical URL, and normalized title;
+- run a small set of PubMed query families focused on high-reputation evidence:
+  systematic reviews, meta-analyses, randomized trials, controlled trials,
+  double-blind trials, placebo-controlled studies, and priority condition areas;
+- compare every fetched PubMed record against the legacy index;
+- classify each result as `in_legacy_exact`, `possible_legacy_match`,
+  `new_candidate`, or `needs_manual_identity_review`;
+- calculate a simple prioritization score using publication type, study design
+  hints, human/animal/in-vitro signal, priority condition terms, DOI/`PMCID`
+  availability, abstract availability, and full-text access hints when available;
+- export review rows for new candidates and ambiguous identity matches.
+
+Priority query areas:
 
 - cannabinoid systematic reviews;
 - cannabinoid meta-analyses;
@@ -280,11 +345,87 @@ Priority queries should focus on higher-reputation evidence:
 - condition-specific high-priority areas such as pain, epilepsy, adverse effects,
   dependence, anxiety, cancer, and inflammation.
 
-This discovery track should answer:
+Suggested outputs:
 
-- how many new PubMed records are outside the legacy dataset;
-- how many have DOI/`PMCID`;
-- how many are systematic reviews, meta-analyses, or controlled trials;
-- how much overlap exists with the 7,347 legacy rows;
-- whether PubMed queries alone are sufficient as the ongoing study detection
-  mechanism.
+- `data/normalized/pubmed_discovery/*_records.jsonl`;
+- `data/normalized/pubmed_discovery/*_legacy_matches.jsonl`;
+- `data/normalized/pubmed_discovery/*_new_candidates.jsonl`;
+- `data/normalized/pubmed_discovery/*_review_export.csv`;
+- `data/normalized/pubmed_discovery/*_summary.json`.
+
+Success criteria:
+
+- every PubMed result is assigned a transparent legacy association state;
+- exact matches cite the identifier or title rule that matched;
+- possible matches preserve enough evidence for manual identity review;
+- new candidates are prioritized by scientific relevance and available metadata;
+- generated outputs remain ignored under `data/`;
+- no full-text extraction or broad PDF retrieval is added in this POC.
+
+### POC 8: HITL Review Package And Tool Evaluation
+
+Status: proposed after POC 7.
+
+Goal: turn candidate evidence, legacy references, and new-publication inclusion
+decisions into a human-review workflow that can be tested before choosing a final
+review tool.
+
+Why this follows POC 7:
+
+- POC 6c created field-level review rows for extracted evidence;
+- POC 7 will create inclusion and identity-review rows for records outside the
+  legacy base;
+- the project needs one review contract that can handle both field review and
+  publication inclusion review;
+- Label Studio may be useful, but the contract should be validated before the
+  interface choice becomes a commitment.
+
+Review principles:
+
+- treat populated legacy values as trusted curated reference values;
+- preserve side-by-side comparison between extracted candidates and legacy
+  reference values;
+- distinguish `not_reported`, `not_applicable`, and `needs_more_evidence`,
+  especially for dosage and treatment duration;
+- keep review state field-aware, because a record can have reviewed identity or
+  conditions while dosing, adverse events, or protocol details remain unreviewed.
+
+Scope:
+
+- read POC 6c review exports and POC 7 discovery review exports;
+- enrich review rows with legacy reference values when an identity match exists;
+- add comparison state such as `legacy_match`, `legacy_conflict`,
+  `legacy_missing`, `legacy_not_applicable`, and `new_candidate`;
+- generate a low-friction CSV review sheet for immediate reviewer testing;
+- generate Label Studio task JSON for a small tool evaluation, without making
+  Label Studio the fixed review system yet;
+- document the minimum fields required for reviewed output: reviewer identity,
+  reviewed field, original value, reviewed value, decision, timestamp, notes,
+  ontology version, and extractor version.
+
+Suggested review decisions:
+
+- `approve`;
+- `edit`;
+- `reject`;
+- `not_applicable`;
+- `not_reported`;
+- `needs_more_evidence`.
+
+Suggested outputs:
+
+- `data/normalized/hitl_review/*_review_sheet.csv`;
+- `data/normalized/hitl_review/*_label_studio_tasks.json`;
+- `data/normalized/hitl_review/*_review_contract.json`;
+- `data/normalized/hitl_review/*_summary.json`.
+
+Success criteria:
+
+- a reviewer can inspect candidate value, evidence text, source section, provider,
+  model, confidence, and legacy reference side by side;
+- the workflow supports both field-level extraction review and new-publication
+  inclusion review;
+- the export is usable in a spreadsheet immediately;
+- the same review contract can be imported into Label Studio for comparison;
+- the project can decide whether Label Studio, spreadsheet review, or a custom UI
+  is the next best review interface.

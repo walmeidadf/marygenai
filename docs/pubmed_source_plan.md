@@ -32,6 +32,12 @@ This means the next useful work is to learn how much of the legacy dataset and n
 search results can be anchored to stable identifiers such as `PMID`, `PMCID`, and
 `DOI`, then classify full-text availability before downloading or parsing files.
 
+The next PubMed-specific POC should be legacy-anchored discovery: run focused
+PubMed queries, compare each result against the curated legacy identity index, and
+separate exact legacy matches from possible matches, new candidates, and records
+that need manual identity review. This should happen before any broad full-text
+retrieval for newly discovered records.
+
 ## Source Roles
 
 ### PubMed
@@ -430,9 +436,31 @@ Initial interpretation:
 - HITL should be considered part of the extraction architecture, not a later
   cleanup step. Every field candidate from this run remains `needs_review`.
 
+### POC 7: Legacy-Anchored PubMed Discovery
+
+Goal: find relevant PubMed publications outside the curated legacy dataset.
+
+Status: proposed next.
+
+Tasks:
+
+- build a legacy identity index from the latest legacy reconciliation records;
+- run high-reputation PubMed query families for systematic reviews,
+  meta-analyses, randomized/controlled trials, double-blind trials,
+  placebo-controlled studies, and priority condition areas;
+- classify every PubMed result as an exact legacy match, possible legacy match,
+  new candidate, or manual identity-review item;
+- score new candidates by evidence reputation, human/animal/in-vitro signal,
+  priority condition terms, DOI/`PMCID`, abstract availability, and publication
+  date;
+- export ambiguous matches and new candidates for human review.
+
+This POC should not perform full-text extraction. Its job is publication discovery
+and association against the trusted legacy base.
+
 ## Continuous Crawler Gate
 
-Do not design a continuous crawler until the project has evidence from POCs 1-6.
+Do not design a continuous crawler until the project has evidence from POCs 1-8.
 
 A crawler design should only follow after the team can answer:
 
@@ -461,12 +489,12 @@ POC 6b observations:
 - OpenRouter `openrouter/free` worked for one case-report record, while explicit
   free model tests showed truncation and `429` risks.
 
-The next source-track implementation should improve section ranking and
-rate-limit-aware retries before expanding LLM extraction beyond a few hand-picked
-records. Do not add a broad PDF parser until HTML/XML text extraction and review
-prefill behavior are better understood.
+POC 6c improved section ranking, added review export rows, and added
+rate-limit-aware retry/backoff. The next PubMed source-track implementation is
+POC 7: legacy-anchored discovery to estimate how many additional
+higher-reputation studies exist beyond the curated legacy dataset.
 
-After the LLM comparison, prepare a PubMed discovery expansion POC to estimate how
-many additional higher-reputation studies exist beyond the legacy dataset.
 Prioritize systematic reviews, meta-analyses, randomized controlled trials,
-controlled clinical trials, double-blind trials, and placebo-controlled studies.
+controlled clinical trials, double-blind trials, placebo-controlled studies, and
+priority condition areas such as pain, epilepsy, adverse effects, dependence,
+anxiety, cancer, and inflammation.

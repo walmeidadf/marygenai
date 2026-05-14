@@ -62,3 +62,33 @@ Provider behavior should be recorded as provenance and operational evidence.
 Local models may be useful for candidate discovery, while hosted models can be
 used for structured comparison. Rate-limit headers, provider errors, and rejected
 JSON are part of the POC result, not incidental noise.
+
+## 2026-05-14: Use Review-Ready JSONL Rows Before Choosing A Review Tool
+
+POC 6c uses field-level JSONL rows as the first human-review interchange format.
+Each row preserves the source record id, field, candidate value, evidence text,
+section, provider, model, confidence, ontology version, extractor version, and
+empty review placeholders for reviewer identity, reviewed value, timestamp, and
+notes.
+
+This keeps the review contract explicit while deferring the final interface choice
+between Label Studio, spreadsheet review, or a custom review UI.
+
+## 2026-05-14: Treat Legacy As A Trusted Curated Reference
+
+The legacy dataset should be used as a high-trust curated reference, not merely as
+historical data. Populated legacy values can anchor validation and comparison for
+identity, inclusion, study classification, conditions, compounds, and extracted
+field values.
+
+Missing legacy values should remain interpretable. For sparse or context-dependent
+fields such as dosage and treatment duration, absence may mean `not_applicable` or
+`not_reported`, especially for simpler studies or records without intervention,
+control group, placebo, or protocol details.
+
+## 2026-05-14: Separate Discovery From Full-Text Extraction
+
+New-publication discovery should first associate PubMed results against the legacy
+identity index and classify records as exact matches, possible matches, new
+candidates, or manual identity-review items. Full-text access enrichment and
+field extraction should run only after records are prioritized for inclusion.

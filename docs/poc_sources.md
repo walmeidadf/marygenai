@@ -34,8 +34,11 @@ Near-term order:
 4. Europe PMC comparison and enrichment. Completed first small sample on
    2026-05-13.
 5. Unpaywall DOI enrichment. Completed first sampled pass on 2026-05-13.
-6. Small full-text and PDF sample. Next planned POC.
-7. PubMed discovery expansion for high-reputation study types.
+6. Small full-text and PDF sample, followed by evidence extraction and review
+   export. Completed first local review-export pass on 2026-05-14.
+7. Legacy-anchored PubMed discovery for high-reputation study types. Proposed
+   next POC.
+8. HITL review package and review-tool evaluation. Proposed after POC 7.
 
 The project should not design a continuous crawler until these POCs show which
 sources are reliable, which fields require full text, and which access paths are

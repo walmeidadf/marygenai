@@ -41,6 +41,17 @@ POC 6 reinforced that field-level extraction records should store:
 - review state;
 - errors and fallback attempts.
 
+POC 7 should add a legacy association layer for publication discovery. Fresh
+PubMed results should be compared against the curated legacy dataset by stable
+identifiers first, then canonical URL and normalized title. The association state
+should be explicit, for example `in_legacy_exact`, `possible_legacy_match`,
+`new_candidate`, or `needs_manual_identity_review`.
+
+The legacy dataset is a trusted curated reference. Populated legacy values should
+be preserved as reference values for comparison and review. Missing legacy values
+should not be interpreted as extraction failures without field applicability
+context.
+
 ### Ontology Layer
 
 Versioned vocabularies and mappings stored under `ontology/`.
@@ -63,6 +74,7 @@ Deferred until after source POCs. Candidate storage approaches include:
 - Keep source payloads auditable.
 - Separate document identity from source identity.
 - Separate extraction from review.
+- Separate legacy association from new-publication discovery.
 - Treat dosing and drug interactions as specialized extraction domains.
 - Prefer field-level provenance over a single record-level confidence score.
 

@@ -73,6 +73,16 @@ uv run python pocs/pdf_samples/extract_evidence.py run \
   --prompt-max-chars 3500
 ```
 
+POC 6c keeps the same runner but writes review-ready rows and uses field-specific
+section ranking before remote provider calls:
+
+```bash
+uv run python pocs/pdf_samples/extract_evidence.py run \
+  --source-record-id 340 \
+  --source-record-id 164 \
+  --source-record-id 43
+```
+
 ## Inputs
 
 - `pocs/pdf_samples/sample_manifest.json`: fixed 10-record mixed sample selected
@@ -96,6 +106,12 @@ Sample categories:
   normalized candidate evidence records;
 - `data/normalized/pdf_samples/*_poc6b_evidence_summary.json`: POC 6b comparison
   summary.
+- `data/normalized/pdf_samples/*_poc6c_evidence_records.jsonl`: POC 6c
+  section-ranked normalized candidate evidence records;
+- `data/normalized/pdf_samples/*_poc6c_review_export.jsonl`: field-level rows for
+  human review, with review provenance placeholders;
+- `data/normalized/pdf_samples/*_poc6c_evidence_summary.json`: POC 6c comparison
+  and review-export summary.
 
 Every field extraction is marked `needs_review`. The heuristic extractor is a
 candidate finder, not a source of reviewed truth.
@@ -205,12 +221,8 @@ outputs, and every accepted field remains a human-review item.
 
 - Add an explicit PDF text parser only after HTML/XML extraction gaps are better
   understood.
-- Improve section selection so dosage, arms, adverse events, and population fields
-  use sections most likely to contain exact values rather than broad discussion
-  context.
-- Add provider retry/backoff behavior that uses `retry-after` and rate-limit reset
-  headers.
+- Compare the POC 6c review export with a real reviewer workflow before choosing
+  Label Studio, spreadsheet review, or a custom review UI.
 - Add section-aware table extraction for dosage, arms, and adverse events.
-- Add a small human-review export format that preserves reviewer identity,
-  reviewed field, original value, reviewed value, timestamp, notes, ontology
-  version, and extractor version.
+- Expand to the remaining saved POC 6 records only after the review export shape
+  proves ergonomic.
