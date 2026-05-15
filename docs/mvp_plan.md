@@ -101,8 +101,9 @@ Citation metrics must never override weak cannabinoid focus.
 
 ### 1. Initial Load
 
-Status: JSONL Initial Load completed on 2026-05-15. SQLite persistence and the
-first local review queue foundation were added on 2026-05-15.
+Status: JSONL Initial Load completed on 2026-05-15. SQLite persistence, the first
+local review queue foundation, and the first review queue CLI/query layer were
+added on 2026-05-15.
 
 Command:
 
@@ -168,6 +169,19 @@ The first SQLite load creates the initial relational subset:
 The first review queue is `legacy_identity_review`. It opens one item per legacy
 publication candidate that lacks PMID, PMCID, and DOI, because those records rely
 on canonical URL, normalized title, or weaker legacy identity until reviewed.
+
+The first review access layer exposes Pydantic DTOs and CLI commands for queue
+inspection before a UI exists:
+
+```bash
+uv run marygenai review queues
+uv run marygenai review list --queue legacy_identity_review
+uv run marygenai review show <review_item_id_or_document_id>
+uv run marygenai review update <review_item_id> --status in_review --note "Review started"
+```
+
+The CLI reads and updates only operational SQLite review state. It does not
+modify Initial Load JSONL snapshots or run manifests.
 
 Populated legacy values should be treated as trusted curated references. Missing
 legacy fields should remain interpretable as `not_reported`, `not_applicable`, or

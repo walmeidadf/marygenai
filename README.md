@@ -46,6 +46,7 @@ uv run marygenai info
 uv run marygenai initial-load run
 uv run marygenai db init
 uv run marygenai initial-load persist
+uv run marygenai review queues
 ```
 
 ## Documentation
@@ -67,6 +68,13 @@ uv run marygenai initial-load persist
 - Create ignored local data layout: `uv run marygenai initial-load setup-data`
 - Initialize local SQLite review DB: `uv run marygenai db init`
 - Persist latest Initial Load snapshot to SQLite: `uv run marygenai initial-load persist`
+- List local review queues: `uv run marygenai review queues`
+- List open legacy identity review items:
+  `uv run marygenai review list --queue legacy_identity_review`
+- Show review detail for an item or publication:
+  `uv run marygenai review show <review_item_id_or_document_id>`
+- Update review item status:
+  `uv run marygenai review update <review_item_id> --status in_review --note "Review started"`
 - PubMed expanded metadata: `uv run python pocs/pubmed/validate_pubmed.py batch --retmax 100`
 - Legacy reconciliation: `uv run python pocs/legacy_reconciliation/reconcile_legacy.py run`
 - Link resolver: `uv run python pocs/link_resolver/resolve_links.py run`
@@ -110,6 +118,16 @@ or a specific run with `--run-id`. It populates `run_manifest`, `source_record`,
 `document`, `document_identity`, `publication`, `ontology_entity`,
 `document_ontology_link`, and a minimal `legacy_identity_review` queue for legacy
 publication candidates that lack PMID, PMCID, and DOI.
+
+The first review CLI inspects that operational queue without changing JSONL
+snapshots:
+
+```bash
+uv run marygenai review queues
+uv run marygenai review list --queue legacy_identity_review
+uv run marygenai review show <review_item_id_or_document_id>
+uv run marygenai review update <review_item_id> --status resolved --note "Identity confirmed"
+```
 
 Generated `data/` files remain ignored by Git. Old POC artifacts should be kept
 out of the active MVP workspace, either regenerated from POC commands when needed
