@@ -4,12 +4,14 @@ from rich.console import Console
 from marygenai import __version__
 from marygenai.initial_load.cli import app as initial_load_app
 from marygenai.persistence.cli import app as db_app
+from marygenai.review.cli import app as review_app
 from marygenai.settings import get_settings
 
 app = typer.Typer(help="MaryGenAI POC utilities.", no_args_is_help=True)
 console = Console()
 app.add_typer(initial_load_app, name="initial-load")
 app.add_typer(db_app, name="db")
+app.add_typer(review_app, name="review")
 
 
 @app.callback()

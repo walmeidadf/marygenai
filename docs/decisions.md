@@ -194,3 +194,16 @@ This does not choose the final database architecture. PostgreSQL, document
 stores, search indexes, graph stores, and vector indexes remain future options
 based on demonstrated review, ontology, collaboration, and GenAI retrieval access
 patterns.
+
+## 2026-05-15: Put Review Queue Access Behind Reusable DTOs Before UI
+
+The first review workflow implementation should expose SQLite review state
+through a small Pydantic access layer before adding FastAPI or a review UI. Queue
+items, publication summaries, publication detail records, ontology links, legacy
+reference values, and simple status updates are DTOs that can be reused by CLI,
+API endpoints, and later UI screens.
+
+The CLI is the first consumer of that layer. It can list queues, list open
+`legacy_identity_review` items, show publication details, and update review item
+status with an optional note. These operations mutate only operational SQLite
+review state and do not alter Initial Load JSONL snapshots or run manifests.
