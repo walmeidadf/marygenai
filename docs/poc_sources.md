@@ -36,10 +36,12 @@ Near-term order:
 5. Unpaywall DOI enrichment. Completed first sampled pass on 2026-05-13.
 6. Small full-text and PDF sample, followed by evidence extraction and review
    export. Completed first local review-export pass on 2026-05-14.
-7. Legacy-anchored PubMed discovery for high-reputation study types. Proposed
-   next POC.
-8. HITL review package and review-tool evaluation. Proposed after POC 7.
+7. Legacy-anchored PubMed discovery for high-reputation study types. Implemented
+   and validated on 2026-05-14 and 2026-05-15.
+8. NIH iCite citation enrichment. Implemented as a cost-benefit evaluation on
+   2026-05-14 and validated on an older April 2025 window on 2026-05-15.
+9. MVP review and curation platform. Proposed next; see [MVP Plan](mvp_plan.md).
 
-The project should not design a continuous crawler until these POCs show which
-sources are reliable, which fields require full text, and which access paths are
-lawful and operationally stable.
+The project should not design a broad continuous crawler yet. The next step is an
+internal MVP that turns the validated POC flows into a review queue and reviewed
+knowledge export.

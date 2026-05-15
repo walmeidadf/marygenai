@@ -26,6 +26,10 @@ Current status:
   publisher-only records;
 - access enrichment ran a 10-record Europe PMC sample on 2026-05-13 and found
   metadata for 7 records, including 5 open-access PDF candidates;
+- legacy-anchored PubMed discovery is implemented and can run date-windowed
+  discovery against the legacy identity index;
+- iCite citation enrichment is implemented but should remain a secondary
+  cost-benefit signal, not a primary ranking source;
 - DOI, abstract, journal, publication date, publication type, and publication status
   coverage were strong in the fetched sample;
 - `PMCID` coverage was useful but partial, so PMC should be the first full-text path
@@ -40,6 +44,8 @@ POC questions:
 - Can publication type improve the legacy `study_type` taxonomy?
 - Can PubMed query filters reliably prioritize systematic reviews, meta-analyses,
   randomized trials, controlled trials, and placebo-controlled studies?
+- Can query and ranking logic keep `cannabinoid_focus` dominant over citation and
+  general publication influence?
 - How much parsing effort is required for XML?
 - How often can PubMed records be linked to PMC, Europe PMC, Unpaywall, DOI, or
   publisher access paths?

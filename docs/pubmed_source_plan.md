@@ -231,7 +231,7 @@ Initial interpretation:
 
 Goal: identify strong-evidence PubMed records outside the curated legacy dataset.
 
-Status: implemented on 2026-05-14; first network run pending.
+Status: implemented and validated on 2026-05-14 and 2026-05-15.
 
 The discovery POC:
 
@@ -277,15 +277,15 @@ backfills do not need to hit PubMed again.
 
 ### POC 8: NIH iCite Citation Enrichment
 
-Goal: evaluate whether citation and influence metrics improve review
-prioritization for PubMed discovery candidates.
+Goal: evaluate the cost-benefit of citation and influence metrics for PubMed
+discovery candidates.
 
-Status: implemented on 2026-05-14; first network run pending.
+Status: implemented and validated on 2026-05-14 and 2026-05-15.
 
 NIH iCite exposes an API for PMID batches and fields such as citation count,
-Relative Citation Ratio, and translational indicators. The first POC should enrich
-the PubMed discovery candidate PMIDs rather than search independently, then compare
-whether citation metrics change the review queue in a useful way.
+Relative Citation Ratio, and translational indicators. This enrichment should use
+the PubMed discovery candidate PMIDs rather than search independently, then
+compare whether citation metrics change the review queue in a useful way.
 
 Initial fields to evaluate:
 
@@ -338,14 +338,15 @@ Older-window validation:
 
 Result: citation metrics improved visibility into influence, but citation-only
 sorting promoted weak cannabinoid-focus records and buried some high-priority
-recent RCTs and reviews. The review queue should therefore preserve PubMed
-`priority_score` as the baseline and use citation metrics as secondary signals
-with explicit recency-bias guardrails.
+recent RCTs and reviews. The review queue should therefore make
+`cannabinoid_focus` the dominant signal, preserve PubMed `priority_score` as a
+secondary baseline, and use citation metrics as optional audit signals with
+explicit recency-bias guardrails.
 
-Next step: begin MVP design for the human-reviewed evidence curation workflow
-using PubMed discovery, legacy association, access enrichment, iCite enrichment,
-and review-row provenance. Semantic Scholar access can still improve enrichment
-later, but the API key is not required to define the first MVP.
+Next step: begin MVP implementation for the human-reviewed evidence curation
+workflow using PubMed discovery, legacy association, access enrichment, and
+review-row provenance. iCite and Semantic Scholar can improve enrichment later,
+but neither is required for the first MVP.
 
 ### POC 3: Full-Text Availability Resolver
 
@@ -559,9 +560,9 @@ Initial interpretation:
 
 Goal: find relevant PubMed publications outside the curated legacy dataset.
 
-Status: proposed next.
+Status: implemented and validated.
 
-Tasks:
+Implemented tasks:
 
 - build a legacy identity index from the latest legacy reconciliation records;
 - run high-reputation PubMed query families for systematic reviews,
@@ -574,12 +575,14 @@ Tasks:
   date;
 - export ambiguous matches and new candidates for human review.
 
-This POC should not perform full-text extraction. Its job is publication discovery
-and association against the trusted legacy base.
+This POC does not perform full-text extraction. Its job is publication discovery
+and association against the trusted legacy base. The MVP should reuse this flow
+for incremental discovery from the latest legacy publication boundary.
 
 ## Continuous Crawler Gate
 
-Do not design a continuous crawler until the project has evidence from POCs 1-8.
+Do not design a broad continuous crawler until the MVP review workflow proves
+which candidate classes are worth recurring ingestion.
 
 A crawler design should only follow after the team can answer:
 

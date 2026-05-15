@@ -4,7 +4,11 @@ Guidance for AI agents working on MaryGenAI.
 
 ## Project Mission
 
-MaryGenAI is a research and engineering lab for building a reliable, human-reviewed cannabinoid evidence knowledge base. The near-term goal is not to ship a user-facing medical tool. The near-term goal is to evaluate data sources, shape the ontology, and learn which extraction strategies are trustworthy.
+MaryGenAI is a research and engineering lab for building a reliable,
+human-reviewed cannabinoid evidence knowledge base. The near-term goal is not to
+ship a user-facing medical tool. The near-term goal is to build an internal MVP
+for validating the legacy dataset, discovering new candidate publications,
+enriching them through validated source flows, and preserving review provenance.
 
 ## Core Rules
 
@@ -16,12 +20,14 @@ MaryGenAI is a research and engineering lab for building a reliable, human-revie
 - Preserve legacy files in `temp/legacy/` unless the user explicitly asks to delete them.
 - Prefer small POCs over production abstractions until a source has been evaluated.
 - Record architecture decisions in `docs/decisions.md` when a meaningful choice is made.
+- Keep MVP planning aligned with `docs/mvp_plan.md`.
 
 ## Common Commands
 
 ```bash
 uv sync --extra dev
 uv run marygenai info
+uv run marygenai initial-load run
 uv run ruff check .
 uv run pytest
 ```
@@ -49,6 +55,36 @@ Each source POC should answer:
 - Should this source become a production adapter, enrichment source, or be discarded?
 
 POCs may write outputs to `data/`, but should include enough code and notes to reproduce the experiment.
+Keep POC outputs separate from MVP Initial Load outputs. If old local artifacts
+make `data/` noisy, archive them under `temp/scratch/` rather than committing
+them or mixing them with current MVP snapshots.
+
+## MVP Initial Load
+
+The first MVP implementation lives in `src/marygenai/initial_load/` and writes
+auditable JSONL snapshots plus run manifests under ignored `data/` paths.
+
+```bash
+uv run marygenai initial-load setup-data
+uv run marygenai initial-load run
+```
+
+The current Initial Load reads legacy Cannadocs CSVs from
+`temp/legacy/cannadocs/`, handles Unicode filenames without renaming them,
+normalizes legacy source records, canonical publication candidates, ontology
+entities, document-to-ontology links, and run metadata. SQLite helpers are
+prepared under `src/marygenai/persistence/`, but SQLite tables are not populated
+yet.
+
+## MVP Prioritization
+
+- `cannabinoid_focus` is the dominant prioritization signal and should outweigh
+  citation metrics, recency, and general publication influence.
+- Treat iCite and other citation metrics as secondary audit/enrichment signals,
+  not as primary ranking inputs.
+- Semantic Scholar is a later enrichment source, not a blocker for MVP design.
+- The first MVP surface is a review and curation workflow, not a clinical
+  recommendation interface.
 
 ## Data Modeling Principles
 

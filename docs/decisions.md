@@ -101,10 +101,11 @@ The window produced 67 deduplicated records, with iCite coverage for all PMIDs,
 but citation-only ranking promoted several weak cannabinoid-focus records and
 buried some strong recent RCTs and reviews with low citation maturity.
 
-Review prioritization should therefore keep PubMed discovery score, study design,
-cannabinoid focus, and full-text review priority as the baseline. Citation count,
-Relative Citation Ratio, and related iCite fields should be used as secondary
-signals and audit columns, not replacements for evidence design or human review.
+Review prioritization should therefore keep cannabinoid focus, PubMed discovery
+score, study design, and full-text review priority as the baseline. Citation
+count, Relative Citation Ratio, and related iCite fields should be used as
+secondary signals and audit columns, not replacements for cannabinoid relevance,
+evidence design, or human review.
 
 ## 2026-05-15: Start MVP Design Around Review And Curation
 
@@ -118,3 +119,60 @@ surface should help human reviewers inspect candidate studies, compare provenanc
 resolve inclusion and identity decisions, and preserve field-level review
 metadata. Semantic Scholar can be added later as an enrichment source rather than
 a blocker for the first MVP design.
+
+## 2026-05-15: Make Cannabinoid Focus The Dominant MVP Ranking Signal
+
+The MVP review queue should be dominated by `cannabinoid_focus`. Direct evidence
+in title or indexed PubMed metadata should place a record in the primary review
+queue. Abstract-only records should be handled cautiously, and records without a
+cannabinoid signal should not be promoted automatically by recency, study design,
+or citation metrics.
+
+iCite remains a cost-benefit evaluation and optional secondary enrichment source,
+not a priority for the first MVP. Citation metrics must not outrank cannabinoid
+relevance.
+
+## 2026-05-15: Use Local-First Hybrid Persistence For MVP Architecture
+
+The first MVP should use a local-first hybrid persistence model: immutable raw
+payloads and snapshots in ignored local files, review application state in
+SQLite, and JSONL or Parquet exports for audit and interchange. Local `data/`
+paths should mirror future S3-compatible object keys so raw payloads, staging
+outputs, normalized records, reviewed snapshots, and run manifests can later move
+to object storage without changing source adapter contracts.
+
+Docker Compose should be introduced around concrete API, worker, UI, and database
+roles, not before the review data model is clear. PostgreSQL, search indexes,
+graph storage, and vector indexes remain future options to add when multi-user
+concurrency, search, relationship traversal, or semantic retrieval requirements
+are demonstrated.
+
+## 2026-05-15: Keep GenAI Retrieval And Ontology Storage Options Open
+
+MaryGenAI should explicitly preserve a GenAI architecture path. The future
+platform should support agentic evidence search, hybrid lexical/vector retrieval,
+ontology-aware filters, and RAG over reviewed evidence while keeping generated
+answers grounded in reviewed fields, evidence text, and provenance.
+
+PostgreSQL should not be assumed as the only next database. PostgreSQL remains a
+strong option for relational review workflow state, while MongoDB or another
+document database may fit ontology-enriched entities and semi-structured metadata
+if those access patterns dominate. Qdrant should be considered a rebuildable
+retrieval layer for embeddings and hybrid search, not the source of truth.
+
+The legacy ontology CSVs for cannabinoids, medical conditions, organ systems,
+terpenes, and glossary terms should become normalized ontology entities with
+provenance and review state, then later accept vetted enrichments from sources
+such as Wikipedia, PubMed, MeSH, ICD, DrugBank, or Wikidata.
+
+## 2026-05-15: Start Initial Load With JSONL Snapshots And Run Manifests
+
+The MVP initial load should start with Pydantic contracts, ignored local JSONL
+snapshots, and run manifests before populating an operational database. This keeps
+legacy studies, source records, publication candidates, ontology entities, and
+document-to-ontology links auditable while preserving the option to add SQLite as
+the first review persistence layer once queue and review workflows are clearer.
+
+The local `data/` layout should be created by setup code and mirror the future
+object-storage layout from the MVP architecture requirements. Legacy CSV exports
+remain in `temp/legacy/` and are read in place without renaming Unicode filenames.
