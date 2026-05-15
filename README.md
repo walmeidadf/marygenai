@@ -47,6 +47,7 @@ uv run marygenai initial-load run
 uv run marygenai db init
 uv run marygenai initial-load persist
 uv run marygenai review queues
+uv run marygenai review-api serve --host 127.0.0.1 --port 8000
 ```
 
 ## Documentation
@@ -75,6 +76,8 @@ uv run marygenai review queues
   `uv run marygenai review show <review_item_id_or_document_id>`
 - Update review item status:
   `uv run marygenai review update <review_item_id> --status in_review --note "Review started"`
+- Serve the local review API:
+  `uv run marygenai review-api serve --host 127.0.0.1 --port 8000`
 - PubMed expanded metadata: `uv run python pocs/pubmed/validate_pubmed.py batch --retmax 100`
 - Legacy reconciliation: `uv run python pocs/legacy_reconciliation/reconcile_legacy.py run`
 - Link resolver: `uv run python pocs/link_resolver/resolve_links.py run`
@@ -128,6 +131,24 @@ uv run marygenai review list --queue legacy_identity_review
 uv run marygenai review show <review_item_id_or_document_id>
 uv run marygenai review update <review_item_id> --status resolved --note "Identity confirmed"
 ```
+
+The first local FastAPI layer serves the same review state for a future UI:
+
+```bash
+uv run marygenai review-api serve --host 127.0.0.1 --port 8000
+```
+
+Initial endpoints:
+
+- `GET /health`
+- `GET /review/queues`
+- `GET /review/queues/{queue_type}/items?status=open&limit=20`
+- `GET /review/items/{review_item_id}`
+- `GET /publications/{document_id}`
+- `PATCH /review/items/{review_item_id}/status`
+
+The API reads `data/db/marygenai.sqlite` by default, mutates only operational
+SQLite review state for status updates, and leaves JSONL snapshots unchanged.
 
 Generated `data/` files remain ignored by Git. Old POC artifacts should be kept
 out of the active MVP workspace, either regenerated from POC commands when needed

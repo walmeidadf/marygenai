@@ -207,3 +207,16 @@ The CLI is the first consumer of that layer. It can list queues, list open
 `legacy_identity_review` items, show publication details, and update review item
 status with an optional note. These operations mutate only operational SQLite
 review state and do not alter Initial Load JSONL snapshots or run manifests.
+
+## 2026-05-15: Use FastAPI As The First Local Review API Layer
+
+The first web-facing review layer uses FastAPI and Uvicorn as a thin local API
+over the existing `marygenai.review` DTOs and SQLite repository. It reads
+`data/db/marygenai.sqlite` by default, returns clear service errors when the
+operational database is missing or uninitialized, and exposes health, queue,
+review item, publication detail, and review status update endpoints.
+
+This keeps the future review UI decoupled from the CLI while preserving the same
+local-first persistence boundary: status updates mutate only operational SQLite
+review state, optional notes are stored in review item metadata history, and
+Initial Load JSONL snapshots remain immutable audit artifacts.

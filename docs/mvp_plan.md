@@ -102,8 +102,8 @@ Citation metrics must never override weak cannabinoid focus.
 ### 1. Initial Load
 
 Status: JSONL Initial Load completed on 2026-05-15. SQLite persistence, the first
-local review queue foundation, and the first review queue CLI/query layer were
-added on 2026-05-15.
+local review queue foundation, the first review queue CLI/query layer, and the
+first local FastAPI review API were added on 2026-05-15.
 
 Command:
 
@@ -182,6 +182,25 @@ uv run marygenai review update <review_item_id> --status in_review --note "Revie
 
 The CLI reads and updates only operational SQLite review state. It does not
 modify Initial Load JSONL snapshots or run manifests.
+
+The first review API exposes the same access layer without adding a UI yet:
+
+```bash
+uv run marygenai review-api serve --host 127.0.0.1 --port 8000
+```
+
+Minimum endpoints:
+
+- `GET /health`
+- `GET /review/queues`
+- `GET /review/queues/{queue_type}/items?status=open&limit=20`
+- `GET /review/items/{review_item_id}`
+- `GET /publications/{document_id}`
+- `PATCH /review/items/{review_item_id}/status`
+
+The API reads from `data/db/marygenai.sqlite` by default, returns a clear service
+error when the operational database is missing or lacks the review schema, and
+does not alter JSONL snapshots.
 
 Populated legacy values should be treated as trusted curated references. Missing
 legacy fields should remain interpretable as `not_reported`, `not_applicable`, or
