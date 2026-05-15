@@ -92,3 +92,29 @@ New-publication discovery should first associate PubMed results against the lega
 identity index and classify records as exact matches, possible matches, new
 candidates, or manual identity-review items. Full-text access enrichment and
 field extraction should run only after records are prioritized for inclusion.
+
+## 2026-05-15: Use Citation Metrics As A Secondary Ranking Signal
+
+The April 2025 PubMed discovery plus iCite validation showed that citation
+metrics are useful for review-queue experiments but unsafe as the primary sort.
+The window produced 67 deduplicated records, with iCite coverage for all PMIDs,
+but citation-only ranking promoted several weak cannabinoid-focus records and
+buried some strong recent RCTs and reviews with low citation maturity.
+
+Review prioritization should therefore keep PubMed discovery score, study design,
+cannabinoid focus, and full-text review priority as the baseline. Citation count,
+Relative Citation Ratio, and related iCite fields should be used as secondary
+signals and audit columns, not replacements for evidence design or human review.
+
+## 2026-05-15: Start MVP Design Around Review And Curation
+
+The source POCs are sufficient to start designing an MVP for internal evidence
+review and knowledge-base curation while Semantic Scholar access remains pending.
+The MVP should use the validated PubMed, legacy reconciliation, access enrichment,
+iCite enrichment, and review-row flows already available.
+
+The MVP should not be framed as a medical advice product. Its first product
+surface should help human reviewers inspect candidate studies, compare provenance,
+resolve inclusion and identity decisions, and preserve field-level review
+metadata. Semantic Scholar can be added later as an enrichment source rather than
+a blocker for the first MVP design.

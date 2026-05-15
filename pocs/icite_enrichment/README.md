@@ -3,7 +3,7 @@
 Goal: enrich PubMed discovery candidates with NIH iCite citation and influence
 metrics while keeping citation separate from evidence quality.
 
-Run against the April 2026 PubMed discovery output:
+Run against a PubMed discovery output:
 
 ```bash
 uv run python -m pocs.icite_enrichment.enrich_icite run \
@@ -44,14 +44,34 @@ The iCite fields evaluated here include total citations / cited-by PMID count,
 Relative Citation Ratio, NIH percentile, clinical citation signals, human/animal/
 molecular-cellular orientation, and Approximate Potential to Translate.
 
-## Next Analysis
+## April 2025 Validation
 
-The first April 2026 input is intentionally recent, so citation counts and RCR
-coverage are expected to be sparse. The next evaluation should pull older PubMed
-discovery windows and compare whether iCite metrics improve the review queue once
-papers have had time to accrue citations.
+The first April 2026 input was intentionally recent, so citation counts and RCR
+coverage were expected to be sparse. On 2026-05-15, POC 7 and POC 8 were also run
+against the April 2025 publication-date window:
 
-Compare each older-window run by:
+```bash
+uv run python -m pocs.pubmed_discovery.discover_pubmed run \
+  --retmax 100 \
+  --datetype pdat \
+  --mindate 2025/04/01 \
+  --maxdate 2025/04/30
+
+uv run python -m pocs.icite_enrichment.enrich_icite run \
+  --input-path data/normalized/pubmed_discovery/pdat/2025-04/20260515T112139Z_pubmed_discovery_records.jsonl
+```
+
+The April 2025 discovery run produced 67 deduplicated PubMed records: 64 new
+candidates and 3 exact legacy matches. iCite returned metrics for all 67 PMIDs in
+one batch, with `citation_priority_score` ranging from 5 to 85.
+
+The validation found that citation metrics are helpful as secondary ranking and
+audit signals, but unsafe as the only review sort. Citation-only sorting promoted
+some weak cannabinoid-focus false positives with high citation metrics and buried
+some strong recent systematic reviews and randomized trials with low citation
+maturity.
+
+Use older-window runs by:
 
 - preserving the PubMed discovery rank as the baseline;
 - sorting by `citation_priority_score` separately;

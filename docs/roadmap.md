@@ -7,6 +7,10 @@ It should be updated whenever a POC changes the next step or the source strategy
 
 MaryGenAI should use PubMed as the primary source for discovering new publication
 records and anchoring publication identity. PubMed is not the crawler for files.
+The next product step is to design an internal MVP for review and curation using
+the validated POC outputs, rather than waiting for Semantic Scholar API access.
+Semantic Scholar remains useful as a later enrichment source, but it is not a
+blocker for the first MVP shape.
 
 The pipeline shape should be:
 
@@ -123,7 +127,7 @@ uv run python -m pocs.pubmed_discovery.discover_pubmed run --retmax 100
 
 ### POC 8: NIH iCite Citation Enrichment
 
-Status: implemented on 2026-05-14; first network run pending.
+Status: completed first recent-window and older-window validation on 2026-05-15.
 
 Goal: enrich PubMed discovery candidates with citation and influence metrics for
 review prioritization.
@@ -150,15 +154,30 @@ uv run python -m pocs.icite_enrichment.enrich_icite run \
   --input-path data/normalized/pubmed_discovery/pdat/2026-04/20260514T220709Z_pubmed_discovery_records.jsonl
 ```
 
-Citation metrics remain prioritization signals, not evidence quality. Missing
-iCite metrics are not errors, and citation data must not override study design or
-human review requirements.
+Validation runs:
 
-Next evaluation: run POC 7 and POC 8 over older publication-date windows to test
-whether citation metrics improve candidate ordering once records have had time to
-accumulate citations. Compare the original PubMed discovery order against
-`citation_priority_score`, and explicitly watch for citation-only ranking
-under-prioritizing recent but important studies.
+- April 2026 recent-window discovery was enriched as the initial low-citation
+  maturity test.
+- April 2025 publication-date discovery produced 67 deduplicated records:
+  64 `new_candidate` and 3 `in_legacy_exact`.
+- April 2025 iCite enrichment found metrics for 67 / 67 PMIDs in one API batch.
+- April 2025 `citation_priority_score` ranged from 5 to 85.
+
+Key result: citation metrics are useful secondary signals, but citation-only
+ordering is not safe. In April 2025, the citation sort surfaced some relevant
+records, but it also promoted weak cannabinoid-focus false positives with high
+citation velocity. It also buried strong recent candidates with low citation
+maturity, including systematic reviews and randomized trials that ranked highly
+by PubMed discovery score.
+
+Conclusion: keep `priority_score`, `study_design_rank`, `cannabinoid_focus`, and
+`full_text_review_priority` as the baseline review sort. Use iCite fields as
+secondary review signals and audit columns, not as replacements for evidence
+design or human review requirements.
+
+Next evaluation: design the MVP review queue around combined ranking and reviewer
+auditability. Add Semantic Scholar later if API access is approved, but do not
+block MVP design on it.
 
 ## Recent POCs
 

@@ -32,11 +32,10 @@ This means the next useful work is to learn how much of the legacy dataset and n
 search results can be anchored to stable identifiers such as `PMID`, `PMCID`, and
 `DOI`, then classify full-text availability before downloading or parsing files.
 
-The current PubMed-specific POC is legacy-anchored discovery: run focused PubMed
-queries, compare each result against the curated legacy identity index, and
-separate exact legacy matches from possible matches, new candidates, and records
-that need manual identity review. This should happen before any broad full-text
-retrieval for newly discovered records.
+The current PubMed-specific track has validated legacy-anchored discovery and
+iCite citation enrichment. The next step is to shape an internal review and
+curation MVP from those outputs, then use additional sources such as Semantic
+Scholar as enrichment layers rather than prerequisites.
 
 ## Source Roles
 
@@ -322,15 +321,31 @@ Outputs are local and ignored under `data/normalized/icite_enrichment/`:
 A local `_manifest.json` records the input path and file hash so the same
 discovery file is not queried again unless `--no-skip-existing` is used.
 
-Next evaluation:
+Older-window validation:
 
-- pull older PubMed discovery windows so citation metrics have had enough time to
-  mature;
-- compare the original PubMed `priority_score` ranking against
-  `citation_priority_score`;
-- review whether highly cited records are genuinely better HITL candidates;
-- keep recency bias visible so citation-based sorting does not bury newer
-  high-value studies.
+- April 2025 PubMed discovery command:
+  `uv run python -m pocs.pubmed_discovery.discover_pubmed run --retmax 100 --datetype pdat --mindate 2025/04/01 --maxdate 2025/04/30`;
+- discovery run id: `20260515T112139Z`;
+- discovery output:
+  `data/normalized/pubmed_discovery/pdat/2025-04/20260515T112139Z_pubmed_discovery_records.jsonl`;
+- records after dedupe: 67;
+- identity status counts: 64 `new_candidate`, 3 `in_legacy_exact`;
+- iCite command:
+  `uv run python -m pocs.icite_enrichment.enrich_icite run --input-path data/normalized/pubmed_discovery/pdat/2025-04/20260515T112139Z_pubmed_discovery_records.jsonl`;
+- iCite run id: `20260515T112334Z`;
+- iCite found metrics for 67 / 67 PMIDs;
+- `citation_priority_score` range: 5 to 85.
+
+Result: citation metrics improved visibility into influence, but citation-only
+sorting promoted weak cannabinoid-focus records and buried some high-priority
+recent RCTs and reviews. The review queue should therefore preserve PubMed
+`priority_score` as the baseline and use citation metrics as secondary signals
+with explicit recency-bias guardrails.
+
+Next step: begin MVP design for the human-reviewed evidence curation workflow
+using PubMed discovery, legacy association, access enrichment, iCite enrichment,
+and review-row provenance. Semantic Scholar access can still improve enrichment
+later, but the API key is not required to define the first MVP.
 
 ### POC 3: Full-Text Availability Resolver
 
