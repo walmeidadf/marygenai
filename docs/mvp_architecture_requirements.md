@@ -332,6 +332,13 @@ and simple review status updates. The current CLI uses this same access layer to
 list queues, list open `legacy_identity_review` items, show publication detail,
 and update review item status with an optional note.
 
+The first FastAPI review API now reuses that same access layer. It serves local
+health, queue, queue item, publication detail, and status-update endpoints from
+`data/db/marygenai.sqlite` by default. Status updates remain limited to the
+operational SQLite `review_item` state and preserve optional notes in the same
+metadata history used by the CLI. The API does not modify Initial Load JSONL
+snapshots or run manifests.
+
 ## Source Adapter Requirements
 
 Each source adapter should expose a small common contract:
@@ -449,9 +456,9 @@ MVP architecture should be implemented incrementally:
    and a minimal legacy identity review queue.
 5. Done: add a reusable review queue query/status layer and CLI for the first
    `legacy_identity_review` queue.
-6. Convert the validated PubMed discovery and enrichment POCs into reusable
+6. Done: build the first FastAPI review endpoints around publications, review
+   items, and review status updates.
+7. Convert the validated PubMed discovery and enrichment POCs into reusable
    pipeline commands.
-7. Build the first FastAPI review endpoints around publications, review items,
-   and review decisions.
 8. Build the first review UI around dashboard, queue, and detail screens.
 9. Add Docker Compose once API, worker, and database roles exist.
