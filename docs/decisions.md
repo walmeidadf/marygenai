@@ -176,3 +176,21 @@ the first review persistence layer once queue and review workflows are clearer.
 The local `data/` layout should be created by setup code and mirror the future
 object-storage layout from the MVP architecture requirements. Legacy CSV exports
 remain in `temp/legacy/` and are read in place without renaming Unicode filenames.
+
+## 2026-05-15: Use SQLite As Local Operational State For MVP Review Queues
+
+SQLite is now the first operational persistence layer for the MVP review workflow.
+Initial Load JSONL snapshots and run manifests remain the audit and interchange
+source, while `data/db/marygenai.sqlite` stores current local application state.
+
+The first schema is intentionally narrow and idempotent. It creates
+`run_manifest`, `source_record`, `document`, `document_identity`, `publication`,
+`ontology_entity`, `document_ontology_link`, and `review_item`. The initial queue
+is `legacy_identity_review`, populated from legacy publication candidates that
+lack PMID, PMCID, and DOI and therefore need human identity review before they
+can be treated as strongly resolved.
+
+This does not choose the final database architecture. PostgreSQL, document
+stores, search indexes, graph stores, and vector indexes remain future options
+based on demonstrated review, ontology, collaboration, and GenAI retrieval access
+patterns.
