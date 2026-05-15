@@ -60,14 +60,23 @@ This should begin as simple structured files, such as YAML or JSON. RDF/OWL or g
 
 ### Application Layer
 
-Deferred until after source POCs. Candidate storage approaches include:
+The next application layer is the MVP review and curation platform documented in
+[MVP Plan](mvp_plan.md). Its first job is to load and validate legacy records,
+discover new candidate publications from the legacy boundary onward, enrich
+candidates, and preserve review decisions.
 
-- files plus DuckDB;
+Candidate storage approaches include:
+
 - SQLite;
+- files plus DuckDB;
 - PostgreSQL;
 - document databases;
 - graph databases;
 - hybrid search/indexing.
+
+SQLite is the preferred first MVP persistence option because it is simple,
+portable, and sufficient for an internal review queue. JSONL exports should remain
+available for audit and interchange.
 
 ## Design Principles
 
@@ -77,6 +86,8 @@ Deferred until after source POCs. Candidate storage approaches include:
 - Separate legacy association from new-publication discovery.
 - Treat dosing and drug interactions as specialized extraction domains.
 - Prefer field-level provenance over a single record-level confidence score.
+- Let `cannabinoid_focus` dominate review ranking; citation metrics are secondary
+  audit signals.
 
 ## Full-Text Extraction Notes
 
@@ -123,3 +134,37 @@ Provider-specific notes from POC 6b:
 
 The next architecture refinement should add provider retry/backoff based on
 rate-limit headers and improve section ranking before any broader LLM run.
+
+## MVP Architecture Requirements
+
+The first MVP should remain local-first while being shaped for later open-source
+collaboration and cloud deployment. The recommended persistence shape is local
+files plus SQLite for MVP 0.1, with local `data/` paths mirroring future
+S3-compatible object keys. Raw payloads, staging outputs, normalized snapshots,
+review database state, and reviewed exports should stay separate.
+
+The first Initial Load implementation follows this shape. It lives under
+`src/marygenai/initial_load/`, uses Pydantic schemas in `src/marygenai/schemas.py`,
+writes through a local storage interface in `src/marygenai/storage.py`, and runs
+with:
+
+```bash
+uv run marygenai initial-load run
+```
+
+The first run imports the legacy studies and ontology CSVs from
+`temp/legacy/cannadocs/` into ignored JSONL snapshots and a run manifest. SQLite
+helpers are present for the next persistence step, but the operational review
+database schema is intentionally deferred.
+
+The architecture should also preserve a GenAI path. Agentic evidence search,
+hybrid lexical/vector retrieval, ontology-aware filters, and RAG over reviewed
+evidence are expected future capabilities, but generated answers must remain
+grounded in reviewed fields, evidence text, and provenance. PostgreSQL, MongoDB,
+Qdrant, search indexes, and graph stores should be evaluated by role and access
+pattern rather than selected upfront.
+
+See [MVP Architecture Requirements](mvp_architecture_requirements.md) for the
+proposed service boundaries, local data layout, SQLite schema domains, source
+adapter contract, Docker path, S3-compatible storage path, and monthly pipeline
+requirements.

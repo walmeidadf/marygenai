@@ -1,10 +1,20 @@
 # MaryGenAI
 
-MaryGenAI is a POC lab for scientific data sources, ontology design, and human-reviewed curation of cannabinoid therapy evidence.
+MaryGenAI is a research and engineering lab for scientific data sources,
+ontology design, and human-reviewed curation of cannabinoid therapy evidence.
 
-## Initial Goal
+## Current Goal
 
-Before choosing a database, production crawler, or review interface, this project will test small batches from candidate data sources and measure:
+The project has moved from isolated source POCs toward an MVP plan for an
+internal review and curation platform. The MVP should validate the curated legacy
+dataset, discover candidate publications from the end of legacy coverage onward,
+enrich those candidates with validated source flows, and preserve field-level
+human review provenance.
+
+The MVP is not a medical advice product. It catalogs evidence and metadata for
+human-reviewed scientific curation.
+
+POCs remain useful for testing source quality and should continue to measure:
 
 - result volume and relevance;
 - available metadata quality;
@@ -33,12 +43,15 @@ This project requires Python 3.13+ and uses `uv` for virtual environment and dep
 ```bash
 uv sync --extra dev
 uv run marygenai info
+uv run marygenai initial-load run
 ```
 
 ## Documentation
 
 - [Project brief](docs/project_brief.md)
+- [MVP plan](docs/mvp_plan.md)
 - [Architecture approach](docs/architecture.md)
+- [MVP architecture requirements](docs/mvp_architecture_requirements.md)
 - [Roadmap](docs/roadmap.md)
 - [Data sources](docs/data_sources.md)
 - [PubMed source plan](docs/pubmed_source_plan.md)
@@ -46,9 +59,43 @@ uv run marygenai info
 - [Legacy dataset notes](docs/legacy_dataset.md)
 - [Decision log](docs/decisions.md)
 
-## Active POCs
+## Common Commands
 
+- MVP Initial Load: `uv run marygenai initial-load run`
+- Create ignored local data layout: `uv run marygenai initial-load setup-data`
 - PubMed expanded metadata: `uv run python pocs/pubmed/validate_pubmed.py batch --retmax 100`
 - Legacy reconciliation: `uv run python pocs/legacy_reconciliation/reconcile_legacy.py run`
 - Link resolver: `uv run python pocs/link_resolver/resolve_links.py run`
 - Access enrichment: `uv run python pocs/access_enrichment/enrich_access.py run --limit-per-class 25`
+- PubMed discovery window: `uv run python -m pocs.pubmed_discovery.discover_pubmed run --retmax 100 --datetype pdat --mindate 2025/04/01 --maxdate 2025/04/30`
+- iCite enrichment: `uv run python -m pocs.icite_enrichment.enrich_icite run --input-path <pubmed_discovery_records.jsonl>`
+
+## MVP Direction
+
+The MVP review queue should be dominated by `cannabinoid_focus`. Records with
+direct cannabinoid evidence in title or indexed metadata belong in the primary
+review queue. Abstract-only records require more caution, and records without a
+cannabinoid signal should not be automatically promoted by citation metrics or
+general publication influence.
+
+## MVP Initial Load
+
+The first MVP implementation is available as a package command:
+
+```bash
+uv run marygenai initial-load run
+```
+
+It reads the legacy Cannadocs CSV exports from `temp/legacy/cannadocs/`, creates
+the ignored local `data/` layout, and writes JSONL snapshots plus a run manifest.
+The current outputs are:
+
+- legacy source records under `data/staging/source_records/legacy/`;
+- canonical publication candidates under `data/normalized/publications/`;
+- ontology entities and document-to-ontology links under
+  `data/normalized/ontology/ontology_mappings/`;
+- run manifests under `data/manifests/runs/`.
+
+Generated `data/` files remain ignored by Git. Old POC artifacts should be kept
+out of the active MVP workspace, either regenerated from POC commands when needed
+or archived locally under `temp/scratch/`.

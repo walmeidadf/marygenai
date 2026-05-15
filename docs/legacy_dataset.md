@@ -59,6 +59,11 @@ Sparse fields:
 
 These sparse fields should not be treated as reliable default metadata from abstract-only extraction.
 
+The current reconciliation output includes publication years through 2024. MVP
+incremental discovery should calculate the latest available legacy publication
+date or year, then run PubMed discovery from that boundary with a small overlap
+window so records near the transition are not missed.
+
 ## Legacy Reconciliation POC
 
 The first local-only reconciliation pass ran on 2026-05-13.
@@ -80,6 +85,37 @@ uv run python pocs/legacy_reconciliation/reconcile_legacy.py run
 ```
 
 Outputs are local and ignored under `data/normalized/legacy_reconciliation/`.
+
+## MVP Initial Load
+
+The first MVP Initial Load implementation ran locally on 2026-05-15 using the
+legacy Cannadocs CSV exports in `temp/legacy/cannadocs/`.
+
+Command:
+
+```bash
+uv run marygenai initial-load run
+```
+
+The run created:
+
+- 7,780 legacy source records;
+- 7,347 canonical publication candidates;
+- 433 ontology entities from cannabinoids, medical conditions, organ systems,
+  terpenes, and glossary terms;
+- 42,061 document-to-ontology links from legacy study IDs;
+- a run manifest with input file hashes and output hashes.
+
+Outputs are local and ignored under:
+
+- `data/staging/source_records/legacy/`;
+- `data/normalized/publications/`;
+- `data/normalized/ontology/ontology_mappings/`;
+- `data/manifests/runs/`.
+
+Older POC artifacts that had accumulated in `data/` were archived locally under
+`temp/scratch/data_poc_archive_20260515T150000Z/` so the active `data/` workspace
+only contains the current MVP Initial Load snapshot set.
 
 ## Link Resolver POC
 
