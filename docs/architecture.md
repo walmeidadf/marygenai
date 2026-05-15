@@ -150,12 +150,15 @@ with:
 
 ```bash
 uv run marygenai initial-load run
+uv run marygenai initial-load persist
 ```
 
 The first run imports the legacy studies and ontology CSVs from
 `temp/legacy/cannadocs/` into ignored JSONL snapshots and a run manifest. SQLite
-helpers are present for the next persistence step, but the operational review
-database schema is intentionally deferred.
+now provides the first operational review database at `data/db/marygenai.sqlite`.
+The initial schema loads run manifests, source records, canonical documents,
+publication identities, publication metadata, ontology entities,
+document-to-ontology links, and a minimal legacy identity review queue.
 
 The architecture should also preserve a GenAI path. Agentic evidence search,
 hybrid lexical/vector retrieval, ontology-aware filters, and RAG over reviewed

@@ -44,6 +44,8 @@ This project requires Python 3.13+ and uses `uv` for virtual environment and dep
 uv sync --extra dev
 uv run marygenai info
 uv run marygenai initial-load run
+uv run marygenai db init
+uv run marygenai initial-load persist
 ```
 
 ## Documentation
@@ -63,6 +65,8 @@ uv run marygenai initial-load run
 
 - MVP Initial Load: `uv run marygenai initial-load run`
 - Create ignored local data layout: `uv run marygenai initial-load setup-data`
+- Initialize local SQLite review DB: `uv run marygenai db init`
+- Persist latest Initial Load snapshot to SQLite: `uv run marygenai initial-load persist`
 - PubMed expanded metadata: `uv run python pocs/pubmed/validate_pubmed.py batch --retmax 100`
 - Legacy reconciliation: `uv run python pocs/legacy_reconciliation/reconcile_legacy.py run`
 - Link resolver: `uv run python pocs/link_resolver/resolve_links.py run`
@@ -84,17 +88,28 @@ The first MVP implementation is available as a package command:
 
 ```bash
 uv run marygenai initial-load run
+uv run marygenai initial-load persist
 ```
 
 It reads the legacy Cannadocs CSV exports from `temp/legacy/cannadocs/`, creates
 the ignored local `data/` layout, and writes JSONL snapshots plus a run manifest.
-The current outputs are:
+The JSONL snapshots remain the auditable interchange record. The SQLite database
+at `data/db/marygenai.sqlite` is the local operational state for review queues
+and later review workflow APIs.
+
+The current JSONL outputs are:
 
 - legacy source records under `data/staging/source_records/legacy/`;
 - canonical publication candidates under `data/normalized/publications/`;
 - ontology entities and document-to-ontology links under
   `data/normalized/ontology/ontology_mappings/`;
 - run manifests under `data/manifests/runs/`.
+
+The first SQLite persistence command loads the latest Initial Load run by default
+or a specific run with `--run-id`. It populates `run_manifest`, `source_record`,
+`document`, `document_identity`, `publication`, `ontology_entity`,
+`document_ontology_link`, and a minimal `legacy_identity_review` queue for legacy
+publication candidates that lack PMID, PMCID, and DOI.
 
 Generated `data/` files remain ignored by Git. Old POC artifacts should be kept
 out of the active MVP workspace, either regenerated from POC commands when needed

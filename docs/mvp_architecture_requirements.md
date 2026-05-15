@@ -75,6 +75,8 @@ The initial local developer flow may still use:
 uv sync --extra dev
 uv run marygenai info
 uv run marygenai initial-load run
+uv run marygenai db init
+uv run marygenai initial-load persist
 uv run pytest
 ```
 
@@ -91,9 +93,10 @@ The MVP should use a hybrid persistence strategy:
    backfills.
 
 SQLite is the preferred MVP database because it is portable, transparent, and
-enough for one maintainer or a small local review group. The schema should avoid
-SQLite-specific assumptions so the application can later migrate to a different
-operational store.
+enough for one maintainer or a small local review group. The current local
+database lives at `data/db/marygenai.sqlite` and is initialized with
+`uv run marygenai db init`. The schema should avoid SQLite-specific assumptions
+so the application can later migrate to a different operational store.
 
 The next operational database should not be predetermined. PostgreSQL is a strong
 candidate for review workflow state, relational constraints, and mature
@@ -276,6 +279,8 @@ DrugBank, Wikidata, or other vetted sources.
 
 SQLite MVP tables should include:
 
+- `run_manifest`: job type, source, date window, input hashes, output paths,
+  counts, errors, and software version;
 - `source_record`: source, source record id, raw object path, retrieval method,
   retrieved timestamp, payload hash, run id, and error status;
 - `document`: canonical document id, document type, primary title, publication
@@ -309,12 +314,16 @@ SQLite MVP tables should include:
   provenance reference;
 - `reviewed_field`: current reviewed value per document field, derived from
   accepted review decisions;
-- `run_manifest`: job type, source, date window, input hashes, output paths,
-  counts, errors, and software version.
 
 Indexes should prioritize identifier lookup, queue filtering, review status,
 ontology entity lookup, document-to-ontology traversal, and date-windowed
 pipeline runs.
+
+The first implemented SQLite subset is intentionally narrower than the full
+target model. It creates `run_manifest`, `source_record`, `document`,
+`document_identity`, `publication`, `ontology_entity`, `document_ontology_link`,
+and `review_item`, then populates a minimal `legacy_identity_review` queue from
+Initial Load publication candidates that lack PMID, PMCID, and DOI.
 
 ## Source Adapter Requirements
 
@@ -429,8 +438,8 @@ MVP architecture should be implemented incrementally:
 2. Done: add a local storage interface that writes JSONL and JSON manifests to
    ignored `data/` paths.
 3. Done: add an Initial Load CLI that imports legacy studies and ontology CSVs.
-4. In progress: prepare SQLite persistence helpers; add schema and migrations
-   once review queue access patterns are clear.
+4. Done: add idempotent SQLite schema initialization, Initial Load persistence,
+   and a minimal legacy identity review queue.
 5. Convert the validated PubMed discovery and enrichment POCs into reusable
    pipeline commands.
 6. Build the first FastAPI review endpoints around publications, review items,

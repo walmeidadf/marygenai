@@ -101,12 +101,15 @@ Citation metrics must never override weak cannabinoid focus.
 
 ### 1. Initial Load
 
-Status: first implementation completed on 2026-05-15.
+Status: JSONL Initial Load completed on 2026-05-15. SQLite persistence and the
+first local review queue foundation were added on 2026-05-15.
 
 Command:
 
 ```bash
 uv run marygenai initial-load run
+uv run marygenai db init
+uv run marygenai initial-load persist
 ```
 
 The initial implementation reads the six legacy Cannadocs CSV exports from
@@ -118,8 +121,8 @@ auditable JSONL snapshots plus a run manifest. The first local run produced:
 - 433 ontology entities;
 - 42,061 document-to-ontology links.
 
-SQLite persistence is prepared as a module and `data/db/` directory, but the
-first delivered storage surface is JSONL plus manifests.
+SQLite persistence now loads those snapshots into `data/db/marygenai.sqlite` as
+operational review state while keeping JSONL as the audit and interchange source.
 
 Load the legacy studies dataset and normalize publication identity around:
 
@@ -150,6 +153,21 @@ The initial load should create:
 - ontology mapping and enrichment queues;
 - duplicate and unresolved identity queues;
 - field-level legacy reference values for later comparison.
+
+The first SQLite load creates the initial relational subset:
+
+- `run_manifest`;
+- `source_record`;
+- `document`;
+- `document_identity`;
+- `publication`;
+- `ontology_entity`;
+- `document_ontology_link`;
+- `review_item`.
+
+The first review queue is `legacy_identity_review`. It opens one item per legacy
+publication candidate that lacks PMID, PMCID, and DOI, because those records rely
+on canonical URL, normalized title, or weaker legacy identity until reviewed.
 
 Populated legacy values should be treated as trusted curated references. Missing
 legacy fields should remain interpretable as `not_reported`, `not_applicable`, or
