@@ -31,8 +31,9 @@ overlap window to avoid missing records near the boundary.
 ## Current Environment Status
 
 As of 2026-05-16, `main` contains the first local review surface for the MVP,
-and the next MVP branch adds structured identity decisions for legacy identity
-review.
+structured identity decisions for legacy identity review, and a minimal explicit
+workflow action for applying the latest structured identity decision to local
+review item status.
 The active local environment is still single-maintainer and local-first:
 
 - package version: `0.1.0`;
@@ -211,11 +212,16 @@ uv run marygenai review list --queue legacy_identity_review
 uv run marygenai review show <review_item_id_or_document_id>
 uv run marygenai review update <review_item_id> --status in_review --note "Review started"
 uv run marygenai review decision-create <review_item_id> --reviewer reviewer@example.org --decision confirmed_identity
+uv run marygenai review decision-apply <review_item_id>
 uv run marygenai review decision-list <review_item_id_or_document_id>
 ```
 
 The CLI reads and updates only operational SQLite review state. It does not
-modify Initial Load JSONL snapshots or run manifests.
+modify Initial Load JSONL snapshots or run manifests. Applying an identity
+decision is a separate explicit action after saving the structured curation
+record. `confirmed_identity` and `corrected_identity` resolve the workflow item,
+`not_same_publication` dismisses it, and `unresolved` remains saved but cannot
+close the item.
 
 The first review API exposes the same access layer:
 
@@ -231,6 +237,7 @@ Minimum endpoints:
 - `GET /review/items/{review_item_id}`
 - `GET /review/items/{review_item_id}/identity-decisions`
 - `POST /review/items/{review_item_id}/identity-decisions`
+- `POST /review/items/{review_item_id}/identity-decisions/apply`
 - `GET /publications/{document_id}`
 - `GET /publications/{document_id}/identity-decisions`
 - `PATCH /review/items/{review_item_id}/status`
@@ -249,14 +256,18 @@ The UI is available at `http://127.0.0.1:8000/ui` and consumes the existing API
 endpoints. It shows API health, queue totals, open `legacy_identity_review`
 items, publication and review item detail, legacy reference values, ontology
 links, identity signals, workflow status updates, and structured identity
-decision history.
+decision history. It keeps "Save decision" separate from "Apply decision to
+workflow" so curation provenance can be recorded before the local operational
+queue is advanced.
 
 Structured identity decisions are separate from review item status. Status
 remains the operational workflow state (`open`, `in_review`, `resolved`, or
 `dismissed`). Identity decisions are append-only curation records that preserve
 review item id, document id, reviewer, decision, reviewed PMID, PMCID, DOI,
 canonical URL, rationale, original identity signals, timestamp, software version,
-and decision schema provenance.
+and decision schema provenance. Applying a decision records application
+provenance in the review item's `metadata.status_history` and
+`metadata.last_identity_decision_application`.
 
 Populated legacy values should be treated as trusted curated references. Missing
 legacy fields should remain interpretable as `not_reported`, `not_applicable`, or

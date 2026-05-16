@@ -11,9 +11,12 @@ from rich.table import Table
 from marygenai.persistence.sqlite import sqlite_database_path
 from marygenai.review.models import IdentityReviewDecisionCreate, ReviewItemStatusUpdate
 from marygenai.review.repository import (
+    IdentityDecisionNotApplicableError,
+    IdentityDecisionNotFoundError,
     PublicationNotFoundError,
     ReviewDatabaseNotInitializedError,
     ReviewItemNotFoundError,
+    apply_latest_identity_review_decision,
     connect_initialized_review_database,
     create_identity_review_decision,
     get_publication_detail,
@@ -335,6 +338,32 @@ def decision_create(
             console.print(str(error))
             raise typer.Exit(1) from error
         except ValidationError as error:
+            console.print(str(error))
+            raise typer.Exit(1) from error
+
+    console.print(result.model_dump(mode="json"))
+
+
+@app.command("decision-apply")
+def decision_apply(
+    review_item_id: Annotated[
+        str,
+        typer.Argument(help="Review item id whose latest identity decision should be applied."),
+    ],
+) -> None:
+    """Apply the latest structured identity decision to workflow status."""
+    with _connect_or_exit() as connection:
+        try:
+            result = apply_latest_identity_review_decision(
+                connection,
+                review_item_id=review_item_id,
+                source="marygenai.review.cli",
+            )
+        except (
+            IdentityDecisionNotApplicableError,
+            IdentityDecisionNotFoundError,
+            ReviewItemNotFoundError,
+        ) as error:
             console.print(str(error))
             raise typer.Exit(1) from error
 
