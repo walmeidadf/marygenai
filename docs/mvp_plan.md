@@ -28,6 +28,33 @@ The initial incremental discovery should calculate the latest available legacy
 publication date or year, then run PubMed discovery from that point with a small
 overlap window to avoid missing records near the boundary.
 
+## Current Environment Status
+
+As of 2026-05-16, `main` contains the first local review surface for the MVP.
+The active local environment is still single-maintainer and local-first:
+
+- package version: `0.1.0`;
+- default data directory: `data`;
+- default temp directory: `temp`;
+- local operational database: `data/db/marygenai.sqlite`;
+- active Initial Load run: `20260515T143451Z`;
+- review queue: `legacy_identity_review`;
+- queue state: 1,206 total items, 1,206 open, 0 in review, 0 resolved, and
+  0 dismissed.
+
+The active local `data/` workspace contains the SQLite database plus the Initial
+Load JSONL snapshots and run manifest:
+
+- `data/staging/source_records/legacy/20260515T143451Z_legacy_source_records.jsonl`;
+- `data/normalized/publications/20260515T143451Z_publication_candidates.jsonl`;
+- `data/normalized/ontology/ontology_mappings/20260515T143451Z_ontology_entities.jsonl`;
+- `data/normalized/ontology/ontology_mappings/20260515T143451Z_document_ontology_links.jsonl`;
+- `data/manifests/runs/20260515T143451Z_initial_load_manifest.json`.
+
+These files remain ignored by Git. JSONL remains the audit and interchange
+snapshot layer; SQLite is the local operational state for review queues and UI
+actions.
+
 ## Source Strategy
 
 The MVP should use the sources already validated by POCs:
@@ -104,7 +131,7 @@ Citation metrics must never override weak cannabinoid focus.
 Status: JSONL Initial Load completed on 2026-05-15. SQLite persistence, the first
 local review queue foundation, the first review queue CLI/query layer, and the
 first local FastAPI review API were added on 2026-05-15. The first local static
-review UI was added after the API layer and focuses on the
+review UI was merged into `main` on 2026-05-16 and focuses on the
 `legacy_identity_review` queue.
 
 Command:
@@ -173,7 +200,7 @@ publication candidate that lacks PMID, PMCID, and DOI, because those records rel
 on canonical URL, normalized title, or weaker legacy identity until reviewed.
 
 The first review access layer exposes Pydantic DTOs and CLI commands for queue
-inspection before a UI exists:
+inspection and simple operational status updates:
 
 ```bash
 uv run marygenai review queues
@@ -185,7 +212,7 @@ uv run marygenai review update <review_item_id> --status in_review --note "Revie
 The CLI reads and updates only operational SQLite review state. It does not
 modify Initial Load JSONL snapshots or run manifests.
 
-The first review API exposes the same access layer without adding a UI yet:
+The first review API exposes the same access layer:
 
 ```bash
 uv run marygenai review-api serve --host 127.0.0.1 --port 8000
@@ -214,6 +241,10 @@ The UI is available at `http://127.0.0.1:8000/ui` and consumes the existing API
 endpoints. It shows API health, queue totals, open `legacy_identity_review`
 items, publication and review item detail, legacy reference values, ontology
 links, identity signals, and a status update action with an optional note.
+
+The first UI intentionally records only review item status transitions and an
+optional note. It does not yet persist a structured identity decision, reviewer
+identity, reviewed identifier values, or field-level review decisions.
 
 Populated legacy values should be treated as trusted curated references. Missing
 legacy fields should remain interpretable as `not_reported`, `not_applicable`, or
@@ -388,12 +419,15 @@ when a milestone lands in `main`, not only when a design direction changes.
 
 ### Next
 
-- Exercise the first local review UI against the full legacy SQLite database and
-  capture the next workflow gaps from real identity-review use.
-- Add richer identity-review decisions beyond simple status changes, including
-  reviewed identifiers, reviewer identity, rationale, and field-level provenance.
-- If the UI needs it, extend the API with simple pagination, status filtering,
-  and queue item counts before adding broader workflow features.
+- Add structured identity review decisions for `legacy_identity_review`, beyond
+  simple item status changes.
+- Persist reviewer identity, decision type, reviewed identifiers, original
+  identity signals, rationale, timestamp, and provenance in SQLite.
+- Expose those decisions through the review repository, CLI, API, and local UI.
+- Keep status updates as workflow state, but separate them from reviewed identity
+  decisions.
+- Add simple API pagination and status filtering when the UI needs to navigate
+  beyond the first open-item page.
 
 ### Upcoming
 
