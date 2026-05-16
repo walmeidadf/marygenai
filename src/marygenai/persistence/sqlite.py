@@ -15,9 +15,13 @@ def sqlite_database_path(data_dir: Path) -> Path:
 
 
 @contextmanager
-def connect_sqlite(database_path: Path) -> Iterator[sqlite3.Connection]:
+def connect_sqlite(
+    database_path: Path,
+    *,
+    check_same_thread: bool = True,
+) -> Iterator[sqlite3.Connection]:
     database_path.parent.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(database_path)
+    connection = sqlite3.connect(database_path, check_same_thread=check_same_thread)
     try:
         connection.execute("PRAGMA foreign_keys = ON")
         yield connection

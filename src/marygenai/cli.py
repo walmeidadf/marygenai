@@ -6,6 +6,7 @@ from marygenai.initial_load.cli import app as initial_load_app
 from marygenai.persistence.cli import app as db_app
 from marygenai.review.cli import app as review_app
 from marygenai.review_api.cli import app as review_api_app
+from marygenai.review_ui.cli import app as review_ui_app
 from marygenai.settings import get_settings
 
 app = typer.Typer(help="MaryGenAI POC utilities.", no_args_is_help=True)
@@ -14,6 +15,7 @@ app.add_typer(initial_load_app, name="initial-load")
 app.add_typer(db_app, name="db")
 app.add_typer(review_app, name="review")
 app.add_typer(review_api_app, name="review-api")
+app.add_typer(review_ui_app, name="review-ui")
 
 
 @app.callback()

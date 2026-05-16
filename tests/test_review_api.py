@@ -29,6 +29,26 @@ def test_healthcheck_reports_database_state(tmp_path: Path) -> None:
     }
 
 
+def test_review_ui_index_is_served(tmp_path: Path) -> None:
+    client = create_review_api_client(create_review_database(tmp_path))
+
+    response = client.get("/ui")
+
+    assert response.status_code == 200
+    assert "MaryGenAI Review" in response.text
+    assert "/ui/static/app.js" in response.text
+
+
+def test_review_ui_static_assets_are_served(tmp_path: Path) -> None:
+    client = create_review_api_client(create_review_database(tmp_path))
+
+    response = client.get("/ui/static/app.js")
+
+    assert response.status_code == 200
+    assert 'const QUEUE_TYPE = "legacy_identity_review";' in response.text
+    assert "/review/queues" in response.text
+
+
 def test_list_review_queues(tmp_path: Path) -> None:
     client = create_review_api_client(create_review_database(tmp_path))
 

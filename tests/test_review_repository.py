@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -143,3 +144,16 @@ def test_missing_database_reports_not_initialized(tmp_path: Path) -> None:
     with pytest.raises(ReviewDatabaseNotInitializedError):
         with connect_initialized_review_database(database_path):
             pass
+
+
+def test_initialized_connection_can_opt_into_cross_thread_use(tmp_path: Path) -> None:
+    database_path = create_review_database(tmp_path)
+
+    with connect_initialized_review_database(
+        database_path,
+        check_same_thread=False,
+    ) as connection:
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            summaries = executor.submit(list_review_queues, connection).result()
+
+    assert summaries[0].queue_type == "legacy_identity_review"

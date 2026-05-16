@@ -220,3 +220,16 @@ This keeps the future review UI decoupled from the CLI while preserving the same
 local-first persistence boundary: status updates mutate only operational SQLite
 review state, optional notes are stored in review item metadata history, and
 Initial Load JSONL snapshots remain immutable audit artifacts.
+
+## 2026-05-16: Serve The First Review UI As Static FastAPI Assets
+
+The first visual review surface is a small static HTML/CSS/JavaScript UI mounted
+on the existing FastAPI review app at `/ui`, with assets under
+`marygenai.review_ui`. It consumes the existing health, queue, detail, and status
+update endpoints for the `legacy_identity_review` queue.
+
+This avoids adding a separate Node or React build system before the review
+workflow is better understood, while still preserving an explicit `review-ui`
+CLI boundary for future containerization or frontend replacement. The UI remains
+local-first, internal, and focused on review and curation rather than clinical or
+public product behavior.

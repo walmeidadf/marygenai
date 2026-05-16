@@ -27,6 +27,7 @@ from marygenai.review.repository import (
     list_review_queues,
     update_review_item_status,
 )
+from marygenai.review_ui.routes import mount_review_ui
 from marygenai.settings import get_settings
 
 
@@ -53,6 +54,7 @@ def create_app(database_path: Path | None = None) -> FastAPI:
         summary="Local API for MaryGenAI review queues and publication details.",
         version="0.1.0",
     )
+    mount_review_ui(app)
 
     def get_connection() -> Iterator[sqlite3.Connection]:
         with _connect_or_http_error(resolved_database_path) as connection:
@@ -130,7 +132,10 @@ def create_app(database_path: Path | None = None) -> FastAPI:
 @contextmanager
 def _connect_or_http_error(database_path: Path) -> Iterator[sqlite3.Connection]:
     try:
-        with connect_initialized_review_database(database_path) as connection:
+        with connect_initialized_review_database(
+            database_path,
+            check_same_thread=False,
+        ) as connection:
             yield connection
     except ReviewDatabaseNotInitializedError as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
@@ -138,7 +143,7 @@ def _connect_or_http_error(database_path: Path) -> Iterator[sqlite3.Connection]:
 
 def _database_is_initialized(database_path: Path) -> bool:
     try:
-        with connect_initialized_review_database(database_path):
+        with connect_initialized_review_database(database_path, check_same_thread=False):
             return True
     except ReviewDatabaseNotInitializedError:
         return False

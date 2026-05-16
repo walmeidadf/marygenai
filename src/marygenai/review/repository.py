@@ -49,12 +49,16 @@ class PublicationNotFoundError(LookupError):
 
 
 @contextmanager
-def connect_initialized_review_database(database_path: Path):
+def connect_initialized_review_database(
+    database_path: Path,
+    *,
+    check_same_thread: bool = True,
+):
     if not database_path.exists():
         raise ReviewDatabaseNotInitializedError(
             f"SQLite database is not initialized at {database_path}. Run `marygenai db init` first."
         )
-    with connect_sqlite(database_path) as connection:
+    with connect_sqlite(database_path, check_same_thread=check_same_thread) as connection:
         connection.row_factory = sqlite3.Row
         require_review_schema(connection)
         yield connection

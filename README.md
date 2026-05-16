@@ -48,6 +48,7 @@ uv run marygenai db init
 uv run marygenai initial-load persist
 uv run marygenai review queues
 uv run marygenai review-api serve --host 127.0.0.1 --port 8000
+uv run marygenai review-ui serve --host 127.0.0.1 --port 8000
 ```
 
 ## Documentation
@@ -78,6 +79,8 @@ uv run marygenai review-api serve --host 127.0.0.1 --port 8000
   `uv run marygenai review update <review_item_id> --status in_review --note "Review started"`
 - Serve the local review API:
   `uv run marygenai review-api serve --host 127.0.0.1 --port 8000`
+- Serve the first local review UI and API:
+  `uv run marygenai review-ui serve --host 127.0.0.1 --port 8000`
 - PubMed expanded metadata: `uv run python pocs/pubmed/validate_pubmed.py batch --retmax 100`
 - Legacy reconciliation: `uv run python pocs/legacy_reconciliation/reconcile_legacy.py run`
 - Link resolver: `uv run python pocs/link_resolver/resolve_links.py run`
@@ -149,6 +152,17 @@ Initial endpoints:
 
 The API reads `data/db/marygenai.sqlite` by default, mutates only operational
 SQLite review state for status updates, and leaves JSONL snapshots unchanged.
+
+The first local review UI is served by the same FastAPI app at `/ui`:
+
+```bash
+uv run marygenai review-ui serve --host 127.0.0.1 --port 8000
+```
+
+Open `http://127.0.0.1:8000/ui` to inspect API health, queue totals, open
+`legacy_identity_review` items, publication detail, legacy reference values,
+ontology links, identity signals, and status updates with an optional note. This
+UI is an internal review and curation surface, not a clinical or public product.
 
 Generated `data/` files remain ignored by Git. Old POC artifacts should be kept
 out of the active MVP workspace, either regenerated from POC commands when needed
