@@ -121,6 +121,18 @@ class ReviewItemStatusResult(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class IdentityDecisionApplicationResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    review_item_id: str
+    review_decision_id: str
+    decision: IdentityDecision
+    previous_status: ReviewItemStatus
+    status: ReviewItemStatus
+    applied_at: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class IdentityReviewDecisionCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

@@ -154,6 +154,7 @@ function renderDetail(detail, reviewItemId, decisions) {
     ${renderStatusForm(activeItem)}
     ${renderDecisionForm(detail, activeItem)}
     ${renderDecisions(decisions)}
+    ${renderDecisionApplication(decisions)}
     ${renderLegacyReference(detail.legacy_reference)}
     ${renderIdentities(detail.identities)}
     ${renderOntologyLinks(detail.ontology_links)}
@@ -164,6 +165,10 @@ function renderDetail(detail, reviewItemId, decisions) {
   decisionForm.addEventListener("submit", (event) =>
     submitIdentityDecision(event, detail, reviewItemId),
   );
+  const applyButton = document.querySelector("#apply-decision-button");
+  if (applyButton) {
+    applyButton.addEventListener("click", () => applyIdentityDecision(reviewItemId));
+  }
 }
 
 function renderStatusForm(item) {
@@ -279,6 +284,29 @@ function renderDecisions(decisions) {
                 )
                 .join("")
         }
+      </div>
+    </section>
+  `;
+}
+
+function renderDecisionApplication(decisions) {
+  const latestDecision = decisions[0];
+  const canApply =
+    latestDecision &&
+    ["confirmed_identity", "corrected_identity", "not_same_publication"].includes(
+      latestDecision.decision,
+    );
+  const helper = latestDecision
+    ? `Latest decision: ${escapeHtml(latestDecision.decision)}`
+    : "Save a structured identity decision before applying it to workflow.";
+  return `
+    <section class="detail-section">
+      <h3>Workflow application</h3>
+      <div class="form-actions">
+        <button id="apply-decision-button" type="button" ${canApply ? "" : "disabled"}>
+          Apply decision to workflow
+        </button>
+        <span id="apply-decision-message" class="message" role="status">${helper}</span>
       </div>
     </section>
   `;
@@ -434,6 +462,28 @@ async function submitIdentityDecision(event, detail, reviewItemId) {
     message.textContent = error.message;
   } finally {
     submitButton.disabled = false;
+  }
+}
+
+async function applyIdentityDecision(reviewItemId) {
+  const message = document.querySelector("#apply-decision-message");
+  const button = document.querySelector("#apply-decision-button");
+  button.disabled = true;
+  message.classList.remove("error");
+  message.textContent = "Applying...";
+  try {
+    const result = await fetchJson(
+      `/review/items/${encodeURIComponent(reviewItemId)}/identity-decisions/apply`,
+      {
+        method: "POST",
+      },
+    );
+    message.textContent = `Applied ${result.decision}; status is now ${result.status}.`;
+    await loadDashboard();
+  } catch (error) {
+    message.classList.add("error");
+    message.textContent = error.message;
+    button.disabled = false;
   }
 }
 

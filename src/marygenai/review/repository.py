@@ -14,6 +14,7 @@ from pydantic import TypeAdapter
 from marygenai import __version__
 from marygenai.persistence.sqlite import connect_sqlite, initialize_schema
 from marygenai.review.models import (
+    IdentityDecisionApplicationResult,
     IdentityReviewDecision,
     IdentityReviewDecisionCreate,
     LegacyReference,
@@ -51,6 +52,14 @@ class ReviewItemNotFoundError(LookupError):
 
 class PublicationNotFoundError(LookupError):
     """Raised when a document id does not exist."""
+
+
+class IdentityDecisionNotFoundError(LookupError):
+    """Raised when a review item has no structured identity decision to apply."""
+
+
+class IdentityDecisionNotApplicableError(ValueError):
+    """Raised when the latest identity decision cannot advance workflow state."""
 
 
 @contextmanager
@@ -452,6 +461,100 @@ def create_identity_review_decision(
     )
 
 
+def apply_latest_identity_review_decision(
+    connection: sqlite3.Connection,
+    *,
+    review_item_id: str,
+    source: str = "marygenai.review",
+) -> IdentityDecisionApplicationResult:
+    require_review_schema(connection)
+    review_item = connection.execute(
+        """
+        SELECT review_item_id, document_id, status, metadata_json
+        FROM review_item
+        WHERE review_item_id = ?
+        """,
+        (review_item_id,),
+    ).fetchone()
+    if review_item is None:
+        raise ReviewItemNotFoundError(f"Review item not found: {review_item_id}")
+
+    decision_row = connection.execute(
+        """
+        SELECT *
+        FROM review_decision
+        WHERE review_item_id = ? AND decision_type = 'legacy_identity'
+        ORDER BY created_at DESC, review_decision_id DESC
+        LIMIT 1
+        """,
+        (review_item_id,),
+    ).fetchone()
+    if decision_row is None:
+        raise IdentityDecisionNotFoundError(
+            f"No structured identity decision is available for review item: {review_item_id}"
+        )
+
+    decision = _identity_decision_from_row(decision_row)
+    target_status = _identity_decision_target_status(decision.decision)
+    if target_status is None:
+        raise IdentityDecisionNotApplicableError(
+            "The latest identity decision is unresolved and cannot close the workflow item."
+        )
+
+    now = datetime.now(UTC).isoformat()
+    previous_status = STATUS_ADAPTER.validate_python(review_item["status"])
+    metadata = _load_json_object(review_item["metadata_json"])
+    status_history = _status_history(metadata)
+    status_history.append(
+        {
+            "from_status": previous_status,
+            "to_status": target_status,
+            "note": f"Applied identity decision {decision.review_decision_id}.",
+            "updated_at": now,
+            "application": {
+                "type": "identity_decision_workflow_application",
+                "source": source,
+                "review_decision_id": decision.review_decision_id,
+                "decision": decision.decision,
+                "decision_created_at": decision.created_at,
+                "decision_reviewer": decision.reviewer,
+                "software_version": __version__,
+                "application_schema_version": "identity_decision_application.v1",
+            },
+        }
+    )
+    metadata["status_history"] = status_history
+    metadata["last_status_note"] = f"Applied identity decision {decision.review_decision_id}."
+    metadata["last_status_updated_at"] = now
+    metadata["last_identity_decision_application"] = {
+        "source": source,
+        "review_decision_id": decision.review_decision_id,
+        "decision": decision.decision,
+        "applied_status": target_status,
+        "applied_at": now,
+        "software_version": __version__,
+        "application_schema_version": "identity_decision_application.v1",
+    }
+
+    connection.execute(
+        """
+        UPDATE review_item
+        SET status = ?, metadata_json = ?, updated_at = ?
+        WHERE review_item_id = ?
+        """,
+        (target_status, _dump_json(metadata), now, review_item_id),
+    )
+    return IdentityDecisionApplicationResult(
+        review_item_id=review_item_id,
+        review_decision_id=decision.review_decision_id,
+        decision=decision.decision,
+        previous_status=previous_status,
+        status=target_status,
+        applied_at=now,
+        metadata=metadata,
+    )
+
+
 def list_identity_review_decisions_for_item(
     connection: sqlite3.Connection,
     *,
@@ -576,6 +679,14 @@ def _decision_provenance(provenance: Mapping[str, Any]) -> dict[str, Any]:
     merged.setdefault("software_version", __version__)
     merged.setdefault("decision_schema_version", "identity_review_decision.v1")
     return merged
+
+
+def _identity_decision_target_status(decision: str) -> ReviewItemStatus | None:
+    if decision in {"confirmed_identity", "corrected_identity"}:
+        return "resolved"
+    if decision == "not_same_publication":
+        return "dismissed"
+    return None
 
 
 def _clean_text(value: str | None) -> str | None:

@@ -11,7 +11,10 @@ from marygenai.initial_load.pipeline import run_initial_load
 from marygenai.persistence.sqlite import connect_sqlite, initialize_schema, sqlite_database_path
 from marygenai.review.models import IdentityReviewDecisionCreate, ReviewItemStatusUpdate
 from marygenai.review.repository import (
+    IdentityDecisionNotApplicableError,
+    IdentityDecisionNotFoundError,
     ReviewDatabaseNotInitializedError,
+    apply_latest_identity_review_decision,
     connect_initialized_review_database,
     create_identity_review_decision,
     get_publication_detail,
@@ -172,6 +175,108 @@ def test_create_and_list_identity_review_decision(tmp_path: Path) -> None:
     assert result.provenance["decision_schema_version"] == "identity_review_decision.v1"
     assert item_decisions == [result]
     assert publication_decisions == [result]
+
+
+def test_apply_latest_confirmed_identity_decision_resolves_review_item(
+    tmp_path: Path,
+) -> None:
+    database_path = create_review_database(tmp_path)
+
+    with connect_sqlite(database_path) as connection:
+        item = list_open_review_items(connection, queue_type="legacy_identity_review")[0]
+        decision = create_identity_review_decision(
+            connection,
+            decision=IdentityReviewDecisionCreate(
+                review_item_id=item.review_item_id,
+                document_id=item.publication.document_id,
+                reviewer="reviewer@example.org",
+                decision="confirmed_identity",
+                reviewed_canonical_url=item.publication.canonical_url,
+                rationale="Legacy title and URL identify this publication.",
+                provenance={"source": "test"},
+            ),
+        )
+        result = apply_latest_identity_review_decision(
+            connection,
+            review_item_id=item.review_item_id,
+            source="test",
+        )
+        updated = connection.execute(
+            "SELECT status, metadata_json FROM review_item WHERE review_item_id = ?",
+            (item.review_item_id,),
+        ).fetchone()
+
+    assert result.review_decision_id == decision.review_decision_id
+    assert result.previous_status == "open"
+    assert result.status == "resolved"
+    assert updated is not None
+    assert updated[0] == "resolved"
+    application = result.metadata["last_identity_decision_application"]
+    assert application["review_decision_id"] == decision.review_decision_id
+    assert application["decision"] == "confirmed_identity"
+    assert application["applied_status"] == "resolved"
+    assert result.metadata["status_history"][0]["application"]["source"] == "test"
+
+
+def test_apply_latest_not_same_publication_decision_dismisses_review_item(
+    tmp_path: Path,
+) -> None:
+    database_path = create_review_database(tmp_path)
+
+    with connect_sqlite(database_path) as connection:
+        item = list_open_review_items(connection, queue_type="legacy_identity_review")[0]
+        create_identity_review_decision(
+            connection,
+            decision=IdentityReviewDecisionCreate(
+                review_item_id=item.review_item_id,
+                document_id=item.publication.document_id,
+                reviewer="reviewer@example.org",
+                decision="not_same_publication",
+                rationale="The legacy URL points to a different publication.",
+            ),
+        )
+        result = apply_latest_identity_review_decision(
+            connection,
+            review_item_id=item.review_item_id,
+        )
+
+    assert result.status == "dismissed"
+
+
+def test_apply_latest_unresolved_identity_decision_does_not_close_item(
+    tmp_path: Path,
+) -> None:
+    database_path = create_review_database(tmp_path)
+
+    with connect_sqlite(database_path) as connection:
+        item = list_open_review_items(connection, queue_type="legacy_identity_review")[0]
+        create_identity_review_decision(
+            connection,
+            decision=IdentityReviewDecisionCreate(
+                review_item_id=item.review_item_id,
+                document_id=item.publication.document_id,
+                reviewer="reviewer@example.org",
+                decision="unresolved",
+                rationale="More source work is required.",
+            ),
+        )
+        with pytest.raises(IdentityDecisionNotApplicableError):
+            apply_latest_identity_review_decision(
+                connection,
+                review_item_id=item.review_item_id,
+            )
+
+
+def test_apply_latest_identity_decision_requires_saved_decision(tmp_path: Path) -> None:
+    database_path = create_review_database(tmp_path)
+
+    with connect_sqlite(database_path) as connection:
+        item = list_open_review_items(connection, queue_type="legacy_identity_review")[0]
+        with pytest.raises(IdentityDecisionNotFoundError):
+            apply_latest_identity_review_decision(
+                connection,
+                review_item_id=item.review_item_id,
+            )
 
 
 def test_empty_initialized_database_returns_empty_review_results(tmp_path: Path) -> None:

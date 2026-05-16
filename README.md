@@ -79,6 +79,8 @@ uv run marygenai review-ui serve --host 127.0.0.1 --port 8000
   `uv run marygenai review update <review_item_id> --status in_review --note "Review started"`
 - Save a structured legacy identity decision:
   `uv run marygenai review decision-create <review_item_id> --reviewer reviewer@example.org --decision confirmed_identity --rationale "Identity confirmed"`
+- Apply the latest structured identity decision to workflow state:
+  `uv run marygenai review decision-apply <review_item_id>`
 - List structured identity decisions:
   `uv run marygenai review decision-list <review_item_id_or_document_id>`
 - Serve the local review API:
@@ -153,6 +155,7 @@ Initial endpoints:
 - `GET /review/items/{review_item_id}`
 - `GET /review/items/{review_item_id}/identity-decisions`
 - `POST /review/items/{review_item_id}/identity-decisions`
+- `POST /review/items/{review_item_id}/identity-decisions/apply`
 - `GET /publications/{document_id}`
 - `GET /publications/{document_id}/identity-decisions`
 - `PATCH /review/items/{review_item_id}/status`
@@ -171,8 +174,13 @@ Open `http://127.0.0.1:8000/ui` to inspect API health, queue totals, open
 ontology links, identity signals, workflow status updates, and structured legacy
 identity decisions with reviewed PMID, PMCID, DOI, canonical URL, rationale,
 reviewer, original identity signals, and provenance. Status remains operational
-workflow state; identity decisions are saved as separate curation records. This
-UI is an internal review and curation surface, not a clinical or public product.
+workflow state; identity decisions are saved as separate curation records. The
+UI keeps saving an identity decision separate from applying the latest applicable
+decision to the local workflow status. Applying a `confirmed_identity` or
+`corrected_identity` decision resolves the item, applying `not_same_publication`
+dismisses it, and `unresolved` remains a saved decision that does not close the
+item. This UI is an internal review and curation surface, not a clinical or
+public product.
 
 Generated `data/` files remain ignored by Git. Old POC artifacts should be kept
 out of the active MVP workspace, either regenerated from POC commands when needed

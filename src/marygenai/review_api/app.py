@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict
 
 from marygenai.persistence.sqlite import sqlite_database_path
 from marygenai.review.models import (
+    IdentityDecisionApplicationResult,
     IdentityReviewDecision,
     IdentityReviewDecisionCreate,
     PublicationDetail,
@@ -19,9 +20,12 @@ from marygenai.review.models import (
     ReviewQueueSummary,
 )
 from marygenai.review.repository import (
+    IdentityDecisionNotApplicableError,
+    IdentityDecisionNotFoundError,
     PublicationNotFoundError,
     ReviewDatabaseNotInitializedError,
     ReviewItemNotFoundError,
+    apply_latest_identity_review_decision,
     connect_initialized_review_database,
     create_identity_review_decision,
     get_publication_detail,
@@ -144,6 +148,27 @@ def create_app(database_path: Path | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail=str(error)) from error
         except PublicationNotFoundError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
+
+    @app.post(
+        "/review/items/{review_item_id}/identity-decisions/apply",
+        response_model=IdentityDecisionApplicationResult,
+    )
+    def apply_identity_review_decision(
+        review_item_id: str,
+        connection: Connection,
+    ) -> IdentityDecisionApplicationResult:
+        try:
+            return apply_latest_identity_review_decision(
+                connection,
+                review_item_id=review_item_id,
+                source="marygenai.review_api",
+            )
+        except ReviewItemNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except IdentityDecisionNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except IdentityDecisionNotApplicableError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
 
     @app.get(
         "/review/items/{review_item_id}/identity-decisions",

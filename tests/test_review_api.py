@@ -48,6 +48,8 @@ def test_review_ui_static_assets_are_served(tmp_path: Path) -> None:
     assert 'const QUEUE_TYPE = "legacy_identity_review";' in response.text
     assert "/review/queues" in response.text
     assert "/identity-decisions" in response.text
+    assert "/identity-decisions/apply" in response.text
+    assert "Apply decision to workflow" in response.text
 
 
 def test_list_review_queues(tmp_path: Path) -> None:
@@ -199,6 +201,77 @@ def test_create_and_list_identity_review_decision(tmp_path: Path) -> None:
     assert publication_response.status_code == 200
     assert item_response.json() == [payload]
     assert publication_response.json() == [payload]
+
+
+def test_apply_identity_review_decision_updates_workflow_status(tmp_path: Path) -> None:
+    database_path = create_review_database(tmp_path)
+    with connect_sqlite(database_path) as connection:
+        item = list_open_review_items(connection, queue_type="legacy_identity_review")[0]
+    client = create_review_api_client(database_path)
+
+    create_response = client.post(
+        f"/review/items/{item.review_item_id}/identity-decisions",
+        json={
+            "review_item_id": item.review_item_id,
+            "document_id": item.publication.document_id,
+            "reviewer": "reviewer@example.org",
+            "decision": "corrected_identity",
+            "reviewed_pmid": "12345678",
+            "reviewed_pmcid": None,
+            "reviewed_doi": None,
+            "reviewed_canonical_url": None,
+            "rationale": "External lookup corrected the publication identity.",
+            "original_identity_signals": {},
+            "provenance": {"source": "api_test"},
+        },
+    )
+    apply_response = client.post(
+        f"/review/items/{item.review_item_id}/identity-decisions/apply",
+    )
+
+    assert create_response.status_code == 200
+    assert apply_response.status_code == 200
+    payload = apply_response.json()
+    assert payload["review_decision_id"] == create_response.json()["review_decision_id"]
+    assert payload["decision"] == "corrected_identity"
+    assert payload["previous_status"] == "open"
+    assert payload["status"] == "resolved"
+    assert payload["metadata"]["last_identity_decision_application"]["source"] == (
+        "marygenai.review_api"
+    )
+
+    queue_response = client.get("/review/queues")
+    assert queue_response.json()[0]["open_items"] == 0
+    assert queue_response.json()[0]["resolved_items"] == 1
+
+
+def test_apply_unresolved_identity_review_decision_returns_conflict(tmp_path: Path) -> None:
+    database_path = create_review_database(tmp_path)
+    with connect_sqlite(database_path) as connection:
+        item = list_open_review_items(connection, queue_type="legacy_identity_review")[0]
+    client = create_review_api_client(database_path)
+
+    client.post(
+        f"/review/items/{item.review_item_id}/identity-decisions",
+        json={
+            "review_item_id": item.review_item_id,
+            "document_id": item.publication.document_id,
+            "reviewer": "reviewer@example.org",
+            "decision": "unresolved",
+            "reviewed_pmid": None,
+            "reviewed_pmcid": None,
+            "reviewed_doi": None,
+            "reviewed_canonical_url": None,
+            "rationale": "Needs more review.",
+            "original_identity_signals": {},
+            "provenance": {},
+        },
+    )
+
+    response = client.post(f"/review/items/{item.review_item_id}/identity-decisions/apply")
+
+    assert response.status_code == 409
+    assert "unresolved" in response.json()["detail"]
 
 
 def test_missing_database_returns_clear_error(tmp_path: Path) -> None:

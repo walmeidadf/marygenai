@@ -247,3 +247,20 @@ This keeps the local UI useful for real curation without making JSONL snapshots
 mutable or treating a workflow transition as reviewed knowledge. The same shape
 can later generalize to field-level ontology, extraction, inclusion, and evidence
 review decisions.
+
+## 2026-05-16: Apply Identity Decisions To Workflow Explicitly
+
+Saving a structured legacy identity decision does not automatically close a
+review item. Workflow advancement is a separate explicit operation that applies
+the latest saved legacy identity decision to the local SQLite review item.
+
+`confirmed_identity` and `corrected_identity` mark the item `resolved` because
+the publication identity has enough reviewer-confirmed information to leave the
+identity queue. `not_same_publication` marks the item `dismissed` because the
+queued legacy association should not continue as the same publication identity.
+`unresolved` remains a saved curation decision but cannot close the workflow
+item.
+
+The application writes provenance into `review_item.metadata_json`, including
+`status_history` and `last_identity_decision_application`, and leaves Initial
+Load JSONL snapshots unchanged.
