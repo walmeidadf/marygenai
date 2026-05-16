@@ -28,6 +28,8 @@ enriching them through validated source flows, and preserving review provenance.
 uv sync --extra dev
 uv run marygenai info
 uv run marygenai initial-load run
+uv run marygenai db init
+uv run marygenai initial-load persist
 uv run ruff check .
 uv run pytest
 ```
@@ -72,9 +74,22 @@ uv run marygenai initial-load run
 The current Initial Load reads legacy Cannadocs CSVs from
 `temp/legacy/cannadocs/`, handles Unicode filenames without renaming them,
 normalizes legacy source records, canonical publication candidates, ontology
-entities, document-to-ontology links, and run metadata. SQLite helpers are
-prepared under `src/marygenai/persistence/`, but SQLite tables are not populated
-yet.
+entities, document-to-ontology links, and run metadata. SQLite persistence under
+`src/marygenai/persistence/` now loads those snapshots into
+`data/db/marygenai.sqlite` as local operational review state.
+
+The current review surface includes:
+
+```bash
+uv run marygenai review queues
+uv run marygenai review list --queue legacy_identity_review
+uv run marygenai review-api serve --host 127.0.0.1 --port 8000
+uv run marygenai review-ui serve --host 127.0.0.1 --port 8000
+```
+
+The first UI is available at `http://127.0.0.1:8000/ui` and is an internal
+review and curation surface for `legacy_identity_review`, not a clinical or
+public product.
 
 ## MVP Prioritization
 

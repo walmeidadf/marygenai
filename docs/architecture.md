@@ -78,6 +78,19 @@ SQLite is the preferred first MVP persistence option because it is simple,
 portable, and sufficient for an internal review queue. JSONL exports should remain
 available for audit and interchange.
 
+The current local application layer has landed in three small slices:
+
+- `marygenai.review`: reusable Pydantic DTOs and SQLite repository access for
+  review queues, publication detail, ontology links, legacy references, and
+  status updates;
+- `marygenai.review_api`: a FastAPI layer over those DTOs and repository
+  functions;
+- `marygenai.review_ui`: a static local UI mounted at `/ui` by the FastAPI app
+  for the first `legacy_identity_review` workflow.
+
+This is still an internal curation surface. It does not make the project a
+clinical or public recommendation product.
+
 ## Design Principles
 
 - Keep source payloads auditable.
@@ -158,7 +171,9 @@ The first run imports the legacy studies and ontology CSVs from
 now provides the first operational review database at `data/db/marygenai.sqlite`.
 The initial schema loads run manifests, source records, canonical documents,
 publication identities, publication metadata, ontology entities,
-document-to-ontology links, and a minimal legacy identity review queue.
+document-to-ontology links, and a minimal legacy identity review queue. The
+current local environment has one Initial Load run, `20260515T143451Z`, and a
+`legacy_identity_review` queue with 1,206 open items.
 
 The architecture should also preserve a GenAI path. Agentic evidence search,
 hybrid lexical/vector retrieval, ontology-aware filters, and RAG over reviewed
