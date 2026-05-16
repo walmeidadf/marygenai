@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 DEFAULT_SQLITE_FILENAME = "marygenai.sqlite"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def sqlite_database_path(data_dir: Path) -> Path:
@@ -206,6 +206,40 @@ MIGRATIONS = (
             """
             CREATE INDEX IF NOT EXISTS idx_review_item_queue_status
             ON review_item(queue_type, status, priority_score DESC)
+            """,
+        ),
+    ),
+    Migration(
+        version=2,
+        name="structured_review_decisions",
+        statements=(
+            """
+            CREATE TABLE IF NOT EXISTS review_decision (
+                review_decision_id TEXT PRIMARY KEY,
+                review_item_id TEXT NOT NULL,
+                document_id TEXT NOT NULL,
+                decision_type TEXT NOT NULL,
+                decision TEXT NOT NULL,
+                reviewer TEXT NOT NULL,
+                reviewed_pmid TEXT,
+                reviewed_pmcid TEXT,
+                reviewed_doi TEXT,
+                reviewed_canonical_url TEXT,
+                rationale TEXT,
+                original_identity_signals_json TEXT NOT NULL,
+                provenance_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (review_item_id) REFERENCES review_item(review_item_id),
+                FOREIGN KEY (document_id) REFERENCES document(document_id)
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_review_decision_review_item
+            ON review_decision(review_item_id, created_at DESC)
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_review_decision_document
+            ON review_decision(document_id, created_at DESC)
             """,
         ),
     ),

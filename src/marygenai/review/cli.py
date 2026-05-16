@@ -9,14 +9,17 @@ from rich.console import Console
 from rich.table import Table
 
 from marygenai.persistence.sqlite import sqlite_database_path
-from marygenai.review.models import ReviewItemStatusUpdate
+from marygenai.review.models import IdentityReviewDecisionCreate, ReviewItemStatusUpdate
 from marygenai.review.repository import (
     PublicationNotFoundError,
     ReviewDatabaseNotInitializedError,
     ReviewItemNotFoundError,
     connect_initialized_review_database,
+    create_identity_review_decision,
     get_publication_detail,
     get_publication_detail_for_review_item,
+    list_identity_review_decisions_for_item,
+    list_identity_review_decisions_for_publication,
     list_open_review_items,
     list_review_queues,
     update_review_item_status,
@@ -177,6 +180,29 @@ def show(
         )
     console.print(review_table)
 
+    with _connect_or_exit() as connection:
+        decisions = list_identity_review_decisions_for_publication(
+            connection,
+            document_id=publication.document_id,
+        )
+    decision_table = Table(title="Identity decisions")
+    decision_table.add_column("Created")
+    decision_table.add_column("Decision")
+    decision_table.add_column("Reviewer")
+    decision_table.add_column("PMID")
+    decision_table.add_column("PMCID")
+    decision_table.add_column("DOI")
+    for decision in decisions:
+        decision_table.add_row(
+            decision.created_at,
+            decision.decision,
+            decision.reviewer,
+            decision.reviewed_pmid or "",
+            decision.reviewed_pmcid or "",
+            decision.reviewed_doi or "",
+        )
+    console.print(decision_table)
+
 
 @app.command("update")
 def update(
@@ -213,6 +239,106 @@ def update(
             "updated_at": result.updated_at,
         }
     )
+
+
+@app.command("decision-list")
+def decision_list(
+    identifier: Annotated[
+        str,
+        typer.Argument(help="Review item id or publication document id."),
+    ],
+) -> None:
+    """List structured identity decisions for a review item or publication."""
+    with _connect_or_exit() as connection:
+        try:
+            if identifier.startswith("review_item:"):
+                decisions = list_identity_review_decisions_for_item(
+                    connection,
+                    review_item_id=identifier,
+                )
+            else:
+                decisions = list_identity_review_decisions_for_publication(
+                    connection,
+                    document_id=identifier,
+                )
+        except (PublicationNotFoundError, ReviewItemNotFoundError) as error:
+            console.print(str(error))
+            raise typer.Exit(1) from error
+
+    table = Table(title="Identity decisions")
+    table.add_column("Decision id")
+    table.add_column("Decision")
+    table.add_column("Reviewer")
+    table.add_column("Created")
+    table.add_column("Rationale")
+    for decision in decisions:
+        table.add_row(
+            decision.review_decision_id,
+            decision.decision,
+            decision.reviewer,
+            decision.created_at,
+            decision.rationale or "",
+        )
+    console.print(table)
+
+
+@app.command("decision-create")
+def decision_create(
+    review_item_id: Annotated[str, typer.Argument(help="Review item id to decide.")],
+    reviewer: Annotated[str, typer.Option("--reviewer", help="Reviewer identity.")],
+    decision: Annotated[
+        str,
+        typer.Option(
+            "--decision",
+            help=(
+                "Identity decision: confirmed_identity, corrected_identity, "
+                "not_same_publication, or unresolved."
+            ),
+        ),
+    ],
+    reviewed_pmid: Annotated[str | None, typer.Option("--pmid")] = None,
+    reviewed_pmcid: Annotated[str | None, typer.Option("--pmcid")] = None,
+    reviewed_doi: Annotated[str | None, typer.Option("--doi")] = None,
+    reviewed_canonical_url: Annotated[str | None, typer.Option("--canonical-url")] = None,
+    rationale: Annotated[str | None, typer.Option("--rationale")] = None,
+) -> None:
+    """Create a structured legacy identity review decision."""
+    with _connect_or_exit() as connection:
+        try:
+            detail = get_publication_detail_for_review_item(
+                connection,
+                review_item_id=review_item_id,
+            )
+            result = create_identity_review_decision(
+                connection,
+                decision=IdentityReviewDecisionCreate(
+                    review_item_id=review_item_id,
+                    document_id=detail.publication.document_id,
+                    reviewer=reviewer,
+                    decision=decision,
+                    reviewed_pmid=reviewed_pmid,
+                    reviewed_pmcid=reviewed_pmcid,
+                    reviewed_doi=reviewed_doi,
+                    reviewed_canonical_url=reviewed_canonical_url,
+                    rationale=rationale,
+                    original_identity_signals={
+                        "publication": detail.publication.model_dump(mode="json"),
+                        "identities": [
+                            identity.model_dump(mode="json")
+                            for identity in detail.identities
+                        ],
+                    },
+                    provenance={"source": "marygenai.review.cli"},
+                ),
+            )
+        except (PublicationNotFoundError, ReviewItemNotFoundError) as error:
+            console.print(str(error))
+            raise typer.Exit(1) from error
+        except ValidationError as error:
+            console.print(str(error))
+            raise typer.Exit(1) from error
+
+    console.print(result.model_dump(mode="json"))
 
 
 @contextmanager

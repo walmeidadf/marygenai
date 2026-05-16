@@ -233,3 +233,17 @@ workflow is better understood, while still preserving an explicit `review-ui`
 CLI boundary for future containerization or frontend replacement. The UI remains
 local-first, internal, and focused on review and curation rather than clinical or
 public product behavior.
+
+## 2026-05-16: Separate Identity Decisions From Review Item Status
+
+Legacy identity review now stores structured curation decisions in a dedicated
+SQLite `review_decision` table instead of overloading `review_item.status`.
+Review item status remains operational workflow state, while identity decisions
+are append-only records that preserve reviewer identity, reviewed PMID, PMCID,
+DOI, canonical URL, rationale, original identity signals, timestamp, software
+version, and decision schema provenance.
+
+This keeps the local UI useful for real curation without making JSONL snapshots
+mutable or treating a workflow transition as reviewed knowledge. The same shape
+can later generalize to field-level ontology, extraction, inclusion, and evidence
+review decisions.

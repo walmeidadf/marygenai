@@ -9,11 +9,14 @@ from pydantic import ValidationError
 from marygenai.initial_load.persist import persist_initial_load, review_item_id
 from marygenai.initial_load.pipeline import run_initial_load
 from marygenai.persistence.sqlite import connect_sqlite, initialize_schema, sqlite_database_path
-from marygenai.review.models import ReviewItemStatusUpdate
+from marygenai.review.models import IdentityReviewDecisionCreate, ReviewItemStatusUpdate
 from marygenai.review.repository import (
     ReviewDatabaseNotInitializedError,
     connect_initialized_review_database,
+    create_identity_review_decision,
     get_publication_detail,
+    list_identity_review_decisions_for_item,
+    list_identity_review_decisions_for_publication,
     list_open_review_items,
     list_review_queues,
     update_review_item_status,
@@ -127,6 +130,48 @@ def test_update_review_item_status_rejects_unknown_status() -> None:
             review_item_id="review_item:missing",
             status="closed",
         )
+
+
+def test_create_and_list_identity_review_decision(tmp_path: Path) -> None:
+    database_path = create_review_database(tmp_path)
+
+    with connect_sqlite(database_path) as connection:
+        item = list_open_review_items(connection, queue_type="legacy_identity_review")[0]
+        result = create_identity_review_decision(
+            connection,
+            decision=IdentityReviewDecisionCreate(
+                review_item_id=item.review_item_id,
+                document_id=item.publication.document_id,
+                reviewer="reviewer@example.org",
+                decision="corrected_identity",
+                reviewed_pmid="12345678",
+                reviewed_pmcid="PMC123456",
+                reviewed_doi="10.1000/example",
+                reviewed_canonical_url="https://example.org/corrected",
+                rationale="Matched by title and external source.",
+                original_identity_signals={
+                    "publication": item.publication.model_dump(mode="json"),
+                },
+                provenance={"source": "test"},
+            ),
+        )
+        item_decisions = list_identity_review_decisions_for_item(
+            connection,
+            review_item_id=item.review_item_id,
+        )
+        publication_decisions = list_identity_review_decisions_for_publication(
+            connection,
+            document_id=item.publication.document_id,
+        )
+
+    assert result.review_decision_id.startswith("review_decision:")
+    assert result.decision_type == "legacy_identity"
+    assert result.decision == "corrected_identity"
+    assert result.reviewed_pmid == "12345678"
+    assert result.provenance["source"] == "test"
+    assert result.provenance["decision_schema_version"] == "identity_review_decision.v1"
+    assert item_decisions == [result]
+    assert publication_decisions == [result]
 
 
 def test_empty_initialized_database_returns_empty_review_results(tmp_path: Path) -> None:

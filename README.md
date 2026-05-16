@@ -77,6 +77,10 @@ uv run marygenai review-ui serve --host 127.0.0.1 --port 8000
   `uv run marygenai review show <review_item_id_or_document_id>`
 - Update review item status:
   `uv run marygenai review update <review_item_id> --status in_review --note "Review started"`
+- Save a structured legacy identity decision:
+  `uv run marygenai review decision-create <review_item_id> --reviewer reviewer@example.org --decision confirmed_identity --rationale "Identity confirmed"`
+- List structured identity decisions:
+  `uv run marygenai review decision-list <review_item_id_or_document_id>`
 - Serve the local review API:
   `uv run marygenai review-api serve --host 127.0.0.1 --port 8000`
 - Serve the first local review UI and API:
@@ -147,7 +151,10 @@ Initial endpoints:
 - `GET /review/queues`
 - `GET /review/queues/{queue_type}/items?status=open&limit=20`
 - `GET /review/items/{review_item_id}`
+- `GET /review/items/{review_item_id}/identity-decisions`
+- `POST /review/items/{review_item_id}/identity-decisions`
 - `GET /publications/{document_id}`
+- `GET /publications/{document_id}/identity-decisions`
 - `PATCH /review/items/{review_item_id}/status`
 
 The API reads `data/db/marygenai.sqlite` by default, mutates only operational
@@ -161,7 +168,10 @@ uv run marygenai review-ui serve --host 127.0.0.1 --port 8000
 
 Open `http://127.0.0.1:8000/ui` to inspect API health, queue totals, open
 `legacy_identity_review` items, publication detail, legacy reference values,
-ontology links, identity signals, and status updates with an optional note. This
+ontology links, identity signals, workflow status updates, and structured legacy
+identity decisions with reviewed PMID, PMCID, DOI, canonical URL, rationale,
+reviewer, original identity signals, and provenance. Status remains operational
+workflow state; identity decisions are saved as separate curation records. This
 UI is an internal review and curation surface, not a clinical or public product.
 
 Generated `data/` files remain ignored by Git. Old POC artifacts should be kept

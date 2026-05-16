@@ -30,7 +30,9 @@ overlap window to avoid missing records near the boundary.
 
 ## Current Environment Status
 
-As of 2026-05-16, `main` contains the first local review surface for the MVP.
+As of 2026-05-16, `main` contains the first local review surface for the MVP,
+and the next MVP branch adds structured identity decisions for legacy identity
+review.
 The active local environment is still single-maintainer and local-first:
 
 - package version: `0.1.0`;
@@ -200,13 +202,16 @@ publication candidate that lacks PMID, PMCID, and DOI, because those records rel
 on canonical URL, normalized title, or weaker legacy identity until reviewed.
 
 The first review access layer exposes Pydantic DTOs and CLI commands for queue
-inspection and simple operational status updates:
+inspection, simple operational status updates, and structured legacy identity
+decisions:
 
 ```bash
 uv run marygenai review queues
 uv run marygenai review list --queue legacy_identity_review
 uv run marygenai review show <review_item_id_or_document_id>
 uv run marygenai review update <review_item_id> --status in_review --note "Review started"
+uv run marygenai review decision-create <review_item_id> --reviewer reviewer@example.org --decision confirmed_identity
+uv run marygenai review decision-list <review_item_id_or_document_id>
 ```
 
 The CLI reads and updates only operational SQLite review state. It does not
@@ -224,7 +229,10 @@ Minimum endpoints:
 - `GET /review/queues`
 - `GET /review/queues/{queue_type}/items?status=open&limit=20`
 - `GET /review/items/{review_item_id}`
+- `GET /review/items/{review_item_id}/identity-decisions`
+- `POST /review/items/{review_item_id}/identity-decisions`
 - `GET /publications/{document_id}`
+- `GET /publications/{document_id}/identity-decisions`
 - `PATCH /review/items/{review_item_id}/status`
 
 The API reads from `data/db/marygenai.sqlite` by default, returns a clear service
@@ -240,11 +248,15 @@ uv run marygenai review-ui serve --host 127.0.0.1 --port 8000
 The UI is available at `http://127.0.0.1:8000/ui` and consumes the existing API
 endpoints. It shows API health, queue totals, open `legacy_identity_review`
 items, publication and review item detail, legacy reference values, ontology
-links, identity signals, and a status update action with an optional note.
+links, identity signals, workflow status updates, and structured identity
+decision history.
 
-The first UI intentionally records only review item status transitions and an
-optional note. It does not yet persist a structured identity decision, reviewer
-identity, reviewed identifier values, or field-level review decisions.
+Structured identity decisions are separate from review item status. Status
+remains the operational workflow state (`open`, `in_review`, `resolved`, or
+`dismissed`). Identity decisions are append-only curation records that preserve
+review item id, document id, reviewer, decision, reviewed PMID, PMCID, DOI,
+canonical URL, rationale, original identity signals, timestamp, software version,
+and decision schema provenance.
 
 Populated legacy values should be treated as trusted curated references. Missing
 legacy fields should remain interpretable as `not_reported`, `not_applicable`, or
