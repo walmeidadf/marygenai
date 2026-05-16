@@ -1,0 +1,273 @@
+:root {
+  color-scheme: light;
+  --background: #f6f7f3;
+  --panel: #ffffff;
+  --ink: #17201a;
+  --muted: #68746b;
+  --line: #d9ded5;
+  --accent: #236b4b;
+  --accent-strong: #184f37;
+  --warning: #8b4e10;
+  --danger: #8a2525;
+  --soft: #eef4ee;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--ink);
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  line-height: 1.5;
+}
+
+button,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #ffffff;
+  min-height: 36px;
+  border-radius: 6px;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+button.secondary {
+  background: #ffffff;
+  color: var(--accent-strong);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 22px 28px;
+  border-bottom: 1px solid var(--line);
+  background: #ffffff;
+}
+
+.eyebrow,
+.muted {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  margin-bottom: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+}
+
+h2 {
+  margin-bottom: 0;
+  font-size: 1.05rem;
+}
+
+h3 {
+  margin: 20px 0 10px;
+  font-size: 0.95rem;
+}
+
+.status-pill {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: var(--soft);
+  color: var(--accent-strong);
+  white-space: nowrap;
+}
+
+.status-pill.error {
+  background: #fff1ef;
+  color: var(--danger);
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(330px, 420px) minmax(0, 1fr);
+  gap: 18px;
+  padding: 18px;
+}
+
+.panel {
+  min-height: calc(100vh - 112px);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.queue-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 16px 16px 0;
+}
+
+.summary-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: #fbfcfa;
+}
+
+.summary-card strong {
+  display: block;
+  font-size: 1.35rem;
+}
+
+.review-list {
+  display: grid;
+  gap: 8px;
+  padding: 0 16px 16px;
+}
+
+.review-card {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--ink);
+  padding: 12px;
+  text-align: left;
+}
+
+.review-card.active,
+.review-card:hover {
+  border-color: var(--accent);
+  background: var(--soft);
+}
+
+.review-title {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 700;
+}
+
+.review-meta,
+.meta-grid {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.detail-empty,
+.detail-body {
+  padding: 16px;
+}
+
+.detail-title {
+  margin-bottom: 8px;
+  font-size: 1.35rem;
+}
+
+.detail-section {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+}
+
+.data-list {
+  display: grid;
+  gap: 8px;
+}
+
+.data-row {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: #fbfcfa;
+}
+
+.data-row code {
+  overflow-wrap: anywhere;
+}
+
+.status-form {
+  display: grid;
+  gap: 10px;
+}
+
+.status-form textarea,
+.status-form select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px;
+  background: #ffffff;
+  color: var(--ink);
+}
+
+.form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.message {
+  color: var(--accent-strong);
+  font-size: 0.9rem;
+}
+
+.message.error {
+  color: var(--danger);
+}
+
+@media (max-width: 860px) {
+  .topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .panel {
+    min-height: auto;
+  }
+
+  .meta-grid {
+    grid-template-columns: 1fr;
+  }
+}
+

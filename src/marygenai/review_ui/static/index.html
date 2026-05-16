@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MaryGenAI Review</title>
+    <link rel="stylesheet" href="/ui/static/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">MaryGenAI internal review</p>
+        <h1>Legacy identity review</h1>
+      </div>
+      <div id="api-status" class="status-pill">Checking API</div>
+    </header>
+
+    <main class="workspace">
+      <section class="panel queue-panel" aria-labelledby="queue-heading">
+        <div class="panel-heading">
+          <h2 id="queue-heading">Queues</h2>
+          <button id="refresh-button" type="button">Refresh</button>
+        </div>
+        <div id="queue-summary" class="queue-summary"></div>
+        <h3>Open legacy identity items</h3>
+        <div id="review-list" class="review-list" aria-live="polite"></div>
+      </section>
+
+      <section class="panel detail-panel" aria-labelledby="detail-heading">
+        <div class="panel-heading">
+          <h2 id="detail-heading">Publication detail</h2>
+          <span id="selected-item-label" class="muted">No item selected</span>
+        </div>
+        <div id="detail-content" class="detail-empty">
+          Select an open review item to inspect legacy reference values, ontology
+          links, identity signals, and review status.
+        </div>
+      </section>
+    </main>
+
+    <script src="/ui/static/app.js" defer></script>
+  </body>
+</html>
+

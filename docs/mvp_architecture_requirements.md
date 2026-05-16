@@ -51,6 +51,12 @@ For the first implementation, these can live in one repository and one Python
 package. They should still be organized as separate modules and CLI commands so
 they can later become scheduled jobs or independent containers.
 
+The first `review-ui` implementation is intentionally a static local UI served by
+the FastAPI review app at `/ui`. This keeps the review surface available without
+introducing a separate frontend build system before review workflow needs are
+clear. A separate UI container or richer frontend can be introduced later when
+the application boundary is justified.
+
 ## Container Requirements
 
 The MVP should be designed to run locally with Docker Compose, but Docker should

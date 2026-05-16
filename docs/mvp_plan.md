@@ -103,7 +103,9 @@ Citation metrics must never override weak cannabinoid focus.
 
 Status: JSONL Initial Load completed on 2026-05-15. SQLite persistence, the first
 local review queue foundation, the first review queue CLI/query layer, and the
-first local FastAPI review API were added on 2026-05-15.
+first local FastAPI review API were added on 2026-05-15. The first local static
+review UI was added after the API layer and focuses on the
+`legacy_identity_review` queue.
 
 Command:
 
@@ -201,6 +203,17 @@ Minimum endpoints:
 The API reads from `data/db/marygenai.sqlite` by default, returns a clear service
 error when the operational database is missing or lacks the review schema, and
 does not alter JSONL snapshots.
+
+The first review UI is served by the same local FastAPI app:
+
+```bash
+uv run marygenai review-ui serve --host 127.0.0.1 --port 8000
+```
+
+The UI is available at `http://127.0.0.1:8000/ui` and consumes the existing API
+endpoints. It shows API health, queue totals, open `legacy_identity_review`
+items, publication and review item detail, legacy reference values, ontology
+links, identity signals, and a status update action with an optional note.
 
 Populated legacy values should be treated as trusted curated references. Missing
 legacy fields should remain interpretable as `not_reported`, `not_applicable`, or
@@ -342,15 +355,70 @@ review state and identity decisions are central product behavior.
 - final database architecture commitment;
 - replacing human review for nuanced scientific evidence fields.
 
-## First Implementation Milestone
+## MVP Roadmap
 
-MVP 0.1 should ship:
+This roadmap tracks the implementation state of MVP 0.1. It should be updated
+when a milestone lands in `main`, not only when a design direction changes.
 
-- a legacy import command;
-- a legacy ontology import command;
-- a PubMed discovery command that can start from the legacy boundary;
-- an enrichment command for access and PubMed metadata;
-- a persistent review queue;
-- a publication list ordered by cannabinoid-focus-first ranking;
-- a review detail view with editable decisions and provenance;
-- a reviewed export format.
+### Done
+
+- Legacy Initial Load command reads Cannadocs CSV exports from
+  `temp/legacy/cannadocs/` and writes auditable JSONL snapshots under ignored
+  `data/` paths.
+- Legacy ontology Initial Load normalizes cannabinoids, medical conditions,
+  organ systems, terpenes, glossary terms, and document-to-ontology links.
+- Local SQLite persistence stores operational review state in
+  `data/db/marygenai.sqlite` while keeping JSONL snapshots as the audit and
+  interchange record.
+- The first persisted schema covers `run_manifest`, `source_record`,
+  `document`, `document_identity`, `publication`, `ontology_entity`,
+  `document_ontology_link`, and `review_item`.
+- The first review queue, `legacy_identity_review`, opens items for legacy
+  publication candidates that lack PMID, PMCID, and DOI.
+- The reusable `marygenai.review` access layer exposes Pydantic DTOs and SQLite
+  repository functions for queues, publication details, ontology links, legacy
+  references, and status updates.
+- The review CLI can list queues, list open review items, show item/publication
+  detail, and update item status with an optional note.
+- The first local FastAPI review API exposes health, queue, item detail,
+  publication detail, and status-update endpoints for a future UI.
+- The first local review UI is served at `/ui` by the FastAPI app and consumes
+  the existing endpoints for `legacy_identity_review` inspection and status
+  updates.
+
+### Next
+
+- Exercise the first local review UI against the full legacy SQLite database and
+  capture the next workflow gaps from real identity-review use.
+- Add richer identity-review decisions beyond simple status changes, including
+  reviewed identifiers, reviewer identity, rationale, and field-level provenance.
+- If the UI needs it, extend the API with simple pagination, status filtering,
+  and queue item counts before adding broader workflow features.
+
+### Upcoming
+
+- Convert the validated PubMed discovery POC into a reusable pipeline command
+  that starts from the legacy publication boundary with an overlap window.
+- Persist discovery classifications such as `in_legacy_exact`,
+  `possible_legacy_match`, `needs_manual_identity_review`, and `new_candidate`.
+- Convert validated access and metadata enrichment POCs into reusable commands
+  for PubMed metadata, PMC access, Europe PMC, Unpaywall, and optional iCite
+  audit fields.
+- Add richer review decision storage beyond simple review item status changes,
+  including reviewer identity, reviewed field, original value, reviewed value,
+  decision, timestamp, notes, ontology version, extractor version, and source
+  provenance.
+- Add reviewed knowledge export snapshots that include only human-reviewed
+  fields or conservative automatically reviewed canonical fields.
+
+### Later
+
+- Add Docker Compose once the API, worker, UI, and database roles are stable
+  enough to benefit from container boundaries.
+- Evaluate PostgreSQL, document storage, search indexes, graph storage, and
+  vector retrieval only after review workflow, ontology traversal, collaboration,
+  and GenAI retrieval access patterns are demonstrated.
+- Add GenAI retrieval experiments over reviewed evidence, keeping generated
+  answers grounded in reviewed fields, evidence text, and provenance.
+- Add multi-user review and role-aware access when the local single-maintainer
+  workflow is no longer sufficient.
