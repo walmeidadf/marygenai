@@ -9,6 +9,8 @@ from pydantic import BaseModel, ConfigDict
 
 from marygenai.persistence.sqlite import sqlite_database_path
 from marygenai.review.models import (
+    IdentityReviewDecision,
+    IdentityReviewDecisionCreate,
     PublicationDetail,
     ReviewItemStatus,
     ReviewItemStatusResult,
@@ -21,8 +23,11 @@ from marygenai.review.repository import (
     ReviewDatabaseNotInitializedError,
     ReviewItemNotFoundError,
     connect_initialized_review_database,
+    create_identity_review_decision,
     get_publication_detail,
     get_publication_detail_for_review_item,
+    list_identity_review_decisions_for_item,
+    list_identity_review_decisions_for_publication,
     list_open_review_items,
     list_review_queues,
     update_review_item_status,
@@ -98,13 +103,6 @@ def create_app(database_path: Path | None = None) -> FastAPI:
         except ReviewItemNotFoundError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
 
-    @app.get("/publications/{document_id:path}", response_model=PublicationDetail)
-    def publication_detail(document_id: str, connection: Connection) -> PublicationDetail:
-        try:
-            return get_publication_detail(connection, document_id=document_id)
-        except PublicationNotFoundError as error:
-            raise HTTPException(status_code=404, detail=str(error)) from error
-
     @app.patch(
         "/review/items/{review_item_id}/status",
         response_model=ReviewItemStatusResult,
@@ -124,6 +122,66 @@ def create_app(database_path: Path | None = None) -> FastAPI:
                 ),
             )
         except ReviewItemNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.post(
+        "/review/items/{review_item_id}/identity-decisions",
+        response_model=IdentityReviewDecision,
+    )
+    def post_identity_review_decision(
+        review_item_id: str,
+        decision: IdentityReviewDecisionCreate,
+        connection: Connection,
+    ) -> IdentityReviewDecision:
+        if decision.review_item_id != review_item_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Payload review_item_id must match the URL review item id.",
+            )
+        try:
+            return create_identity_review_decision(connection, decision=decision)
+        except ReviewItemNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        except PublicationNotFoundError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+
+    @app.get(
+        "/review/items/{review_item_id}/identity-decisions",
+        response_model=list[IdentityReviewDecision],
+    )
+    def review_item_identity_decisions(
+        review_item_id: str,
+        connection: Connection,
+    ) -> list[IdentityReviewDecision]:
+        try:
+            return list_identity_review_decisions_for_item(
+                connection,
+                review_item_id=review_item_id,
+            )
+        except ReviewItemNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.get(
+        "/publications/{document_id:path}/identity-decisions",
+        response_model=list[IdentityReviewDecision],
+    )
+    def publication_identity_decisions(
+        document_id: str,
+        connection: Connection,
+    ) -> list[IdentityReviewDecision]:
+        try:
+            return list_identity_review_decisions_for_publication(
+                connection,
+                document_id=document_id,
+            )
+        except PublicationNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.get("/publications/{document_id:path}", response_model=PublicationDetail)
+    def publication_detail(document_id: str, connection: Connection) -> PublicationDetail:
+        try:
+            return get_publication_detail(connection, document_id=document_id)
+        except PublicationNotFoundError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
 
     return app

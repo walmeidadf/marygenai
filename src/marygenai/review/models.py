@@ -5,6 +5,12 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 ReviewItemStatus = Literal["open", "in_review", "resolved", "dismissed"]
+IdentityDecision = Literal[
+    "confirmed_identity",
+    "corrected_identity",
+    "not_same_publication",
+    "unresolved",
+]
 
 
 class ReviewQueueSummary(BaseModel):
@@ -114,3 +120,37 @@ class ReviewItemStatusResult(BaseModel):
     updated_at: str
     metadata: dict[str, Any] = Field(default_factory=dict)
 
+
+class IdentityReviewDecisionCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    review_item_id: str = Field(min_length=1)
+    document_id: str = Field(min_length=1)
+    reviewer: str = Field(min_length=1)
+    decision: IdentityDecision
+    reviewed_pmid: str | None = None
+    reviewed_pmcid: str | None = None
+    reviewed_doi: str | None = None
+    reviewed_canonical_url: str | None = None
+    rationale: str | None = None
+    original_identity_signals: dict[str, Any] = Field(default_factory=dict)
+    provenance: dict[str, Any] = Field(default_factory=dict)
+
+
+class IdentityReviewDecision(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    review_decision_id: str
+    review_item_id: str
+    document_id: str
+    decision_type: str = "legacy_identity"
+    reviewer: str
+    decision: IdentityDecision
+    reviewed_pmid: str | None = None
+    reviewed_pmcid: str | None = None
+    reviewed_doi: str | None = None
+    reviewed_canonical_url: str | None = None
+    rationale: str | None = None
+    original_identity_signals: dict[str, Any] = Field(default_factory=dict)
+    created_at: str
+    provenance: dict[str, Any] = Field(default_factory=dict)

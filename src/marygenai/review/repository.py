@@ -2,16 +2,20 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from pydantic import TypeAdapter
 
-from marygenai.persistence.sqlite import connect_sqlite
+from marygenai import __version__
+from marygenai.persistence.sqlite import connect_sqlite, initialize_schema
 from marygenai.review.models import (
+    IdentityReviewDecision,
+    IdentityReviewDecisionCreate,
     LegacyReference,
     OntologyLinkSummary,
     PublicationDetail,
@@ -30,6 +34,7 @@ REVIEW_SCHEMA_TABLES = {
     "document_ontology_link",
     "ontology_entity",
     "publication",
+    "review_decision",
     "review_item",
 }
 
@@ -60,6 +65,7 @@ def connect_initialized_review_database(
         )
     with connect_sqlite(database_path, check_same_thread=check_same_thread) as connection:
         connection.row_factory = sqlite3.Row
+        initialize_schema(connection)
         require_review_schema(connection)
         yield connection
 
@@ -371,6 +377,129 @@ def update_review_item_status(
     )
 
 
+def create_identity_review_decision(
+    connection: sqlite3.Connection,
+    *,
+    decision: IdentityReviewDecisionCreate,
+) -> IdentityReviewDecision:
+    require_review_schema(connection)
+    review_item = connection.execute(
+        "SELECT document_id FROM review_item WHERE review_item_id = ?",
+        (decision.review_item_id,),
+    ).fetchone()
+    if review_item is None:
+        raise ReviewItemNotFoundError(f"Review item not found: {decision.review_item_id}")
+    if review_item["document_id"] != decision.document_id:
+        raise PublicationNotFoundError(
+            "Review decision document_id does not match the review item document."
+        )
+
+    created_at = datetime.now(UTC).isoformat()
+    provenance = _decision_provenance(decision.provenance)
+    review_decision_id = f"review_decision:{uuid4()}"
+    connection.execute(
+        """
+        INSERT INTO review_decision (
+            review_decision_id,
+            review_item_id,
+            document_id,
+            decision_type,
+            decision,
+            reviewer,
+            reviewed_pmid,
+            reviewed_pmcid,
+            reviewed_doi,
+            reviewed_canonical_url,
+            rationale,
+            original_identity_signals_json,
+            provenance_json,
+            created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            review_decision_id,
+            decision.review_item_id,
+            decision.document_id,
+            "legacy_identity",
+            decision.decision,
+            decision.reviewer,
+            _clean_text(decision.reviewed_pmid),
+            _clean_text(decision.reviewed_pmcid),
+            _clean_text(decision.reviewed_doi),
+            _clean_text(decision.reviewed_canonical_url),
+            _clean_text(decision.rationale),
+            _dump_json(decision.original_identity_signals),
+            _dump_json(provenance),
+            created_at,
+        ),
+    )
+    return IdentityReviewDecision(
+        review_decision_id=review_decision_id,
+        review_item_id=decision.review_item_id,
+        document_id=decision.document_id,
+        decision_type="legacy_identity",
+        reviewer=decision.reviewer,
+        decision=decision.decision,
+        reviewed_pmid=_clean_text(decision.reviewed_pmid),
+        reviewed_pmcid=_clean_text(decision.reviewed_pmcid),
+        reviewed_doi=_clean_text(decision.reviewed_doi),
+        reviewed_canonical_url=_clean_text(decision.reviewed_canonical_url),
+        rationale=_clean_text(decision.rationale),
+        original_identity_signals=decision.original_identity_signals,
+        created_at=created_at,
+        provenance=provenance,
+    )
+
+
+def list_identity_review_decisions_for_item(
+    connection: sqlite3.Connection,
+    *,
+    review_item_id: str,
+) -> list[IdentityReviewDecision]:
+    require_review_schema(connection)
+    item = connection.execute(
+        "SELECT 1 FROM review_item WHERE review_item_id = ?",
+        (review_item_id,),
+    ).fetchone()
+    if item is None:
+        raise ReviewItemNotFoundError(f"Review item not found: {review_item_id}")
+    rows = connection.execute(
+        """
+        SELECT *
+        FROM review_decision
+        WHERE review_item_id = ?
+        ORDER BY created_at DESC, review_decision_id DESC
+        """,
+        (review_item_id,),
+    ).fetchall()
+    return [_identity_decision_from_row(row) for row in rows]
+
+
+def list_identity_review_decisions_for_publication(
+    connection: sqlite3.Connection,
+    *,
+    document_id: str,
+) -> list[IdentityReviewDecision]:
+    require_review_schema(connection)
+    publication = connection.execute(
+        "SELECT 1 FROM document WHERE document_id = ?",
+        (document_id,),
+    ).fetchone()
+    if publication is None:
+        raise PublicationNotFoundError(f"Publication document not found: {document_id}")
+    rows = connection.execute(
+        """
+        SELECT *
+        FROM review_decision
+        WHERE document_id = ?
+        ORDER BY created_at DESC, review_decision_id DESC
+        """,
+        (document_id,),
+    ).fetchall()
+    return [_identity_decision_from_row(row) for row in rows]
+
+
 def _queue_item_from_row(row: sqlite3.Row) -> ReviewQueueItem:
     return ReviewQueueItem(
         review_item_id=row["review_item_id"],
@@ -402,6 +531,25 @@ def _publication_summary_from_row(row: sqlite3.Row) -> PublicationSummary:
     )
 
 
+def _identity_decision_from_row(row: sqlite3.Row) -> IdentityReviewDecision:
+    return IdentityReviewDecision(
+        review_decision_id=row["review_decision_id"],
+        review_item_id=row["review_item_id"],
+        document_id=row["document_id"],
+        decision_type=row["decision_type"],
+        reviewer=row["reviewer"],
+        decision=row["decision"],
+        reviewed_pmid=row["reviewed_pmid"],
+        reviewed_pmcid=row["reviewed_pmcid"],
+        reviewed_doi=row["reviewed_doi"],
+        reviewed_canonical_url=row["reviewed_canonical_url"],
+        rationale=row["rationale"],
+        original_identity_signals=_load_json_object(row["original_identity_signals_json"]),
+        created_at=row["created_at"],
+        provenance=_load_json_object(row["provenance_json"]),
+    )
+
+
 def _load_json_object(raw_json: str | None) -> dict[str, Any]:
     if not raw_json:
         return {}
@@ -420,3 +568,18 @@ def _status_history(metadata: dict[str, Any]) -> list[dict[str, Any]]:
     if not isinstance(history, Iterable) or isinstance(history, (str, bytes, dict)):
         return []
     return [entry for entry in history if isinstance(entry, dict)]
+
+
+def _decision_provenance(provenance: Mapping[str, Any]) -> dict[str, Any]:
+    merged = dict(provenance)
+    merged.setdefault("source", "marygenai.review")
+    merged.setdefault("software_version", __version__)
+    merged.setdefault("decision_schema_version", "identity_review_decision.v1")
+    return merged
+
+
+def _clean_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped or None

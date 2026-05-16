@@ -27,6 +27,7 @@ body {
 }
 
 button,
+input,
 select,
 textarea {
   font: inherit;
@@ -221,19 +222,37 @@ h3 {
   overflow-wrap: anywhere;
 }
 
-.status-form {
+.status-form,
+.decision-form {
   display: grid;
   gap: 10px;
 }
 
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.decision-form input,
 .status-form textarea,
-.status-form select {
+.status-form select,
+.decision-form textarea,
+.decision-form select {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 8px;
   background: #ffffff;
   color: var(--ink);
+}
+
+.inline-meta {
+  display: inline-block;
+  margin-right: 10px;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 0.86rem;
 }
 
 .form-actions {
@@ -269,5 +288,8 @@ h3 {
   .meta-grid {
     grid-template-columns: 1fr;
   }
-}
 
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -66,8 +66,11 @@ async function loadDetail(reviewItemId) {
   elements.detailContent.className = "detail-empty";
   elements.detailContent.textContent = "Loading publication detail...";
   try {
-    const detail = await fetchJson(`/review/items/${encodeURIComponent(reviewItemId)}`);
-    renderDetail(detail, reviewItemId);
+    const [detail, decisions] = await Promise.all([
+      fetchJson(`/review/items/${encodeURIComponent(reviewItemId)}`),
+      fetchJson(`/review/items/${encodeURIComponent(reviewItemId)}/identity-decisions`),
+    ]);
+    renderDetail(detail, reviewItemId, decisions);
   } catch (error) {
     elements.detailContent.className = "detail-empty";
     elements.detailContent.textContent = error.message;
@@ -128,7 +131,7 @@ function renderReviewList(items) {
   });
 }
 
-function renderDetail(detail, reviewItemId) {
+function renderDetail(detail, reviewItemId, decisions) {
   const publication = detail.publication;
   const activeItem =
     detail.review_items.find((item) => item.review_item_id === reviewItemId) ||
@@ -149,12 +152,18 @@ function renderDetail(detail, reviewItemId) {
     </div>
 
     ${renderStatusForm(activeItem)}
+    ${renderDecisionForm(detail, activeItem)}
+    ${renderDecisions(decisions)}
     ${renderLegacyReference(detail.legacy_reference)}
     ${renderIdentities(detail.identities)}
     ${renderOntologyLinks(detail.ontology_links)}
   `;
-  const form = document.querySelector("#status-form");
-  form.addEventListener("submit", (event) => submitStatusUpdate(event, reviewItemId));
+  const statusForm = document.querySelector("#status-form");
+  statusForm.addEventListener("submit", (event) => submitStatusUpdate(event, reviewItemId));
+  const decisionForm = document.querySelector("#identity-decision-form");
+  decisionForm.addEventListener("submit", (event) =>
+    submitIdentityDecision(event, detail, reviewItemId),
+  );
 }
 
 function renderStatusForm(item) {
@@ -185,6 +194,92 @@ function renderStatusForm(item) {
           <span id="status-message" class="message" role="status"></span>
         </div>
       </form>
+    </section>
+  `;
+}
+
+function renderDecisionForm(detail, item) {
+  if (!item) {
+    return "";
+  }
+  const publication = detail.publication;
+  return `
+    <section class="detail-section">
+      <h3>Identity decision</h3>
+      <form id="identity-decision-form" class="decision-form">
+        <div class="form-grid">
+          <label>
+            Reviewer
+            <input name="reviewer" type="text" autocomplete="name" required />
+          </label>
+          <label>
+            Decision
+            <select name="decision" required>
+              <option value="confirmed_identity">Confirmed identity</option>
+              <option value="corrected_identity">Corrected identity</option>
+              <option value="not_same_publication">Not same publication</option>
+              <option value="unresolved">Unresolved</option>
+            </select>
+          </label>
+          <label>
+            Reviewed PMID
+            <input name="reviewed_pmid" type="text" value="${escapeAttr(publication.pmid || "")}" />
+          </label>
+          <label>
+            Reviewed PMCID
+            <input name="reviewed_pmcid" type="text" value="${escapeAttr(publication.pmcid || "")}" />
+          </label>
+          <label>
+            Reviewed DOI
+            <input name="reviewed_doi" type="text" value="${escapeAttr(publication.doi || "")}" />
+          </label>
+          <label>
+            Reviewed canonical URL
+            <input name="reviewed_canonical_url" type="url" value="${escapeAttr(
+              publication.canonical_url || "",
+            )}" />
+          </label>
+        </div>
+        <label>
+          Rationale
+          <textarea name="rationale" rows="3" placeholder="Why this identity decision is appropriate"></textarea>
+        </label>
+        <div class="form-actions">
+          <button type="submit">Save identity decision</button>
+          <span id="decision-message" class="message" role="status"></span>
+        </div>
+      </form>
+    </section>
+  `;
+}
+
+function renderDecisions(decisions) {
+  return `
+    <section class="detail-section">
+      <h3>Saved identity decisions</h3>
+      <div class="data-list">
+        ${
+          decisions.length === 0
+            ? `<p class="muted">No structured identity decisions saved yet.</p>`
+            : decisions
+                .map(
+                  (decision) => `
+                    <div class="data-row">
+                      <strong>${escapeHtml(decision.decision)}</strong>
+                      <span class="muted">${escapeHtml(decision.reviewer)} / ${escapeHtml(
+                        decision.created_at,
+                      )}</span><br />
+                      ${metaInline("PMID", decision.reviewed_pmid)}
+                      ${metaInline("PMCID", decision.reviewed_pmcid)}
+                      ${metaInline("DOI", decision.reviewed_doi)}
+                      ${metaInline("URL", decision.reviewed_canonical_url)}
+                      <p>${formatValue(decision.rationale)}</p>
+                    </div>
+                  `,
+                )
+                .join("")
+        }
+      </div>
     </section>
   `;
 }
@@ -294,6 +389,54 @@ async function submitStatusUpdate(event, reviewItemId) {
   }
 }
 
+async function submitIdentityDecision(event, detail, reviewItemId) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const message = document.querySelector("#decision-message");
+  const submitButton = form.querySelector("button[type='submit']");
+  const formData = new FormData(form);
+  submitButton.disabled = true;
+  message.classList.remove("error");
+  message.textContent = "Saving...";
+  try {
+    const payload = {
+      review_item_id: reviewItemId,
+      document_id: detail.publication.document_id,
+      reviewer: formData.get("reviewer"),
+      decision: formData.get("decision"),
+      reviewed_pmid: emptyToNull(formData.get("reviewed_pmid")),
+      reviewed_pmcid: emptyToNull(formData.get("reviewed_pmcid")),
+      reviewed_doi: emptyToNull(formData.get("reviewed_doi")),
+      reviewed_canonical_url: emptyToNull(formData.get("reviewed_canonical_url")),
+      rationale: emptyToNull(formData.get("rationale")),
+      original_identity_signals: {
+        publication: detail.publication,
+        identities: detail.identities,
+        legacy_reference: detail.legacy_reference,
+      },
+      provenance: {
+        source: "marygenai.review_ui",
+        queue_type: QUEUE_TYPE,
+      },
+    };
+    const result = await fetchJson(
+      `/review/items/${encodeURIComponent(reviewItemId)}/identity-decisions`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+    );
+    message.textContent = `Saved ${result.decision}.`;
+    await loadDetail(reviewItemId);
+  } catch (error) {
+    message.classList.add("error");
+    message.textContent = error.message;
+  } finally {
+    submitButton.disabled = false;
+  }
+}
+
 async function fetchJson(path, options = {}) {
   const response = await fetch(path, options);
   const payload = await response.json().catch(() => null);
@@ -312,6 +455,13 @@ function showApiError(error) {
 
 function meta(label, value) {
   return `<div><strong>${escapeHtml(label)}</strong><br />${formatValue(value)}</div>`;
+}
+
+function metaInline(label, value) {
+  if (!value) {
+    return "";
+  }
+  return `<span class="inline-meta"><strong>${escapeHtml(label)}:</strong> ${formatValue(value)}</span>`;
 }
 
 function linkOrText(value) {
@@ -353,4 +503,12 @@ function escapeHtml(value) {
 
 function escapeAttr(value) {
   return escapeHtml(value).replaceAll("`", "&#096;");
+}
+
+function emptyToNull(value) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  const trimmed = String(value).trim();
+  return trimmed === "" ? null : trimmed;
 }

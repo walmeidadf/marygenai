@@ -69,6 +69,7 @@ def test_initialize_schema_creates_core_tables(tmp_path: Path) -> None:
 
     with connect_sqlite(database_path) as connection:
         schema_version = initialize_schema(connection)
+        second_schema_version = initialize_schema(connection)
         table_names = {
             row[0]
             for row in connection.execute(
@@ -76,7 +77,8 @@ def test_initialize_schema_creates_core_tables(tmp_path: Path) -> None:
             ).fetchall()
         }
 
-    assert schema_version == 1
+    assert schema_version == 2
+    assert second_schema_version == 2
     assert {
         "run_manifest",
         "source_record",
@@ -86,6 +88,7 @@ def test_initialize_schema_creates_core_tables(tmp_path: Path) -> None:
         "ontology_entity",
         "document_ontology_link",
         "review_item",
+        "review_decision",
     }.issubset(table_names)
 
 

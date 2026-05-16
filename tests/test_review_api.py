@@ -47,6 +47,7 @@ def test_review_ui_static_assets_are_served(tmp_path: Path) -> None:
     assert response.status_code == 200
     assert 'const QUEUE_TYPE = "legacy_identity_review";' in response.text
     assert "/review/queues" in response.text
+    assert "/identity-decisions" in response.text
 
 
 def test_list_review_queues(tmp_path: Path) -> None:
@@ -156,6 +157,48 @@ def test_update_review_item_status(tmp_path: Path) -> None:
     assert payload["status"] == "in_review"
     assert payload["note"] == "Checking identity in the API."
     assert payload["metadata"]["last_status_note"] == "Checking identity in the API."
+
+
+def test_create_and_list_identity_review_decision(tmp_path: Path) -> None:
+    database_path = create_review_database(tmp_path)
+    with connect_sqlite(database_path) as connection:
+        item = list_open_review_items(connection, queue_type="legacy_identity_review")[0]
+    client = create_review_api_client(database_path)
+
+    response = client.post(
+        f"/review/items/{item.review_item_id}/identity-decisions",
+        json={
+            "review_item_id": item.review_item_id,
+            "document_id": item.publication.document_id,
+            "reviewer": "reviewer@example.org",
+            "decision": "confirmed_identity",
+            "reviewed_pmid": None,
+            "reviewed_pmcid": None,
+            "reviewed_doi": None,
+            "reviewed_canonical_url": "https://example.org/cannabinoid-trial",
+            "rationale": "Legacy URL and title are sufficient for this item.",
+            "original_identity_signals": {
+                "publication": item.publication.model_dump(mode="json"),
+            },
+            "provenance": {"source": "api_test"},
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["decision"] == "confirmed_identity"
+    assert payload["reviewer"] == "reviewer@example.org"
+    assert payload["provenance"]["source"] == "api_test"
+
+    item_response = client.get(f"/review/items/{item.review_item_id}/identity-decisions")
+    publication_response = client.get(
+        f"/publications/{item.publication.document_id}/identity-decisions"
+    )
+
+    assert item_response.status_code == 200
+    assert publication_response.status_code == 200
+    assert item_response.json() == [payload]
+    assert publication_response.json() == [payload]
 
 
 def test_missing_database_returns_clear_error(tmp_path: Path) -> None:
