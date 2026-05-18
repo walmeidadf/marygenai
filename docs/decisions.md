@@ -315,3 +315,19 @@ which includes records through 2024. Overlap is useful because PubMed results ca
 be classified as `in_legacy_exact`, `possible_legacy_match`,
 `needs_manual_identity_review`, or `new_candidate` instead of assuming every
 2024+ record is new.
+
+## 2026-05-18: Treat Monthly PubMed Windows As Audit Batches, Not Unique Backlog Counts
+
+The first January-June 2024 PubMed discovery runs showed duplicate PMIDs across
+different monthly publication-date windows. The PubMed query translation included
+the requested `Date - Publication` bounds, so this appears to be a source
+metadata behavior rather than a local command error.
+
+Monthly JSONL candidate and review-item counts should therefore be read as audit
+counts for that source window. SQLite remains the operational source of truth for
+unique candidates because `publication_candidate_discovery` and
+`publication_candidate_review` are keyed by canonical publication document id.
+
+Future PubMed discovery should also persist raw ESearch and EFetch payloads under
+`data/raw/pubmed/`, not only source request metadata and normalized snapshots, so
+date-window behavior and parser decisions can be audited more directly.

@@ -427,6 +427,12 @@ The expected monthly update flow is:
 Each run must be idempotent. Re-running the same source window with the same
 configuration should skip already completed payloads unless explicitly forced.
 
+Monthly PubMed discovery windows are expected to be auditable batches rather than
+strictly disjoint partitions. The operational database must deduplicate by
+canonical document identity because PubMed may return the same PMID in multiple
+date windows. Reports should distinguish source-window counts from unique review
+backlog counts.
+
 ## Review And Collaboration Requirements
 
 The review system must support:

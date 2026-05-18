@@ -298,6 +298,20 @@ non-exact candidates into SQLite as `needs_review` publication records in the
 dominant review signal and does not treat discovered candidates as reviewed
 knowledge.
 
+Operational note from the first January-June 2024 backfill: monthly PubMed
+windows are not guaranteed to be disjoint by PMID. PubMed can return the same
+record in more than one requested publication-date window, likely because the
+E-utilities `Date - Publication` filter and the normalized XML publication date
+do not always map one-to-one. The JSONL files remain useful as per-window audit
+outputs, while SQLite deduplicates the operational backlog by canonical
+publication document id.
+
+Upcoming improvement: persist raw ESearch and EFetch payloads under
+`data/raw/pubmed/` for each MVP discovery run. The current source record stores
+request metadata, search result data, PMID lists, and an EFetch XML hash, but not
+the raw XML payload itself. Saving raw payloads will make future audits and
+parser backfills stronger.
+
 ### POC 8: NIH iCite Citation Enrichment
 
 Goal: evaluate the cost-benefit of citation and influence metrics for PubMed

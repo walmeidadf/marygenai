@@ -102,6 +102,12 @@ Current backfill plan:
 uv run marygenai pubmed-discovery run --datetype pdat --mindate 2024/01/01 --maxdate 2024/01/31 --retmax 100
 ```
 
+Early January-June 2024 runs showed that PubMed monthly windows can overlap by
+PMID. Monthly JSONL counts are therefore audit counts, not unique backlog counts.
+The SQLite `publication_candidate_discovery` table and
+`publication_candidate_review` queue are the operational source for unique
+candidates.
+
 ## Completed POCs
 
 ### POC 1: Expanded PubMed Metadata
@@ -242,6 +248,15 @@ requirements.
 Next evaluation: defer additional iCite work unless a specific review question
 needs citation metrics. The MVP should prioritize legacy validation, incremental
 discovery, enrichment, and review workflows first.
+
+## Upcoming Engineering Improvements
+
+- Persist raw PubMed ESearch and EFetch payloads for MVP discovery runs under
+  `data/raw/pubmed/`.
+- Add a run-audit command that reports per-window counts, duplicate PMIDs across
+  windows, unique candidate totals, and queue totals.
+- Add optional skip/resume behavior to the monthly backfill helper after the raw
+  payload layout is in place.
 
 ## Recent POCs
 

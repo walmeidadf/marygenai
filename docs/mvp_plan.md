@@ -266,6 +266,15 @@ Example monthly command:
 uv run marygenai pubmed-discovery run --datetype pdat --mindate 2024/01/01 --maxdate 2024/01/31 --retmax 100
 ```
 
+Monthly PubMed windows should be treated as auditable source batches, not as
+mutually exclusive partitions. Early January-June 2024 backfill runs showed
+duplicate PMIDs across different monthly windows even though the PubMed query
+translation included the requested `Date - Publication` bounds. The operational
+SQLite layer deduplicates by canonical publication document id, so the unique
+candidate backlog should be read from `publication_candidate_discovery` or the
+`publication_candidate_review` queue rather than by summing monthly JSONL
+`review_items` counts.
+
 ### 3. Review Access Layer
 
 The first review queue is `legacy_identity_review`. It opens one item per legacy
@@ -535,6 +544,12 @@ when a milestone lands in `main`, not only when a design direction changes.
 - Convert validated access and metadata enrichment POCs into reusable commands
   for PubMed metadata, PMC access, Europe PMC, Unpaywall, and optional iCite
   audit fields.
+- Improve PubMed discovery auditability by persisting raw ESearch and EFetch
+  payloads under `data/raw/pubmed/` in addition to source-record hashes and
+  normalized snapshots.
+- Add a lightweight run report that compares monthly PubMed source counts,
+  normalized candidate counts, duplicate PMIDs across windows, and unique SQLite
+  review backlog counts.
 - Add richer review decision storage beyond simple review item status changes,
   including reviewer identity, reviewed field, original value, reviewed value,
   decision, timestamp, notes, ontology version, extractor version, and source

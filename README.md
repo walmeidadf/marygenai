@@ -229,3 +229,30 @@ The local API exposes candidate inspection at:
 
 - `GET /publication-candidates`
 - `GET /publication-candidates/{document_id}/provenance`
+
+To backfill many months in sequence, use the helper script. It defaults to
+`2024-06-01` because the maintainer backfill has already run January through May
+2024 locally:
+
+```bash
+uv run python scripts/pubmed_monthly_backfill.py
+```
+
+Preview the month windows without calling PubMed:
+
+```bash
+uv run python scripts/pubmed_monthly_backfill.py --dry-run
+```
+
+Override the date range when needed:
+
+```bash
+uv run python scripts/pubmed_monthly_backfill.py --start-date 2024/01/01 --end-date 2024/12/31 --retmax 200
+```
+
+Monthly PubMed windows are audit batches, not guaranteed disjoint sets. PubMed
+can return the same PMID in more than one month because the E-utilities
+publication-date filter does not always match the normalized publication date
+extracted from XML. The SQLite operational queue deduplicates by publication
+document id, so use `publication_candidate_discovery` or `marygenai review
+queues` for the unique review backlog instead of summing monthly JSONL counts.
