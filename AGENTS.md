@@ -4,11 +4,18 @@ Guidance for AI agents working on MaryGenAI.
 
 ## Project Mission
 
-MaryGenAI is a research and engineering lab for building a reliable,
+MaryGenAI is a public research and engineering lab for building a reliable,
 human-reviewed cannabinoid evidence knowledge base. The near-term goal is not to
-ship a user-facing medical tool. The near-term goal is to build an internal MVP
-for validating the legacy dataset, discovering new candidate publications,
-enriching them through validated source flows, and preserving review provenance.
+ship a user-facing medical tool. The near-term goal is to build a reproducible
+MVP for validating a trusted maintainer bootstrap dataset, discovering new
+candidate publications, enriching them through validated source flows, and
+preserving review provenance.
+
+The maintainer has private legacy exports that are used locally as a trusted
+bootstrap and validation anchor. Those files are not part of the public
+repository. Public contributors should treat reviewed snapshots produced by the
+project as the future public baseline, not expect access to the private legacy
+files.
 
 ## Core Rules
 
@@ -18,6 +25,9 @@ enriching them through validated source flows, and preserving review provenance.
 - Do not commit generated data, raw downloads, secrets, PDFs, or local scratch files.
 - Keep `data/` and `temp/` ignored by Git.
 - Preserve legacy files in `temp/legacy/` unless the user explicitly asks to delete them.
+- Do not document private legacy data as if it is publicly available.
+- Keep public documentation clear that generated reviewed snapshots will become
+  the public starting point for new users.
 - Prefer small POCs over production abstractions until a source has been evaluated.
 - Record architecture decisions in `docs/decisions.md` when a meaningful choice is made.
 - Keep MVP planning aligned with `docs/mvp_plan.md`.
@@ -78,6 +88,16 @@ entities, document-to-ontology links, and run metadata. SQLite persistence under
 `src/marygenai/persistence/` now loads those snapshots into
 `data/db/marygenai.sqlite` as local operational review state.
 
+For the maintainer's local environment, the private legacy bootstrap currently
+loads thousands of publication records. The `legacy_identity_review` queue is
+only the subset that lacks PMID, PMCID, and DOI; it is not the full amount of
+useful legacy information.
+
+For public users, Initial Load is useful as a reproducible import pathway and as
+documentation of the private bootstrap process. Until public reviewed snapshots
+are published, they can run source discovery and tests but should not expect the
+private legacy CSVs to exist.
+
 The current review surface includes:
 
 ```bash
@@ -90,6 +110,18 @@ uv run marygenai review-ui serve --host 127.0.0.1 --port 8000
 The first UI is available at `http://127.0.0.1:8000/ui` and is an internal
 review and curation surface for `legacy_identity_review`, not a clinical or
 public product.
+
+## Public Documentation Expectations
+
+- Write docs for people encountering the repository without private context.
+- Separate maintainer-only local state from public reproducible workflows.
+- Avoid implying that ignored `data/`, `temp/legacy/`, PDFs, raw downloads, or
+  generated SQLite files are committed.
+- When documenting current status, distinguish code capabilities from data that
+  has been generated only in a local maintainer workspace.
+- Public users should be guided toward PubMed discovery, reviewed snapshot
+  exports, tests, and source adapters; private legacy bootstrap details should be
+  framed as historical and maintainer-local context.
 
 ## MVP Prioritization
 

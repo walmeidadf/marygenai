@@ -2,6 +2,12 @@
 
 The project starts as a data-source and ontology lab. Architecture should emerge from the evidence gathered in POCs.
 
+The public repository does not include the maintainer's private legacy exports.
+The architecture distinguishes private bootstrap inputs from public reviewed
+outputs. Private bootstrap data can anchor the maintainer's local review
+workflow, but public contributors should eventually start from reviewed
+snapshots exported by the project.
+
 ## Working Layers
 
 ### Raw Layer
@@ -41,16 +47,18 @@ POC 6 reinforced that field-level extraction records should store:
 - review state;
 - errors and fallback attempts.
 
-POC 7 should add a legacy association layer for publication discovery. Fresh
-PubMed results should be compared against the curated legacy dataset by stable
+POC 7 added a baseline association layer for publication discovery. Fresh
+PubMed results should be compared against the private bootstrap or future public
+baseline by stable
 identifiers first, then canonical URL and normalized title. The association state
 should be explicit, for example `in_legacy_exact`, `possible_legacy_match`,
 `new_candidate`, or `needs_manual_identity_review`.
 
-The legacy dataset is a trusted curated reference. Populated legacy values should
-be preserved as reference values for comparison and review. Missing legacy values
-should not be interpreted as extraction failures without field applicability
-context.
+The maintainer's private bootstrap is a trusted curated reference. Populated
+bootstrap values should be preserved as reference values for comparison and
+review. Missing values should not be interpreted as extraction failures without
+field applicability context. Public reviewed snapshots should preserve this same
+reference/provenance distinction without exposing private raw files.
 
 ### Ontology Layer
 
@@ -61,9 +69,9 @@ This should begin as simple structured files, such as YAML or JSON. RDF/OWL or g
 ### Application Layer
 
 The next application layer is the MVP review and curation platform documented in
-[MVP Plan](mvp_plan.md). Its first job is to load and validate legacy records,
-discover new candidate publications from the legacy boundary onward, enrich
-candidates, and preserve review decisions.
+[MVP Plan](mvp_plan.md). Its first maintainer job is to load and validate private
+bootstrap records, discover PubMed candidate publications from January 2024
+onward, enrich selected candidates, and preserve review decisions.
 
 Candidate storage approaches include:
 
@@ -170,14 +178,16 @@ uv run marygenai initial-load run
 uv run marygenai initial-load persist
 ```
 
-The first run imports the legacy studies and ontology CSVs from
+The maintainer's first run imports the private legacy studies and ontology CSVs from
 `temp/legacy/cannadocs/` into ignored JSONL snapshots and a run manifest. SQLite
 now provides the first operational review database at `data/db/marygenai.sqlite`.
 The initial schema loads run manifests, source records, canonical documents,
 publication identities, publication metadata, ontology entities,
 document-to-ontology links, and a minimal legacy identity review queue. The
-current local environment has one Initial Load run, `20260515T143451Z`, and a
-`legacy_identity_review` queue with 1,206 open items.
+current maintainer local environment has one Initial Load run,
+`20260515T143451Z`, and a `legacy_identity_review` queue with 1,206 open items.
+That queue is only the weaker identity subset; most bootstrap records are already
+usable for matching by PMID, PMCID, or DOI.
 
 The architecture should also preserve a GenAI path. Agentic evidence search,
 hybrid lexical/vector retrieval, ontology-aware filters, and RAG over reviewed

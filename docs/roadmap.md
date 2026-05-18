@@ -7,8 +7,8 @@ It should be updated whenever a POC changes the next step or the source strategy
 
 MaryGenAI should use PubMed as the primary source for discovering new publication
 records and anchoring publication identity. PubMed is not the crawler for files.
-The next product step is to design an internal MVP for review and curation using
-the validated POC outputs, rather than waiting for Semantic Scholar API access.
+The current product step is a local MVP for review and curation using the
+validated POC outputs, rather than waiting for Semantic Scholar API access.
 Semantic Scholar remains useful as a later enrichment source, but it is not a
 blocker for the first MVP shape.
 
@@ -27,18 +27,22 @@ The pipeline shape should be:
 
 This preserves two separate tracks:
 
-- legacy-anchored validation: use the curated legacy dataset as a trusted
+- maintainer bootstrap validation: use the private curated bootstrap as a trusted
   reference for identity, inclusion, study classification, conditions, compounds,
   and any populated field values;
 - new discovery: use PubMed queries to find relevant studies outside the legacy
   dataset, then prioritize them for access enrichment and review.
 
-The legacy dataset is a high-trust curated reference produced with physician
-involvement. It should not be treated as disposable historical data. When a legacy
-field is populated, it can be used as a strong reference value for comparison and
-review. When a field is absent, especially dosage or treatment duration, the
-pipeline should distinguish between `not_reported`, `not_applicable`, and
+The maintainer's private bootstrap is a high-trust curated reference produced
+with physician involvement. It should not be treated as disposable historical
+data, but it is also not public repository content. When a bootstrap field is
+populated, it can be used as a strong reference value for comparison and review.
+When a field is absent, especially dosage or treatment duration, the pipeline
+should distinguish between `not_reported`, `not_applicable`, and
 `needs_more_evidence` rather than assuming an extraction failure.
+
+The public project should eventually publish reviewed snapshots that replace the
+private bootstrap as the starting point for new users.
 
 The MVP review queue should be dominated by `cannabinoid_focus`. Records with
 direct cannabinoid evidence in title or indexed PubMed metadata are the primary
@@ -46,6 +50,10 @@ review candidates. Study design, access, recency, and citation metrics are
 secondary signals.
 
 ## MVP Implementation Progress
+
+Current operational focus: run PubMed discovery month-by-month from January 2024
+through the current date, classify candidates against the maintainer baseline,
+then enrich only records that are relevant enough for review.
 
 ### MVP Initial Load
 
@@ -68,6 +76,31 @@ First local run:
 - 7,347 publication candidates;
 - 433 ontology entities;
 - 42,061 document-to-ontology links.
+
+The `legacy_identity_review` queue contains about 1,206 weaker-identity records
+that lack PMID, PMCID, and DOI. It is not the full useful bootstrap corpus.
+
+### MVP PubMed Candidate Discovery
+
+Status: first implementation completed on 2026-05-18.
+
+Implementation:
+
+- adds `uv run marygenai pubmed-discovery run` for bounded PubMed discovery
+  windows;
+- writes ignored PubMed source records, normalized candidate enrichments, review
+  item snapshots, source-window summaries, and run manifests under `data/`;
+- classifies candidates as `in_legacy_exact`, `possible_legacy_match`,
+  `needs_manual_identity_review`, or `new_candidate`;
+- persists non-exact candidates as `needs_review` publication records;
+- opens the `publication_candidate_review` queue;
+- exposes candidate listing and provenance through the local API.
+
+Current backfill plan:
+
+```bash
+uv run marygenai pubmed-discovery run --datetype pdat --mindate 2024/01/01 --maxdate 2024/01/31 --retmax 100
+```
 
 ## Completed POCs
 
@@ -95,7 +128,8 @@ Key result:
 - 6,140 rows, or 83.6%, had directly extractable `PMID`, `PMCID`, or DOI;
 - 1,207 rows need resolver or manual review.
 
-Conclusion: the legacy dataset is suitable for validating the process end to end.
+Conclusion: the private bootstrap is suitable for validating the process end to
+end.
 
 ### POC 3: Link Resolver
 
@@ -130,11 +164,11 @@ in the same pass.
 
 Status: implemented and validated on 2026-05-14 and 2026-05-15.
 
-Goal: discover strong-evidence PubMed records outside the curated legacy dataset.
+Goal: discover strong-evidence PubMed records outside the private bootstrap.
 
 Implementation:
 
-- reads the latest legacy reconciliation records and builds an identity index from
+- reads the latest private bootstrap reconciliation records and builds an identity index from
   `PMID`, `PMCID`, DOI, canonical URL, and normalized title;
 - runs strong-evidence PubMed queries for systematic reviews, meta-analyses,
   randomized/controlled trials, double-blind and placebo-controlled studies across
@@ -419,42 +453,41 @@ Next validation:
 
 ## Recommended Next Session
 
-### MVP 0.1: Review And Curation Platform
+### MVP 0.1: PubMed Candidate Backfill And First Enrichment Decisions
 
-Status: proposed next.
+Status: current next work.
 
-Goal: turn the validated POC flows into a small internal platform for loading the
-legacy dataset, discovering new candidate publications, enriching candidates, and
-reviewing inclusion, identity, and field-level evidence.
+Goal: run the first operational PubMed discovery backfill month-by-month from
+January 2024 through the current date, classify candidates against the
+maintainer's private bootstrap, and choose which relevant candidates should enter
+access and metadata enrichment.
 
 Reference: [MVP Plan](mvp_plan.md).
 
 Scope:
 
-- create a persistent MVP model for publications, source records, legacy records,
-  enrichments, review items, and review decisions;
-- load the latest legacy reconciliation output as the initial trusted reference;
-- calculate the latest legacy publication boundary and run PubMed discovery from
-  that boundary with overlap;
-- preserve legacy association states from POC 7;
+- run bounded PubMed discovery windows such as
+  `--mindate 2024/01/01 --maxdate 2024/01/31`;
+- preserve baseline association states from the MVP PubMed discovery command;
 - enrich prioritized candidates with PubMed metadata and access classification;
 - keep iCite as optional secondary enrichment, not a priority dependency;
 - build a review queue where `cannabinoid_focus` is the dominant ranking signal;
 - expose a review detail view that supports identity decisions, inclusion
   decisions, field correction, and review notes;
-- export reviewed knowledge with field-level provenance.
+- prepare reviewed knowledge snapshots with field-level provenance so public
+  users can eventually start without private legacy files.
 
 Suggested first screens:
 
 - dashboard for import, discovery, enrichment, and review backlog counts;
 - publication queue with filters for `cannabinoid_focus`, identity state, study
   design, access class, and review state;
-- review detail page with source metadata, legacy reference values, candidate
+- review detail page with source metadata, baseline reference values, candidate
   evidence, source links, and editable decisions.
 
 Success criteria:
 
-- a reviewer can identify which records are legacy matches, ambiguous matches, or
+- a reviewer can identify which records are baseline matches, ambiguous matches, or
   new candidates;
 - direct cannabinoid-focus records reliably appear ahead of abstract-only or weak
   cannabinoid-signal records;

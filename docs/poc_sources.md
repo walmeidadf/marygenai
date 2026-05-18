@@ -20,6 +20,11 @@ Initial sources:
 - Drugs.com or an equivalent source for drug interactions
 - small PDF sample set
 
+Private legacy CSVs are maintainer-local bootstrap inputs, not public POC source
+fixtures. POCs may use them locally to validate identity and review workflows,
+but public documentation should explain how future reviewed snapshots replace
+that dependency for new users.
+
 ## Current Source Sequence
 
 The current publication-source sequence is documented in
@@ -40,8 +45,10 @@ Near-term order:
    and validated on 2026-05-14 and 2026-05-15.
 8. NIH iCite citation enrichment. Implemented as a cost-benefit evaluation on
    2026-05-14 and validated on an older April 2025 window on 2026-05-15.
-9. MVP review and curation platform. Proposed next; see [MVP Plan](mvp_plan.md).
+9. MVP review and curation platform. In progress; see [MVP Plan](mvp_plan.md).
+10. MVP PubMed candidate discovery command. Implemented as the first post-legacy
+    enrichment slice.
 
-The project should not design a broad continuous crawler yet. The next step is an
-internal MVP that turns the validated POC flows into a review queue and reviewed
-knowledge export.
+The project should not design a broad continuous crawler yet. The current step is
+a local MVP that turns validated POC flows into review queues, provenance, and
+reviewed knowledge exports.
