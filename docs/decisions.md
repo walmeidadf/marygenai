@@ -76,10 +76,10 @@ between Label Studio, spreadsheet review, or a custom review UI.
 
 ## 2026-05-14: Treat Legacy As A Trusted Curated Reference
 
-The legacy dataset should be used as a high-trust curated reference, not merely as
-historical data. Populated legacy values can anchor validation and comparison for
-identity, inclusion, study classification, conditions, compounds, and extracted
-field values.
+The maintainer's private legacy dataset should be used as a high-trust curated
+reference, not merely as historical data. Populated bootstrap values can anchor
+validation and comparison for identity, inclusion, study classification,
+conditions, compounds, and extracted field values.
 
 Missing legacy values should remain interpretable. For sparse or context-dependent
 fields such as dosage and treatment duration, absence may mean `not_applicable` or
@@ -264,3 +264,54 @@ item.
 The application writes provenance into `review_item.metadata_json`, including
 `status_history` and `last_identity_decision_application`, and leaves Initial
 Load JSONL snapshots unchanged.
+
+## 2026-05-18: Open Post-Legacy Enrichment With PubMed Candidate Staging
+
+The first enrichment loop beyond the private bootstrap uses PubMed as the primary
+source for publication discovery and metadata. Discovery is anchored to the
+latest baseline publication year available in local SQLite and starts with a
+small default overlap window so records near the boundary can be classified
+instead of silently skipped.
+
+The MVP reuses the validated PubMed POC parser and scoring logic, but writes
+MVP-shaped snapshots under ignored `data/` paths and persists only operational
+state to SQLite. PubMed results are classified against the legacy index as
+`in_legacy_exact`, `possible_legacy_match`,
+`needs_manual_identity_review`, or `new_candidate`. Exact legacy matches remain
+audit outputs only. Non-exact candidates are stored as `needs_review`
+publication records, receive a `publication_candidate_discovery` provenance row,
+and enter the `publication_candidate_review` queue.
+
+This deliberately does not mutate Initial Load JSONL snapshots and does not
+treat discovered PubMed candidates as reviewed knowledge. `cannabinoid_focus`
+continues to dominate review priority; citation metrics and other influence
+signals remain secondary enrichments.
+
+## 2026-05-18: Keep Private Legacy Data Out Of The Public Repository
+
+MaryGenAI is now documented as a public project, but the maintainer's original
+legacy exports remain private and must not be committed. They are high-trust
+bootstrap inputs for the maintainer's local workflow, not public fixtures or
+project dependencies.
+
+Public users should eventually start from reviewed snapshots exported by
+MaryGenAI. Until those snapshots exist, public contributors can run tests, inspect
+source adapters, and work on reproducible PubMed/source workflows, but they
+should not expect the private legacy CSVs or local SQLite database to be present.
+
+Documentation should distinguish private maintainer bootstrap state from public
+capabilities. The `legacy_identity_review` queue is only the weaker-identity
+subset of the private bootstrap, not the full set of useful legacy records.
+
+## 2026-05-18: Backfill PubMed Candidates Month By Month From January 2024
+
+The immediate enrichment workflow is to run PubMed discovery in explicit monthly
+publication-date windows from `2024/01/01` through the current date. This gives
+the maintainer small, auditable batches to classify for relevance and identity
+before access enrichment or field extraction.
+
+The January 2024 start date intentionally overlaps with the private bootstrap,
+which includes records through 2024. Overlap is useful because PubMed results can
+be classified as `in_legacy_exact`, `possible_legacy_match`,
+`needs_manual_identity_review`, or `new_candidate` instead of assuming every
+2024+ record is new.

@@ -2,6 +2,12 @@
 
 The legacy files already contain a useful starting ontology. The project should preserve that value while cleaning up vocabulary boundaries and provenance.
 
+Those legacy files are private maintainer inputs and are not distributed in the
+public repository. Public users should treat reviewed ontology snapshots produced
+by MaryGenAI as the future baseline. Until then, ontology code and tests document
+the import shape, while the maintainer's private local workspace supplies the
+bootstrap data.
+
 The ontology should be treated as normalized project data, not only as static
 reference documentation. Legacy CSVs for cannabinoids, medical conditions, organ
 systems, terpenes, and glossary terms should be imported as ontology entities with
@@ -52,7 +58,8 @@ The legacy `Type of Study` field mixes publication type and study design. Future
 - `publication_type`: review, systematic review, meta-analysis, clinical trial article, case report, preclinical paper;
 - `study_design`: RCT, double-blind RCT, cohort, animal model, in vitro, observational, survey.
 
-Dosing fields are sparse in the legacy data and should be treated as a specialized extraction track rather than a default field for every record.
+Dosing fields are sparse in the private bootstrap data and should be treated as a
+specialized extraction track rather than a default field for every record.
 
 Drug interactions should be modeled as claims with source provenance, not as static text attached only to conditions or organ systems.
 

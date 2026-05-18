@@ -4,6 +4,7 @@ from rich.console import Console
 from marygenai import __version__
 from marygenai.initial_load.cli import app as initial_load_app
 from marygenai.persistence.cli import app as db_app
+from marygenai.pubmed_discovery.cli import app as pubmed_discovery_app
 from marygenai.review.cli import app as review_app
 from marygenai.review_api.cli import app as review_api_app
 from marygenai.review_ui.cli import app as review_ui_app
@@ -13,6 +14,7 @@ app = typer.Typer(help="MaryGenAI POC utilities.", no_args_is_help=True)
 console = Console()
 app.add_typer(initial_load_app, name="initial-load")
 app.add_typer(db_app, name="db")
+app.add_typer(pubmed_discovery_app, name="pubmed-discovery")
 app.add_typer(review_app, name="review")
 app.add_typer(review_api_app, name="review-api")
 app.add_typer(review_ui_app, name="review-ui")

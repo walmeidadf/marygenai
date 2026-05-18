@@ -1,6 +1,13 @@
 # Project Brief
 
-MaryGenAI aims to build a structured, continuously updated evidence base for scientific studies and related documents about cannabinoid therapy in human and veterinary contexts.
+MaryGenAI aims to build a structured, continuously updated, human-reviewed
+evidence base for scientific studies and related documents about cannabinoid
+therapy in human and veterinary contexts.
+
+The repository is public. The maintainer's original legacy exports are private
+and intentionally absent from the repository. They are used locally as a trusted
+bootstrap and validation anchor while the project produces public reviewed
+snapshots that future users can treat as the baseline.
 
 The project is inspired by CannaKeys-style metadata but is broader in scope. It will explore:
 
@@ -14,24 +21,24 @@ The project is inspired by CannaKeys-style metadata but is broader in scope. It 
 - drug interaction evidence;
 - human review workflows.
 
-The current phase is moving from source-specific POCs into an MVP for internal
+The current phase is moving from source-specific POCs into a local-first MVP for
 review and curation. The MVP should stay conservative: it validates and enriches
 scientific evidence metadata, but it does not provide medical advice or treatment
 recommendations.
 
 ## Current Objective
 
-Build an internal MVP that validates the legacy dataset, discovers candidate
-publications from the end of legacy coverage onward, enriches candidates with
-validated source flows, and lets reviewers approve, correct, or reject records and
-field-level evidence.
+Build a local-first MVP that validates the maintainer's private legacy bootstrap,
+discovers PubMed candidate publications from January 2024 onward, enriches
+candidates with validated source flows, and lets reviewers approve, correct, or
+reject records and field-level evidence.
 
 The first MVP milestone is not a production crawler. It is a reviewable evidence
 curation workflow that can answer:
 
-> Which legacy records and new candidate publications are reliable enough to enter
-> a reviewed cannabinoid evidence knowledge base, with what provenance and review
-> state?
+> Which bootstrap records and new candidate publications are reliable enough to
+> enter a reviewed cannabinoid evidence knowledge base, with what provenance and
+> review state?
 
 The current publication-source plan treats PubMed as the primary publication
 identity and metadata hub, then uses PMC, Europe PMC, Unpaywall, DOI, and publisher
@@ -46,11 +53,11 @@ access, recency, and citation metrics are secondary signals.
 
 See [MVP Plan](mvp_plan.md) for the current product direction.
 
-The first MVP implementation milestone is complete: `uv run marygenai
-initial-load run` loads the legacy Cannadocs studies and ontology CSVs into
-auditable JSONL snapshots and run manifests under ignored `data/` paths. This is
-the foundation for identity review, ontology review, incremental discovery, and
-later SQLite-backed review queues.
+The first MVP implementation milestone is complete for the maintainer workflow:
+`uv run marygenai initial-load run` loads private legacy Cannadocs studies and
+ontology CSVs into auditable JSONL snapshots and run manifests under ignored
+`data/` paths. The public project should not require those private CSVs once
+reviewed snapshots are exported.
 
 ## Non-Goals For Now
 

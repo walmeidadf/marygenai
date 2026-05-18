@@ -19,8 +19,13 @@ expanded batch confirms that PubMed metadata is strong enough to remain the prim
 publication identity and metadata hub, while full-text discovery still needs a
 resolver step.
 
-The legacy dataset is strongly PubMed/NLM-oriented. Initial profiling found 7,347
-legacy study rows, with many URLs already pointing to PubMed or PMC pages:
+The repository is public, but the maintainer baseline used for legacy association
+is private. Public users should expect future reviewed snapshots, not private
+legacy CSVs, to become the shared baseline for PubMed discovery and enrichment.
+
+The private maintainer bootstrap is strongly PubMed/NLM-oriented. Initial
+profiling found 7,347 study rows, with many URLs already pointing to PubMed or
+PMC pages:
 
 - 2,820 `pubmed.ncbi.nlm.nih.gov` URLs;
 - 991 old-style `www.ncbi.nlm.nih.gov/pubmed` record URLs;
@@ -28,14 +33,16 @@ legacy study rows, with many URLs already pointing to PubMed or PMC pages:
 - additional publisher URLs from ScienceDirect, MDPI, Wiley, Frontiers, Springer,
   Nature, and other domains.
 
-This means the next useful work is to learn how much of the legacy dataset and new
-search results can be anchored to stable identifiers such as `PMID`, `PMCID`, and
-`DOI`, then classify full-text availability before downloading or parsing files.
+This means the next useful work is to learn how much of the private bootstrap and
+new search results can be anchored to stable identifiers such as `PMID`,
+`PMCID`, and `DOI`, then classify full-text availability before downloading or
+parsing files.
 
-The current PubMed-specific track has validated legacy-anchored discovery and
-iCite citation enrichment. The next step is to shape an internal review and
-curation MVP from those outputs, then use additional sources such as Semantic
-Scholar as enrichment layers rather than prerequisites.
+The current PubMed-specific track has validated legacy-anchored discovery, iCite
+citation enrichment, and the first MVP PubMed candidate discovery command. The
+current maintainer task is to run monthly PubMed windows from January 2024
+through the current date, classify relevance and identity, then enrich only the
+candidates that should enter review.
 
 ## Source Roles
 
@@ -219,7 +226,7 @@ Duplicate signals:
 
 Initial interpretation:
 
-- The legacy dataset is highly reconcilable without network access: most rows
+- The private bootstrap is highly reconcilable without network access: most rows
   already expose `PMID`, `PMCID`, or DOI in the URL.
 - PMC full-text URLs are common enough to justify a direct PMC resolver path.
 - The 1,207 publisher/other URL records should be the priority for POC 3 because
@@ -229,7 +236,7 @@ Initial interpretation:
 
 ### POC 7: Legacy-Anchored PubMed Discovery
 
-Goal: identify strong-evidence PubMed records outside the curated legacy dataset.
+Goal: identify strong-evidence PubMed records outside the private bootstrap.
 
 Status: implemented and validated on 2026-05-14 and 2026-05-15.
 
@@ -274,6 +281,22 @@ Date-window runs are organized under paths such as
 `data/normalized/pubmed_discovery/pdat/2026-04/`. The POC also writes a local
 `_manifest.json` and skips matching completed windows by default, so monthly
 backfills do not need to hit PubMed again.
+
+### MVP PubMed Candidate Discovery Command
+
+Status: implemented as the first post-bootstrap enrichment slice on 2026-05-18.
+
+Run a bounded monthly window:
+
+```bash
+uv run marygenai pubmed-discovery run --datetype pdat --mindate 2024/01/01 --maxdate 2024/01/31 --retmax 100
+```
+
+The command writes MVP-shaped snapshots under ignored `data/` paths and persists
+non-exact candidates into SQLite as `needs_review` publication records in the
+`publication_candidate_review` queue. It keeps `cannabinoid_focus` as the
+dominant review signal and does not treat discovered candidates as reviewed
+knowledge.
 
 ### POC 8: NIH iCite Citation Enrichment
 
@@ -558,13 +581,14 @@ Initial interpretation:
 
 ### POC 7: Legacy-Anchored PubMed Discovery
 
-Goal: find relevant PubMed publications outside the curated legacy dataset.
+Goal: find relevant PubMed publications outside the private bootstrap.
 
 Status: implemented and validated.
 
 Implemented tasks:
 
-- build a legacy identity index from the latest legacy reconciliation records;
+- build a baseline identity index from the latest private bootstrap reconciliation
+  records;
 - run high-reputation PubMed query families for systematic reviews,
   meta-analyses, randomized/controlled trials, double-blind trials,
   placebo-controlled studies, and priority condition areas;
@@ -576,8 +600,8 @@ Implemented tasks:
 - export ambiguous matches and new candidates for human review.
 
 This POC does not perform full-text extraction. Its job is publication discovery
-and association against the trusted legacy base. The MVP should reuse this flow
-for incremental discovery from the latest legacy publication boundary.
+and association against the trusted bootstrap. The MVP reuses this flow for
+monthly discovery from January 2024 through the current date.
 
 ## Continuous Crawler Gate
 
@@ -613,8 +637,8 @@ POC 6b observations:
 
 POC 6c improved section ranking, added review export rows, and added
 rate-limit-aware retry/backoff. The next PubMed source-track implementation is
-POC 7: legacy-anchored discovery to estimate how many additional
-higher-reputation studies exist beyond the curated legacy dataset.
+POC 7: baseline-anchored discovery to estimate how many additional
+higher-reputation studies exist beyond the private bootstrap.
 
 Prioritize systematic reviews, meta-analyses, randomized controlled trials,
 controlled clinical trials, double-blind trials, placebo-controlled studies, and

@@ -12,6 +12,8 @@ from marygenai.review.models import (
     IdentityDecisionApplicationResult,
     IdentityReviewDecision,
     IdentityReviewDecisionCreate,
+    PublicationCandidateDiscoverySummary,
+    PublicationCandidateProvenance,
     PublicationDetail,
     ReviewItemStatus,
     ReviewItemStatusResult,
@@ -28,11 +30,13 @@ from marygenai.review.repository import (
     apply_latest_identity_review_decision,
     connect_initialized_review_database,
     create_identity_review_decision,
+    get_publication_candidate_provenance,
     get_publication_detail,
     get_publication_detail_for_review_item,
     list_identity_review_decisions_for_item,
     list_identity_review_decisions_for_publication,
     list_open_review_items,
+    list_publication_candidate_discoveries,
     list_review_queues,
     update_review_item_status,
 )
@@ -96,6 +100,34 @@ def create_app(database_path: Path | None = None) -> FastAPI:
                 detail="Only status=open is supported for review queue item listing.",
             )
         return list_open_review_items(connection, queue_type=queue_type, limit=limit)
+
+    @app.get(
+        "/publication-candidates",
+        response_model=list[PublicationCandidateDiscoverySummary],
+    )
+    def publication_candidates(
+        connection: Connection,
+        identity_status: Annotated[str | None, Query()] = None,
+        limit: Annotated[int, Query(ge=1, le=500)] = 20,
+    ) -> list[PublicationCandidateDiscoverySummary]:
+        return list_publication_candidate_discoveries(
+            connection,
+            identity_status=identity_status,
+            limit=limit,
+        )
+
+    @app.get(
+        "/publication-candidates/{document_id:path}/provenance",
+        response_model=PublicationCandidateProvenance,
+    )
+    def publication_candidate_provenance(
+        document_id: str,
+        connection: Connection,
+    ) -> PublicationCandidateProvenance:
+        try:
+            return get_publication_candidate_provenance(connection, document_id=document_id)
+        except PublicationNotFoundError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
 
     @app.get("/review/items/{review_item_id}", response_model=PublicationDetail)
     def review_item_detail(review_item_id: str, connection: Connection) -> PublicationDetail:

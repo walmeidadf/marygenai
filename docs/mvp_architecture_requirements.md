@@ -8,6 +8,14 @@ research reviewers.
 The MVP remains a curation and evidence metadata platform. It must not present
 medical advice or treatment recommendations.
 
+The public repository does not include the maintainer's private legacy exports.
+The architecture must therefore support two entry points:
+
+- maintainer bootstrap: private local files in ignored `temp/legacy/` seed the
+  initial trusted reference;
+- public baseline: reviewed snapshots exported by the project become the future
+  starting point for contributors who do not have the private legacy files.
+
 ## Architecture Goals
 
 - Keep Python as the primary implementation language for ingestion,
@@ -36,8 +44,10 @@ medical advice or treatment recommendations.
 MVP 0.1 should start as a small Python application with explicit batch commands
 and a review web app:
 
-- `ingest`: reads legacy data and source payloads into canonical staging models;
-- `discover`: runs date-windowed PubMed discovery anchored to the legacy boundary;
+- `ingest`: reads private bootstrap data or future public reviewed snapshots into
+  canonical staging models;
+- `discover`: runs date-windowed PubMed discovery anchored to the available
+  baseline;
 - `enrich`: adds source-specific metadata, access paths, citation metrics, full
   text availability, and later Semantic Scholar or drug interaction data;
 - `extract`: creates field candidates from abstracts, HTML, XML, or selected PDF
@@ -80,11 +90,16 @@ The initial local developer flow may still use:
 ```bash
 uv sync --extra dev
 uv run marygenai info
-uv run marygenai initial-load run
 uv run marygenai db init
+uv run marygenai initial-load run
 uv run marygenai initial-load persist
+uv run marygenai pubmed-discovery run --datetype pdat --mindate 2024/01/01 --maxdate 2024/01/31 --retmax 100
 uv run pytest
 ```
+
+`initial-load` currently requires the maintainer's private legacy CSVs. Public
+users should be able to start from reviewed snapshot imports once those exports
+are produced.
 
 Containerization should be added when the review API or scheduler becomes part of
 the implementation, not before the data model is clear.
@@ -209,12 +224,27 @@ The layout is created by:
 uv run marygenai initial-load setup-data
 ```
 
+The PubMed candidate discovery slice writes to the existing local object-key
+style layout:
+
+- `data/staging/source_records/pubmed/` for E-utilities request provenance;
+- `data/normalized/publication_enrichments/pubmed/` for candidate metadata and
+  legacy association state;
+- `data/normalized/review_items/` for candidate queue snapshots;
+- `data/manifests/source_windows/` and `data/manifests/runs/` for discovery
+  summaries and run manifests.
+
+SQLite stores current review state for non-exact candidates in
+`document`, `document_identity`, `publication`,
+`publication_candidate_discovery`, and `review_item`. The file snapshots remain
+the audit layer.
+
 The active MVP `data/` workspace should stay focused on current Initial Load
 outputs. Older POC artifacts may be archived under `temp/scratch/` or regenerated
 from POC commands when needed, but they should not be mixed into the active MVP
 snapshot set.
 
-`temp/` should remain for local scratch files, legacy exports, manual
+`temp/` should remain for local scratch files, private legacy exports, manual
 experiments, and disposable artifacts:
 
 ```text
@@ -381,8 +411,9 @@ ontology knowledge.
 
 The expected monthly update flow is:
 
-1. Calculate the latest reviewed or legacy publication boundary.
-2. Run PubMed discovery from the boundary with a conservative overlap window.
+1. Select the reviewed baseline or private bootstrap boundary.
+2. Run PubMed discovery for explicit monthly windows. The current maintainer
+   backfill starts at `2024/01/01` and continues through the current date.
 3. Resolve identity against legacy and existing canonical documents.
 4. Prioritize by `cannabinoid_focus` before citation or influence metrics.
 5. Enrich selected candidates through PubMed, access resolvers, Europe PMC,
@@ -440,6 +471,9 @@ and GenAI retrieval requirements.
 
 - Do not commit secrets, raw downloads, generated datasets, PDFs, or local
   scratch files.
+- Do not commit private legacy exports.
+- Do not make private legacy files a requirement for public contributors once
+  reviewed baseline snapshots are available.
 - Read credentials from environment variables or local ignored `.env` files.
 - Keep source rate limits and terms of use visible in source adapter docs.
 - Record source URLs and access methods for auditability.
@@ -464,7 +498,10 @@ MVP architecture should be implemented incrementally:
    `legacy_identity_review` queue.
 6. Done: build the first FastAPI review endpoints around publications, review
    items, and review status updates.
-7. Convert the validated PubMed discovery and enrichment POCs into reusable
+7. Done: convert the validated PubMed discovery POC into a reusable candidate
+   discovery command and SQLite review queue.
+8. Done: build the first review UI around queue and detail screens for the
+   legacy identity workflow.
+9. Next: convert validated access and metadata enrichment POCs into reusable
    pipeline commands.
-8. Build the first review UI around dashboard, queue, and detail screens.
-9. Add Docker Compose once API, worker, and database roles exist.
+10. Later: add Docker Compose once API, worker, and database roles exist.
