@@ -87,6 +87,10 @@ The current local application layer has landed in three small slices:
   functions;
 - `marygenai.review_ui`: a static local UI mounted at `/ui` by the FastAPI app
   for the first `legacy_identity_review` workflow.
+- `marygenai.pubmed_discovery`: the first post-legacy discovery slice. It
+  stages PubMed source records and normalized candidate enrichments under
+  ignored `data/` paths, classifies them against legacy identity state, and
+  persists non-exact candidates to SQLite review state.
 
 This is still an internal curation surface. It does not make the project a
 clinical or public recommendation product.

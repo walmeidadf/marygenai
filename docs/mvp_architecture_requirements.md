@@ -83,6 +83,7 @@ uv run marygenai info
 uv run marygenai initial-load run
 uv run marygenai db init
 uv run marygenai initial-load persist
+uv run marygenai pubmed-discovery run --retmax 100
 uv run pytest
 ```
 
@@ -208,6 +209,21 @@ The layout is created by:
 ```bash
 uv run marygenai initial-load setup-data
 ```
+
+The PubMed candidate discovery slice writes to the existing local object-key
+style layout:
+
+- `data/staging/source_records/pubmed/` for E-utilities request provenance;
+- `data/normalized/publication_enrichments/pubmed/` for candidate metadata and
+  legacy association state;
+- `data/normalized/review_items/` for candidate queue snapshots;
+- `data/manifests/source_windows/` and `data/manifests/runs/` for discovery
+  summaries and run manifests.
+
+SQLite stores current review state for non-exact candidates in
+`document`, `document_identity`, `publication`,
+`publication_candidate_discovery`, and `review_item`. The file snapshots remain
+the audit layer.
 
 The active MVP `data/` workspace should stay focused on current Initial Load
 outputs. Older POC artifacts may be archived under `temp/scratch/` or regenerated

@@ -46,6 +46,7 @@ uv run marygenai info
 uv run marygenai initial-load run
 uv run marygenai db init
 uv run marygenai initial-load persist
+uv run marygenai pubmed-discovery run --retmax 100
 uv run marygenai review queues
 uv run marygenai review-api serve --host 127.0.0.1 --port 8000
 uv run marygenai review-ui serve --host 127.0.0.1 --port 8000
@@ -70,9 +71,15 @@ uv run marygenai review-ui serve --host 127.0.0.1 --port 8000
 - Create ignored local data layout: `uv run marygenai initial-load setup-data`
 - Initialize local SQLite review DB: `uv run marygenai db init`
 - Persist latest Initial Load snapshot to SQLite: `uv run marygenai initial-load persist`
+- Discover and stage PubMed post-legacy candidates:
+  `uv run marygenai pubmed-discovery run --retmax 100`
+- Persist an existing PubMed discovery run:
+  `uv run marygenai pubmed-discovery persist --run-id <run_id>`
 - List local review queues: `uv run marygenai review queues`
 - List open legacy identity review items:
   `uv run marygenai review list --queue legacy_identity_review`
+- List open PubMed candidate review items:
+  `uv run marygenai review list --queue publication_candidate_review`
 - Show review detail for an item or publication:
   `uv run marygenai review show <review_item_id_or_document_id>`
 - Update review item status:
@@ -185,3 +192,30 @@ public product.
 Generated `data/` files remain ignored by Git. Old POC artifacts should be kept
 out of the active MVP workspace, either regenerated from POC commands when needed
 or archived locally under `temp/scratch/`.
+
+## PubMed Candidate Discovery
+
+The first post-legacy enrichment slice is available through:
+
+```bash
+uv run marygenai pubmed-discovery run --retmax 100
+```
+
+By default the command anchors the search to the latest legacy publication year
+stored in local SQLite and starts one year earlier as a small overlap window. It
+uses PubMed E-utilities for discovery and metadata, writes ignored audit
+snapshots under `data/staging/source_records/pubmed/`,
+`data/normalized/publication_enrichments/pubmed/`,
+`data/normalized/review_items/`, and `data/manifests/`, then persists
+non-exact candidates to SQLite as `needs_review` publication records.
+
+Candidates are classified against the legacy index as `in_legacy_exact`,
+`possible_legacy_match`, `needs_manual_identity_review`, or `new_candidate`.
+Only non-exact candidates enter the `publication_candidate_review` queue. They
+are not reviewed knowledge and remain separate from the Initial Load JSONL
+snapshots.
+
+The local API exposes candidate inspection at:
+
+- `GET /publication-candidates`
+- `GET /publication-candidates/{document_id}/provenance`

@@ -102,6 +102,51 @@ class PublicationDetail(BaseModel):
     review_items: list[ReviewQueueItem] = Field(default_factory=list)
 
 
+class PublicationCandidateDiscoverySummary(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    document_id: str
+    source: str
+    source_candidate_id: str
+    identity_status: str
+    cannabinoid_focus: str
+    study_design: str | None = None
+    priority_tier: str
+    priority_score: float
+    full_text_review_priority: str
+    title: str | None = None
+    publication_year: int | None = None
+    pmid: str | None = None
+    pmcid: str | None = None
+    doi: str | None = None
+    query_names: list[str] = Field(default_factory=list)
+    review_reasons: list[str] = Field(default_factory=list)
+
+
+class PublicationCandidateProvenance(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    document_id: str
+    source: str
+    source_candidate_id: str
+    identity_status: str
+    legacy_match_type: str | None = None
+    legacy_match_confidence: float
+    legacy_document_ids: list[str] = Field(default_factory=list)
+    legacy_study_ids: list[str] = Field(default_factory=list)
+    cannabinoid_focus: str
+    study_design: str | None = None
+    study_design_rank: int
+    priority_tier: str
+    priority_score: float
+    full_text_review_priority: str
+    query_names: list[str] = Field(default_factory=list)
+    score_reasons: list[str] = Field(default_factory=list)
+    review_reasons: list[str] = Field(default_factory=list)
+    provenance: dict[str, Any] = Field(default_factory=dict)
+    publication: PublicationSummary
+
+
 class ReviewItemStatusUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

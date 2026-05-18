@@ -19,6 +19,8 @@ from marygenai.review.models import (
     IdentityReviewDecisionCreate,
     LegacyReference,
     OntologyLinkSummary,
+    PublicationCandidateDiscoverySummary,
+    PublicationCandidateProvenance,
     PublicationDetail,
     PublicationIdentitySummary,
     PublicationSummary,
@@ -35,6 +37,7 @@ REVIEW_SCHEMA_TABLES = {
     "document_ontology_link",
     "ontology_entity",
     "publication",
+    "publication_candidate_discovery",
     "review_decision",
     "review_item",
 }
@@ -161,6 +164,143 @@ def list_open_review_items(
         (queue_type, limit),
     ).fetchall()
     return [_queue_item_from_row(row) for row in rows]
+
+
+def list_publication_candidate_discoveries(
+    connection: sqlite3.Connection,
+    *,
+    limit: int = 20,
+    identity_status: str | None = None,
+) -> list[PublicationCandidateDiscoverySummary]:
+    require_review_schema(connection)
+    if identity_status:
+        rows = connection.execute(
+            """
+            SELECT
+                discovery.document_id,
+                discovery.source,
+                discovery.source_candidate_id,
+                discovery.identity_status,
+                discovery.cannabinoid_focus,
+                discovery.study_design,
+                discovery.priority_tier,
+                discovery.priority_score,
+                discovery.full_text_review_priority,
+                discovery.query_names_json,
+                discovery.review_reasons_json,
+                d.primary_title,
+                d.publication_year,
+                d.pmid,
+                d.pmcid,
+                d.doi
+            FROM publication_candidate_discovery AS discovery
+            JOIN document AS d ON d.document_id = discovery.document_id
+            WHERE discovery.identity_status = ?
+            ORDER BY discovery.priority_score DESC, discovery.document_id ASC
+            LIMIT ?
+            """,
+            (identity_status, limit),
+        ).fetchall()
+    else:
+        rows = connection.execute(
+            """
+            SELECT
+                discovery.document_id,
+                discovery.source,
+                discovery.source_candidate_id,
+                discovery.identity_status,
+                discovery.cannabinoid_focus,
+                discovery.study_design,
+                discovery.priority_tier,
+                discovery.priority_score,
+                discovery.full_text_review_priority,
+                discovery.query_names_json,
+                discovery.review_reasons_json,
+                d.primary_title,
+                d.publication_year,
+                d.pmid,
+                d.pmcid,
+                d.doi
+            FROM publication_candidate_discovery AS discovery
+            JOIN document AS d ON d.document_id = discovery.document_id
+            ORDER BY discovery.priority_score DESC, discovery.document_id ASC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    return [
+        PublicationCandidateDiscoverySummary(
+            document_id=row["document_id"],
+            source=row["source"],
+            source_candidate_id=row["source_candidate_id"],
+            identity_status=row["identity_status"],
+            cannabinoid_focus=row["cannabinoid_focus"],
+            study_design=row["study_design"],
+            priority_tier=row["priority_tier"],
+            priority_score=row["priority_score"],
+            full_text_review_priority=row["full_text_review_priority"],
+            title=row["primary_title"],
+            publication_year=row["publication_year"],
+            pmid=row["pmid"],
+            pmcid=row["pmcid"],
+            doi=row["doi"],
+            query_names=_load_json_array(row["query_names_json"]),
+            review_reasons=_load_json_array(row["review_reasons_json"]),
+        )
+        for row in rows
+    ]
+
+
+def get_publication_candidate_provenance(
+    connection: sqlite3.Connection,
+    *,
+    document_id: str,
+) -> PublicationCandidateProvenance:
+    require_review_schema(connection)
+    row = connection.execute(
+        """
+        SELECT
+            discovery.*,
+            d.document_type,
+            d.primary_title,
+            d.publication_year,
+            d.canonical_url,
+            d.pmid,
+            d.pmcid,
+            d.doi,
+            d.review_state,
+            p.legacy_study_id,
+            p.legacy_study_type
+        FROM publication_candidate_discovery AS discovery
+        JOIN document AS d ON d.document_id = discovery.document_id
+        JOIN publication AS p ON p.document_id = discovery.document_id
+        WHERE discovery.document_id = ?
+        """,
+        (document_id,),
+    ).fetchone()
+    if row is None:
+        raise PublicationNotFoundError(f"Publication candidate not found: {document_id}")
+    return PublicationCandidateProvenance(
+        document_id=row["document_id"],
+        source=row["source"],
+        source_candidate_id=row["source_candidate_id"],
+        identity_status=row["identity_status"],
+        legacy_match_type=row["legacy_match_type"],
+        legacy_match_confidence=row["legacy_match_confidence"],
+        legacy_document_ids=_load_json_array(row["legacy_document_ids_json"]),
+        legacy_study_ids=_load_json_array(row["legacy_study_ids_json"]),
+        cannabinoid_focus=row["cannabinoid_focus"],
+        study_design=row["study_design"],
+        study_design_rank=row["study_design_rank"],
+        priority_tier=row["priority_tier"],
+        priority_score=row["priority_score"],
+        full_text_review_priority=row["full_text_review_priority"],
+        query_names=_load_json_array(row["query_names_json"]),
+        score_reasons=_load_json_array(row["score_reasons_json"]),
+        review_reasons=_load_json_array(row["review_reasons_json"]),
+        provenance=_load_json_object(row["provenance_json"]),
+        publication=_publication_summary_from_row(row),
+    )
 
 
 def get_publication_detail(
@@ -616,6 +756,15 @@ def _queue_item_from_row(row: sqlite3.Row) -> ReviewQueueItem:
         metadata=_load_json_object(row["metadata_json"]),
         publication=_publication_summary_from_row(row),
     )
+
+
+def _load_json_array(value: str | None) -> list[Any]:
+    if not value:
+        return []
+    loaded = json.loads(value)
+    if not isinstance(loaded, list):
+        return []
+    return loaded
 
 
 def _publication_summary_from_row(row: sqlite3.Row) -> PublicationSummary:

@@ -264,3 +264,25 @@ item.
 The application writes provenance into `review_item.metadata_json`, including
 `status_history` and `last_identity_decision_application`, and leaves Initial
 Load JSONL snapshots unchanged.
+
+## 2026-05-18: Open Post-Legacy Enrichment With PubMed Candidate Staging
+
+The first enrichment loop beyond the legacy dataset uses PubMed as the primary
+source for publication discovery and metadata. Discovery is anchored to the
+latest legacy publication year available in local SQLite and starts with a small
+default overlap window so records near the legacy boundary can be classified
+instead of silently skipped.
+
+The MVP reuses the validated PubMed POC parser and scoring logic, but writes
+MVP-shaped snapshots under ignored `data/` paths and persists only operational
+state to SQLite. PubMed results are classified against the legacy index as
+`in_legacy_exact`, `possible_legacy_match`,
+`needs_manual_identity_review`, or `new_candidate`. Exact legacy matches remain
+audit outputs only. Non-exact candidates are stored as `needs_review`
+publication records, receive a `publication_candidate_discovery` provenance row,
+and enter the `publication_candidate_review` queue.
+
+This deliberately does not mutate Initial Load JSONL snapshots and does not
+treat discovered PubMed candidates as reviewed knowledge. `cannabinoid_focus`
+continues to dominate review priority; citation metrics and other influence
+signals remain secondary enrichments.

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 DEFAULT_SQLITE_FILENAME = "marygenai.sqlite"
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 def sqlite_database_path(data_dir: Path) -> Path:
@@ -240,6 +240,47 @@ MIGRATIONS = (
             """
             CREATE INDEX IF NOT EXISTS idx_review_decision_document
             ON review_decision(document_id, created_at DESC)
+            """,
+        ),
+    ),
+    Migration(
+        version=3,
+        name="pubmed_candidate_discovery",
+        statements=(
+            """
+            CREATE TABLE IF NOT EXISTS publication_candidate_discovery (
+                document_id TEXT PRIMARY KEY,
+                source TEXT NOT NULL,
+                source_candidate_id TEXT NOT NULL,
+                identity_status TEXT NOT NULL,
+                legacy_match_type TEXT,
+                legacy_match_confidence REAL NOT NULL,
+                legacy_document_ids_json TEXT NOT NULL,
+                legacy_study_ids_json TEXT NOT NULL,
+                cannabinoid_focus TEXT NOT NULL,
+                study_design TEXT,
+                study_design_rank INTEGER NOT NULL,
+                priority_tier TEXT NOT NULL,
+                priority_score REAL NOT NULL,
+                full_text_review_priority TEXT NOT NULL,
+                query_names_json TEXT NOT NULL,
+                score_reasons_json TEXT NOT NULL,
+                review_reasons_json TEXT NOT NULL,
+                provenance_json TEXT NOT NULL,
+                run_id TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (document_id) REFERENCES document(document_id),
+                FOREIGN KEY (run_id) REFERENCES run_manifest(run_id)
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_pubmed_candidate_identity_status
+            ON publication_candidate_discovery(identity_status, priority_score DESC)
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_pubmed_candidate_focus
+            ON publication_candidate_discovery(cannabinoid_focus, priority_score DESC)
             """,
         ),
     ),

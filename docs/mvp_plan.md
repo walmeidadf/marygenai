@@ -30,10 +30,10 @@ overlap window to avoid missing records near the boundary.
 
 ## Current Environment Status
 
-As of 2026-05-16, `main` contains the first local review surface for the MVP,
-structured identity decisions for legacy identity review, and a minimal explicit
+As of 2026-05-18, `main` contains the first local review surface for the MVP,
+structured identity decisions for legacy identity review, a minimal explicit
 workflow action for applying the latest structured identity decision to local
-review item status.
+review item status, and the first operational PubMed candidate discovery slice.
 The active local environment is still single-maintainer and local-first:
 
 - package version: `0.1.0`;
@@ -41,7 +41,8 @@ The active local environment is still single-maintainer and local-first:
 - default temp directory: `temp`;
 - local operational database: `data/db/marygenai.sqlite`;
 - active Initial Load run: `20260515T143451Z`;
-- review queue: `legacy_identity_review`;
+- review queues: `legacy_identity_review` and `publication_candidate_review`
+  after a PubMed discovery run is persisted;
 - queue state: 1,206 total items, 1,206 open, 0 in review, 0 resolved, and
   0 dismissed.
 
@@ -197,6 +198,48 @@ The first SQLite load creates the initial relational subset:
 - `ontology_entity`;
 - `document_ontology_link`;
 - `review_item`.
+
+### 2. PubMed Candidate Discovery
+
+Status: first MVP slice added on 2026-05-18.
+
+Command:
+
+```bash
+uv run marygenai pubmed-discovery run --retmax 100
+uv run marygenai review list --queue publication_candidate_review
+```
+
+The discovery command reads the legacy publication index from SQLite, calculates
+the latest legacy publication year, starts the PubMed window one year earlier by
+default, and queries PubMed E-utilities with the validated POC discovery query
+set. It reuses the PubMed parser and scoring logic validated in the POCs, but
+writes MVP-shaped snapshots under the ignored active `data/` layout:
+
+- PubMed source request records under `data/staging/source_records/pubmed/`;
+- normalized publication candidate enrichments under
+  `data/normalized/publication_enrichments/pubmed/`;
+- review item snapshots under `data/normalized/review_items/`;
+- source-window summaries and run manifests under `data/manifests/`.
+
+Candidates are classified against the legacy index as:
+
+- `in_legacy_exact`;
+- `possible_legacy_match`;
+- `needs_manual_identity_review`;
+- `new_candidate`.
+
+`in_legacy_exact` records remain audit outputs only. Non-exact records are
+persisted into SQLite with `review_state='needs_review'`, a
+`publication_candidate_discovery` provenance row, document identities sourced
+from PubMed, and an open `publication_candidate_review` item. This opens the
+post-legacy enrichment loop without treating any PubMed result as reviewed
+knowledge.
+
+`cannabinoid_focus` remains the dominant priority tier. Records with direct
+title or indexed cannabinoid evidence enter the primary tier; abstract-only
+records are lower priority, and records without a cannabinoid signal should not
+be promoted by secondary signals alone.
 
 The first review queue is `legacy_identity_review`. It opens one item per legacy
 publication candidate that lacks PMID, PMCID, and DOI, because those records rely
