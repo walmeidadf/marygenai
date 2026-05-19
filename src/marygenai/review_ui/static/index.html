@@ -10,7 +10,7 @@
     <header class="topbar">
       <div>
         <p class="eyebrow">MaryGenAI internal review</p>
-        <h1>Legacy identity review</h1>
+        <h1>Review queues</h1>
       </div>
       <div id="api-status" class="status-pill">Checking API</div>
     </header>
@@ -21,8 +21,36 @@
           <h2 id="queue-heading">Queues</h2>
           <button id="refresh-button" type="button">Refresh</button>
         </div>
+        <div class="queue-controls">
+          <label>
+            Queue
+            <select id="queue-select">
+              <option value="legacy_identity_review">Legacy identity review</option>
+              <option value="publication_candidate_review">Publication candidate review</option>
+            </select>
+          </label>
+          <label>
+            Quick filter
+            <select id="filter-select">
+              <option value="">All open items</option>
+              <option value="identity_status:needs_manual_identity_review">
+                Needs manual identity review
+              </option>
+              <option value="identity_status:new_candidate">New candidate</option>
+              <option value="priority_tier:direct_title_or_indexed">
+                Direct title or indexed
+              </option>
+              <option value="full_text_review_priority:high_auto_full_text">
+                High auto full text
+              </option>
+              <option value="full_text_review_priority:high_manual_full_text">
+                High manual full text
+              </option>
+            </select>
+          </label>
+        </div>
         <div id="queue-summary" class="queue-summary"></div>
-        <h3>Open legacy identity items</h3>
+        <h3 id="open-items-heading">Open items</h3>
         <div id="review-list" class="review-list" aria-live="polite"></div>
       </section>
 
@@ -32,8 +60,8 @@
           <span id="selected-item-label" class="muted">No item selected</span>
         </div>
         <div id="detail-content" class="detail-empty">
-          Select an open review item to inspect legacy reference values, ontology
-          links, identity signals, and review status.
+          Select an open review item to inspect publication metadata, review signals,
+          provenance, and workflow status.
         </div>
       </section>
     </main>
@@ -41,4 +69,3 @@
     <script src="/ui/static/app.js" defer></script>
   </body>
 </html>
-

@@ -1,12 +1,22 @@
-const QUEUE_TYPE = "legacy_identity_review";
+const QUEUE_TYPES = {
+  legacy_identity_review: "Legacy identity review",
+  publication_candidate_review: "Publication candidate review",
+};
 const state = {
   items: [],
+  queues: [],
+  selectedQueueType: "legacy_identity_review",
+  selectedFilter: "",
   selectedReviewItemId: null,
+  provenanceByDocumentId: {},
 };
 
 const elements = {
   apiStatus: document.querySelector("#api-status"),
   queueSummary: document.querySelector("#queue-summary"),
+  queueSelect: document.querySelector("#queue-select"),
+  filterSelect: document.querySelector("#filter-select"),
+  openItemsHeading: document.querySelector("#open-items-heading"),
   reviewList: document.querySelector("#review-list"),
   detailContent: document.querySelector("#detail-content"),
   selectedItemLabel: document.querySelector("#selected-item-label"),
@@ -14,6 +24,17 @@ const elements = {
 };
 
 elements.refreshButton.addEventListener("click", () => loadDashboard());
+elements.queueSelect.addEventListener("change", () => {
+  state.selectedQueueType = elements.queueSelect.value;
+  state.selectedReviewItemId = null;
+  updateFilterAvailability();
+  loadDashboard();
+});
+elements.filterSelect.addEventListener("change", () => {
+  state.selectedFilter = elements.filterSelect.value;
+  state.selectedReviewItemId = null;
+  loadDashboard();
+});
 
 loadDashboard();
 
@@ -22,6 +43,7 @@ async function loadDashboard() {
   try {
     await loadHealth();
     const [queues, items] = await Promise.all([fetchJson("/review/queues"), loadQueueItems()]);
+    state.queues = queues;
     renderQueues(queues);
     renderReviewList(items);
     if (items.length > 0) {
@@ -33,7 +55,9 @@ async function loadDashboard() {
       state.selectedReviewItemId = null;
       elements.selectedItemLabel.textContent = "No item selected";
       elements.detailContent.className = "detail-empty";
-      elements.detailContent.textContent = "No open legacy identity review items were returned.";
+      elements.detailContent.textContent = `No open ${queueLabel(
+        state.selectedQueueType,
+      ).toLowerCase()} items were returned.`;
     }
   } catch (error) {
     showApiError(error);
@@ -51,7 +75,14 @@ async function loadHealth() {
 }
 
 async function loadQueueItems() {
-  const items = await fetchJson(`/review/queues/${QUEUE_TYPE}/items?status=open&limit=20`);
+  const params = new URLSearchParams({ status: "open", limit: "100" });
+  const filter = parseFilter(state.selectedFilter);
+  if (filter) {
+    params.set(filter.name, filter.value);
+  }
+  const items = await fetchJson(
+    `/review/queues/${encodeURIComponent(state.selectedQueueType)}/items?${params}`,
+  );
   state.items = items;
   return items;
 }
@@ -70,7 +101,15 @@ async function loadDetail(reviewItemId) {
       fetchJson(`/review/items/${encodeURIComponent(reviewItemId)}`),
       fetchJson(`/review/items/${encodeURIComponent(reviewItemId)}/identity-decisions`),
     ]);
-    renderDetail(detail, reviewItemId, decisions);
+    const publicationCandidateItem = detail.review_items.find(
+      (item) =>
+        item.review_item_id === reviewItemId &&
+        item.queue_type === "publication_candidate_review",
+    );
+    const provenance = publicationCandidateItem
+      ? await loadPublicationCandidateProvenance(detail.publication.document_id)
+      : null;
+    renderDetail(detail, reviewItemId, decisions, provenance);
   } catch (error) {
     elements.detailContent.className = "detail-empty";
     elements.detailContent.textContent = error.message;
@@ -78,10 +117,13 @@ async function loadDetail(reviewItemId) {
 }
 
 function renderQueues(queues) {
-  const queue = queues.find((entry) => entry.queue_type === QUEUE_TYPE);
+  elements.queueSelect.value = state.selectedQueueType;
+  updateFilterAvailability();
+  elements.openItemsHeading.textContent = `Open ${queueLabel(state.selectedQueueType)} items`;
+  const queue = queues.find((entry) => entry.queue_type === state.selectedQueueType);
   if (!queue) {
     elements.queueSummary.innerHTML = `<div class="summary-card">No ${escapeHtml(
-      QUEUE_TYPE,
+      state.selectedQueueType,
     )} queue found.</div>`;
     return;
   }
@@ -112,16 +154,18 @@ function renderReviewList(items) {
     .map((item) => {
       const title = item.publication.primary_title || "Untitled publication";
       const activeClass = item.review_item_id === state.selectedReviewItemId ? " active" : "";
+      const candidateMeta = renderCandidateCardMetadata(item);
       return `
         <button class="review-card${activeClass}" type="button" data-review-item-id="${escapeAttr(
           item.review_item_id,
         )}">
           <span class="review-title">${escapeHtml(title)}</span>
           <span class="review-meta">
-            Legacy study ${escapeHtml(item.publication.legacy_study_id)}
+            ${escapeHtml(queueItemPrefix(item))}
             / score ${formatNumber(item.priority_score)}
             / ${escapeHtml(item.priority_tier)}
           </span>
+          ${candidateMeta}
         </button>
       `;
     })
@@ -131,7 +175,37 @@ function renderReviewList(items) {
   });
 }
 
-function renderDetail(detail, reviewItemId, decisions) {
+async function loadPublicationCandidateProvenance(documentId) {
+  if (state.provenanceByDocumentId[documentId]) {
+    return state.provenanceByDocumentId[documentId];
+  }
+  const provenance = await fetchJson(
+    `/publication-candidates/${encodeURIComponent(documentId)}/provenance`,
+  );
+  state.provenanceByDocumentId[documentId] = provenance;
+  return provenance;
+}
+
+function renderCandidateCardMetadata(item) {
+  if (item.queue_type !== "publication_candidate_review") {
+    return "";
+  }
+  const metadata = item.metadata || {};
+  return `
+    <span class="candidate-badges">
+      ${badge(metadata.identity_status)}
+      ${badge(metadata.cannabinoid_focus)}
+      ${badge(metadata.full_text_review_priority)}
+    </span>
+    <span class="review-meta">
+      ${metaInline("PMID", item.publication.pmid)}
+      ${metaInline("PMCID", item.publication.pmcid)}
+      ${metaInline("DOI", item.publication.doi)}
+    </span>
+  `;
+}
+
+function renderDetail(detail, reviewItemId, decisions, candidateProvenance) {
   const publication = detail.publication;
   const activeItem =
     detail.review_items.find((item) => item.review_item_id === reviewItemId) ||
@@ -151,6 +225,7 @@ function renderDetail(detail, reviewItemId, decisions) {
       ${meta("Review state", publication.review_state)}
     </div>
 
+    ${renderPublicationCandidateProvenance(candidateProvenance)}
     ${renderStatusForm(activeItem)}
     ${renderDecisionForm(detail, activeItem)}
     ${renderDecisions(decisions)}
@@ -169,6 +244,52 @@ function renderDetail(detail, reviewItemId, decisions) {
   if (applyButton) {
     applyButton.addEventListener("click", () => applyIdentityDecision(reviewItemId));
   }
+}
+
+function renderPublicationCandidateProvenance(provenance) {
+  if (!provenance) {
+    return "";
+  }
+  return `
+    <section class="detail-section candidate-provenance">
+      <h3>Publication candidate provenance</h3>
+      <div class="meta-grid">
+        ${meta("Identity status", provenance.identity_status)}
+        ${meta("Cannabinoid focus", provenance.cannabinoid_focus)}
+        ${meta("Full text priority", provenance.full_text_review_priority)}
+        ${meta("Legacy match type", provenance.legacy_match_type)}
+        ${meta("Legacy match confidence", formatNumber(provenance.legacy_match_confidence))}
+        ${meta("Source candidate", provenance.source_candidate_id)}
+        ${meta("PMID", provenance.publication.pmid)}
+        ${meta("PMCID", provenance.publication.pmcid)}
+        ${meta("DOI", provenance.publication.doi)}
+      </div>
+      <div class="data-list compact-list">
+        ${renderValueList("Review reasons", provenance.review_reasons)}
+        ${renderValueList("Score reasons", provenance.score_reasons)}
+        ${renderValueList("Query names", provenance.query_names)}
+        ${renderValueList("Legacy study IDs", provenance.legacy_study_ids)}
+      </div>
+      <details class="provenance-json">
+        <summary>Raw provenance</summary>
+        <pre>${escapeHtml(JSON.stringify(provenance.provenance, null, 2))}</pre>
+      </details>
+    </section>
+  `;
+}
+
+function renderValueList(label, values) {
+  const items = Array.isArray(values) ? values : [];
+  return `
+    <div class="data-row">
+      <strong>${escapeHtml(label)}</strong><br />
+      ${
+        items.length === 0
+          ? '<span class="muted">Not recorded</span>'
+          : `<ul>${items.map((value) => `<li>${escapeHtml(value)}</li>`).join("")}</ul>`
+      }
+    </div>
+  `;
 }
 
 function renderStatusForm(item) {
@@ -388,6 +509,44 @@ function renderOntologyLinks(links) {
   `;
 }
 
+function parseFilter(value) {
+  if (!value) {
+    return null;
+  }
+  const [name, filterValue] = value.split(":", 2);
+  if (!name || !filterValue) {
+    return null;
+  }
+  return { name, value: filterValue };
+}
+
+function updateFilterAvailability() {
+  const supportsCandidateFilters = state.selectedQueueType === "publication_candidate_review";
+  elements.filterSelect.disabled = !supportsCandidateFilters;
+  if (!supportsCandidateFilters && state.selectedFilter) {
+    state.selectedFilter = "";
+  }
+  elements.filterSelect.value = state.selectedFilter;
+}
+
+function queueLabel(queueType) {
+  return QUEUE_TYPES[queueType] || queueType;
+}
+
+function queueItemPrefix(item) {
+  if (item.queue_type === "publication_candidate_review") {
+    return `PMID ${item.publication.pmid || "not recorded"}`;
+  }
+  return `Legacy study ${item.publication.legacy_study_id}`;
+}
+
+function badge(value) {
+  if (!value) {
+    return "";
+  }
+  return `<span class="badge">${escapeHtml(value)}</span>`;
+}
+
 async function submitStatusUpdate(event, reviewItemId) {
   event.preventDefault();
   const form = event.currentTarget;
@@ -444,7 +603,7 @@ async function submitIdentityDecision(event, detail, reviewItemId) {
       },
       provenance: {
         source: "marygenai.review_ui",
-        queue_type: QUEUE_TYPE,
+        queue_type: state.selectedQueueType,
       },
     };
     const result = await fetchJson(

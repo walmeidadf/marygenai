@@ -45,11 +45,16 @@ def test_review_ui_static_assets_are_served(tmp_path: Path) -> None:
     response = client.get("/ui/static/app.js")
 
     assert response.status_code == 200
-    assert 'const QUEUE_TYPE = "legacy_identity_review";' in response.text
+    assert "publication_candidate_review" in response.text
+    assert "/publication-candidates/" in response.text
     assert "/review/queues" in response.text
     assert "/identity-decisions" in response.text
     assert "/identity-decisions/apply" in response.text
     assert "Apply decision to workflow" in response.text
+
+    index_response = client.get("/ui")
+    assert "identity_status:needs_manual_identity_review" in index_response.text
+    assert "full_text_review_priority:high_manual_full_text" in index_response.text
 
 
 def test_list_review_queues(tmp_path: Path) -> None:

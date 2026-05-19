@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from pathlib import Path
 
+from fastapi.testclient import TestClient
+
 from marygenai.persistence.sqlite import connect_sqlite
 from marygenai.pubmed_discovery.legacy import load_legacy_index_from_sqlite
 from marygenai.pubmed_discovery.models import default_pubmed_window
@@ -17,6 +19,7 @@ from marygenai.review.repository import (
     list_open_review_items,
     list_publication_candidate_discoveries,
 )
+from marygenai.review_api import create_app
 from marygenai.schemas import RunManifest
 from marygenai.storage import LocalStorage
 from tests.test_review_repository import create_review_database
@@ -190,9 +193,27 @@ def test_persist_pubmed_candidates_creates_review_queue_and_provenance(
             connection,
             document_id="publication:pubmed:99999999",
         )
+        filtered_items = list_open_review_items(
+            connection,
+            queue_type="publication_candidate_review",
+            identity_status="new_candidate",
+            priority_tier="direct_title_or_indexed",
+        )
 
     assert len(queue_items) == 1
     assert queue_items[0].publication.review_state == "needs_review"
+    assert queue_items[0].metadata["identity_status"] == "new_candidate"
+    assert queue_items[0].metadata["cannabinoid_focus"] == "direct_title_or_indexed"
     assert discoveries[0].document_id == "publication:pubmed:99999999"
     assert provenance.identity_status == "new_candidate"
     assert provenance.provenance["method"] == "legacy_anchored_pubmed_discovery"
+
+    client = TestClient(create_app(database_path))
+    response = client.get(
+        "/review/queues/publication_candidate_review/items"
+        "?status=open&identity_status=new_candidate&priority_tier=direct_title_or_indexed"
+    )
+
+    assert [item.review_item_id for item in filtered_items] == [queue_items[0].review_item_id]
+    assert response.status_code == 200
+    assert response.json()[0]["metadata"]["identity_status"] == "new_candidate"

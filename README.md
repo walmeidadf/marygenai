@@ -179,17 +179,20 @@ uv run marygenai review-ui serve --host 127.0.0.1 --port 8000
 ```
 
 Open `http://127.0.0.1:8000/ui` to inspect API health, queue totals, open
-`legacy_identity_review` items, publication detail, legacy reference values,
-ontology links, identity signals, workflow status updates, and structured legacy
-identity decisions with reviewed PMID, PMCID, DOI, canonical URL, rationale,
-reviewer, original identity signals, and provenance. Status remains operational
-workflow state; identity decisions are saved as separate curation records. The
-UI keeps saving an identity decision separate from applying the latest applicable
-decision to the local workflow status. Applying a `confirmed_identity` or
-`corrected_identity` decision resolves the item, applying `not_same_publication`
-dismisses it, and `unresolved` remains a saved decision that does not close the
-item. This UI is an internal review and curation surface, not a clinical or
-public product.
+`legacy_identity_review` and `publication_candidate_review` items, publication
+detail, legacy reference values, ontology links, identity signals, candidate
+provenance, workflow status updates, and structured legacy identity decisions
+with reviewed PMID, PMCID, DOI, canonical URL, rationale, reviewer, original
+identity signals, and provenance. The queue selector supports quick filters for
+PubMed candidate review, including `needs_manual_identity_review`,
+`new_candidate`, `direct_title_or_indexed`, `high_auto_full_text`, and
+`high_manual_full_text`. Status remains operational workflow state; identity
+decisions are saved as separate curation records. The UI keeps saving an
+identity decision separate from applying the latest applicable decision to the
+local workflow status. Applying a `confirmed_identity` or `corrected_identity`
+decision resolves the item, applying `not_same_publication` dismisses it, and
+`unresolved` remains a saved decision that does not close the item. This UI is an
+internal review and curation surface, not a clinical or public product.
 
 The local maintainer database currently uses the private legacy bootstrap as a
 trusted reference. The `legacy_identity_review` queue contains only legacy
@@ -229,6 +232,13 @@ The local API exposes candidate inspection at:
 
 - `GET /publication-candidates`
 - `GET /publication-candidates/{document_id}/provenance`
+
+The review queue item listing also accepts candidate-oriented filters for the
+local UI, for example:
+
+- `GET /review/queues/publication_candidate_review/items?identity_status=needs_manual_identity_review`
+- `GET /review/queues/publication_candidate_review/items?priority_tier=direct_title_or_indexed`
+- `GET /review/queues/publication_candidate_review/items?full_text_review_priority=high_auto_full_text`
 
 To backfill many months in sequence, use the helper script. It defaults to
 `2024-06-01` because the maintainer backfill has already run January through May

@@ -138,6 +138,28 @@ h3 {
   padding: 16px 16px 0;
 }
 
+.queue-controls {
+  display: grid;
+  gap: 10px;
+  padding: 16px 16px 0;
+}
+
+.queue-controls label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.queue-controls select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px;
+  background: #ffffff;
+  color: var(--ink);
+}
+
 .summary-card {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -184,6 +206,22 @@ h3 {
   font-size: 0.86rem;
 }
 
+.candidate-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 4px;
+}
+
+.badge {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: #fbfcfa;
+  color: var(--accent-strong);
+  font-size: 0.78rem;
+}
+
 .detail-empty,
 .detail-body {
   padding: 16px;
@@ -220,6 +258,30 @@ h3 {
 
 .data-row code {
   overflow-wrap: anywhere;
+}
+
+.compact-list ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.provenance-json {
+  margin-top: 10px;
+}
+
+.provenance-json summary {
+  cursor: pointer;
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+.provenance-json pre {
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: #fbfcfa;
+  font-size: 0.82rem;
 }
 
 .status-form,
