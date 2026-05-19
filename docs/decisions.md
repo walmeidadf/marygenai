@@ -331,3 +331,16 @@ unique candidates because `publication_candidate_discovery` and
 Future PubMed discovery should also persist raw ESearch and EFetch payloads under
 `data/raw/pubmed/`, not only source request metadata and normalized snapshots, so
 date-window behavior and parser decisions can be audited more directly.
+
+## 2026-05-19: Keep Review Status Vocabulary Explicit For Onboarding
+
+MaryGenAI now documents review status semantics in
+`docs/review_status_guide.md` because the MVP has multiple related state layers:
+queue workflow status, document review state, PubMed candidate identity status,
+and structured identity decisions.
+
+The project should keep these layers separate in UI, API, CLI, and documentation.
+For example, `review_item.status='resolved'` closes a local workflow item, while
+`publication_candidate_discovery.identity_status='new_candidate'` describes the
+candidate's relationship to the baseline. Neither status alone makes a PubMed
+candidate reviewed knowledge.

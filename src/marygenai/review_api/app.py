@@ -93,13 +93,23 @@ def create_app(database_path: Path | None = None) -> FastAPI:
         connection: Connection,
         status: Annotated[ReviewItemStatus, Query()] = "open",
         limit: Annotated[int, Query(ge=1, le=500)] = 20,
+        identity_status: Annotated[str | None, Query()] = None,
+        priority_tier: Annotated[str | None, Query()] = None,
+        full_text_review_priority: Annotated[str | None, Query()] = None,
     ) -> list[ReviewQueueItem]:
         if status != "open":
             raise HTTPException(
                 status_code=400,
                 detail="Only status=open is supported for review queue item listing.",
             )
-        return list_open_review_items(connection, queue_type=queue_type, limit=limit)
+        return list_open_review_items(
+            connection,
+            queue_type=queue_type,
+            limit=limit,
+            identity_status=identity_status,
+            priority_tier=priority_tier,
+            full_text_review_priority=full_text_review_priority,
+        )
 
     @app.get(
         "/publication-candidates",

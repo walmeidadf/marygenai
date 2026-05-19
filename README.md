@@ -101,6 +101,11 @@ uv run marygenai review-ui serve --host 127.0.0.1 --port 8000
 - PubMed discovery window: `uv run python -m pocs.pubmed_discovery.discover_pubmed run --retmax 100 --datetype pdat --mindate 2025/04/01 --maxdate 2025/04/30`
 - iCite enrichment: `uv run python -m pocs.icite_enrichment.enrich_icite run --input-path <pubmed_discovery_records.jsonl>`
 
+Review status meanings are documented in
+[`docs/review_status_guide.md`](docs/review_status_guide.md). Start there when
+onboarding a reviewer or explaining the difference between queue workflow status,
+legacy identity decisions, and PubMed candidate identity status.
+
 ## MVP Direction
 
 The MVP review queue should be dominated by `cannabinoid_focus`. Records with
@@ -171,6 +176,9 @@ Initial endpoints:
 
 The API reads `data/db/marygenai.sqlite` by default, mutates only operational
 SQLite review state for status updates, and leaves JSONL snapshots unchanged.
+See [`docs/review_status_guide.md`](docs/review_status_guide.md) for the
+canonical explanation of `open`, `in_review`, `resolved`, `dismissed`,
+structured identity decisions, and PubMed candidate identity statuses.
 
 The first local review UI is served by the same FastAPI app at `/ui`:
 
@@ -182,9 +190,13 @@ Open `http://127.0.0.1:8000/ui` to inspect API health, queue totals, open
 `legacy_identity_review` items, publication detail, legacy reference values,
 ontology links, identity signals, workflow status updates, and structured legacy
 identity decisions with reviewed PMID, PMCID, DOI, canonical URL, rationale,
-reviewer, original identity signals, and provenance. Status remains operational
-workflow state; identity decisions are saved as separate curation records. The
-UI keeps saving an identity decision separate from applying the latest applicable
+reviewer, original identity signals, and provenance. PubMed candidate review is
+available through the CLI and API; adding first-class UI filters for
+`publication_candidate_review`, `needs_manual_identity_review`, `new_candidate`,
+`direct_title_or_indexed`, `high_auto_full_text`, and
+`high_manual_full_text` is the next UI improvement. Status remains operational
+workflow state; identity decisions are saved as separate curation records. The UI
+keeps saving an identity decision separate from applying the latest applicable
 decision to the local workflow status. Applying a `confirmed_identity` or
 `corrected_identity` decision resolves the item, applying `not_same_publication`
 dismisses it, and `unresolved` remains a saved decision that does not close the
@@ -229,6 +241,13 @@ The local API exposes candidate inspection at:
 
 - `GET /publication-candidates`
 - `GET /publication-candidates/{document_id}/provenance`
+
+The review queue item listing also accepts candidate-oriented filters for the
+local UI, for example:
+
+- `GET /review/queues/publication_candidate_review/items?identity_status=needs_manual_identity_review`
+- `GET /review/queues/publication_candidate_review/items?priority_tier=direct_title_or_indexed`
+- `GET /review/queues/publication_candidate_review/items?full_text_review_priority=high_auto_full_text`
 
 To backfill many months in sequence, use the helper script. It defaults to
 `2024-06-01` because the maintainer backfill has already run January through May

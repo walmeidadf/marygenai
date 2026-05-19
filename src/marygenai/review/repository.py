@@ -129,10 +129,26 @@ def list_open_review_items(
     *,
     queue_type: str = "legacy_identity_review",
     limit: int = 20,
+    identity_status: str | None = None,
+    priority_tier: str | None = None,
+    full_text_review_priority: str | None = None,
 ) -> list[ReviewQueueItem]:
     require_review_schema(connection)
+    filters = ["ri.queue_type = ?", "ri.status = 'open'"]
+    parameters: list[Any] = [queue_type]
+    if identity_status:
+        filters.append("discovery.identity_status = ?")
+        parameters.append(identity_status)
+    if priority_tier:
+        filters.append("ri.priority_tier = ?")
+        parameters.append(priority_tier)
+    if full_text_review_priority:
+        filters.append("discovery.full_text_review_priority = ?")
+        parameters.append(full_text_review_priority)
+    parameters.append(limit)
+    where_clause = " AND ".join(filters)
     rows = connection.execute(
-        """
+        f"""
         SELECT
             ri.review_item_id,
             ri.queue_type,
@@ -153,15 +169,23 @@ def list_open_review_items(
             d.doi,
             d.review_state,
             p.legacy_study_id,
-            p.legacy_study_type
+            p.legacy_study_type,
+            discovery.identity_status,
+            discovery.cannabinoid_focus,
+            discovery.full_text_review_priority,
+            discovery.legacy_match_type,
+            discovery.legacy_match_confidence,
+            discovery.review_reasons_json
         FROM review_item AS ri
         JOIN document AS d ON d.document_id = ri.document_id
         JOIN publication AS p ON p.document_id = d.document_id
-        WHERE ri.queue_type = ? AND ri.status = 'open'
+        LEFT JOIN publication_candidate_discovery AS discovery
+            ON discovery.document_id = ri.document_id
+        WHERE {where_clause}
         ORDER BY ri.priority_score DESC, ri.created_at ASC, ri.review_item_id ASC
         LIMIT ?
         """,
-        (queue_type, limit),
+        parameters,
     ).fetchall()
     return [_queue_item_from_row(row) for row in rows]
 
@@ -744,6 +768,18 @@ def list_identity_review_decisions_for_publication(
 
 
 def _queue_item_from_row(row: sqlite3.Row) -> ReviewQueueItem:
+    metadata = _load_json_object(row["metadata_json"])
+    if row["queue_type"] == "publication_candidate_review" and "identity_status" in row.keys():
+        metadata.update(
+            {
+                "identity_status": row["identity_status"],
+                "cannabinoid_focus": row["cannabinoid_focus"],
+                "full_text_review_priority": row["full_text_review_priority"],
+                "legacy_match_type": row["legacy_match_type"],
+                "legacy_match_confidence": row["legacy_match_confidence"],
+                "review_reasons": _load_json_array(row["review_reasons_json"]),
+            }
+        )
     return ReviewQueueItem(
         review_item_id=row["review_item_id"],
         queue_type=row["queue_type"],
@@ -753,7 +789,7 @@ def _queue_item_from_row(row: sqlite3.Row) -> ReviewQueueItem:
         assignee=row["assignee"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
-        metadata=_load_json_object(row["metadata_json"]),
+        metadata=metadata,
         publication=_publication_summary_from_row(row),
     )
 
