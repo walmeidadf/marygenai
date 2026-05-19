@@ -2,6 +2,14 @@ const QUEUE_TYPES = {
   legacy_identity_review: "Legacy identity review",
   publication_candidate_review: "Publication candidate review",
 };
+const FILTER_LABELS = {
+  "": "All open PubMed candidates",
+  "identity_status:needs_manual_identity_review": "Needs manual identity review",
+  "identity_status:new_candidate": "New candidates",
+  "priority_tier:direct_title_or_indexed": "Direct title or indexed evidence",
+  "full_text_review_priority:high_auto_full_text": "High auto full text",
+  "full_text_review_priority:high_manual_full_text": "High manual full text",
+};
 const state = {
   items: [],
   queues: [],
@@ -14,8 +22,10 @@ const state = {
 const elements = {
   apiStatus: document.querySelector("#api-status"),
   queueSummary: document.querySelector("#queue-summary"),
-  queueSelect: document.querySelector("#queue-select"),
-  filterSelect: document.querySelector("#filter-select"),
+  queueTabs: document.querySelectorAll("[data-queue-type]"),
+  candidateFilters: document.querySelector("#candidate-filters"),
+  filterChips: document.querySelectorAll("[data-filter]"),
+  activeFilterLabel: document.querySelector("#active-filter-label"),
   openItemsHeading: document.querySelector("#open-items-heading"),
   reviewList: document.querySelector("#review-list"),
   detailContent: document.querySelector("#detail-content"),
@@ -24,16 +34,22 @@ const elements = {
 };
 
 elements.refreshButton.addEventListener("click", () => loadDashboard());
-elements.queueSelect.addEventListener("change", () => {
-  state.selectedQueueType = elements.queueSelect.value;
-  state.selectedReviewItemId = null;
-  updateFilterAvailability();
-  loadDashboard();
+elements.queueTabs.forEach((button) => {
+  button.addEventListener("click", () => {
+    state.selectedQueueType = button.dataset.queueType;
+    state.selectedFilter = "";
+    state.selectedReviewItemId = null;
+    renderControls();
+    loadDashboard();
+  });
 });
-elements.filterSelect.addEventListener("change", () => {
-  state.selectedFilter = elements.filterSelect.value;
-  state.selectedReviewItemId = null;
-  loadDashboard();
+elements.filterChips.forEach((button) => {
+  button.addEventListener("click", () => {
+    state.selectedFilter = button.dataset.filter;
+    state.selectedReviewItemId = null;
+    renderControls();
+    loadDashboard();
+  });
 });
 
 loadDashboard();
@@ -117,8 +133,7 @@ async function loadDetail(reviewItemId) {
 }
 
 function renderQueues(queues) {
-  elements.queueSelect.value = state.selectedQueueType;
-  updateFilterAvailability();
+  renderControls();
   elements.openItemsHeading.textContent = `Open ${queueLabel(state.selectedQueueType)} items`;
   const queue = queues.find((entry) => entry.queue_type === state.selectedQueueType);
   if (!queue) {
@@ -146,6 +161,9 @@ function renderQueues(queues) {
 }
 
 function renderReviewList(items) {
+  elements.openItemsHeading.textContent = `Open ${queueLabel(
+    state.selectedQueueType,
+  )} items (${items.length} shown)`;
   if (items.length === 0) {
     elements.reviewList.innerHTML = `<p class="muted">No open items.</p>`;
     return;
@@ -165,6 +183,7 @@ function renderReviewList(items) {
             / score ${formatNumber(item.priority_score)}
             / ${escapeHtml(item.priority_tier)}
           </span>
+          <span class="review-id">${escapeHtml(item.review_item_id)}</span>
           ${candidateMeta}
         </button>
       `;
@@ -520,13 +539,19 @@ function parseFilter(value) {
   return { name, value: filterValue };
 }
 
-function updateFilterAvailability() {
+function renderControls() {
   const supportsCandidateFilters = state.selectedQueueType === "publication_candidate_review";
-  elements.filterSelect.disabled = !supportsCandidateFilters;
   if (!supportsCandidateFilters && state.selectedFilter) {
     state.selectedFilter = "";
   }
-  elements.filterSelect.value = state.selectedFilter;
+  elements.queueTabs.forEach((button) => {
+    button.classList.toggle("active", button.dataset.queueType === state.selectedQueueType);
+  });
+  elements.candidateFilters.hidden = !supportsCandidateFilters;
+  elements.filterChips.forEach((button) => {
+    button.classList.toggle("active", button.dataset.filter === state.selectedFilter);
+  });
+  elements.activeFilterLabel.textContent = FILTER_LABELS[state.selectedFilter] || "Filtered view";
 }
 
 function queueLabel(queueType) {

@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>MaryGenAI Review</title>
-    <link rel="stylesheet" href="/ui/static/styles.css" />
+    <link rel="stylesheet" href="/ui/static/styles.css?v=3" />
   </head>
   <body>
     <header class="topbar">
@@ -21,35 +21,69 @@
           <h2 id="queue-heading">Queues</h2>
           <button id="refresh-button" type="button">Refresh</button>
         </div>
-        <div class="queue-controls">
-          <label>
-            Queue
-            <select id="queue-select">
-              <option value="legacy_identity_review">Legacy identity review</option>
-              <option value="publication_candidate_review">Publication candidate review</option>
-            </select>
-          </label>
-          <label>
-            Quick filter
-            <select id="filter-select">
-              <option value="">All open items</option>
-              <option value="identity_status:needs_manual_identity_review">
-                Needs manual identity review
-              </option>
-              <option value="identity_status:new_candidate">New candidate</option>
-              <option value="priority_tier:direct_title_or_indexed">
-                Direct title or indexed
-              </option>
-              <option value="full_text_review_priority:high_auto_full_text">
-                High auto full text
-              </option>
-              <option value="full_text_review_priority:high_manual_full_text">
-                High manual full text
-              </option>
-            </select>
-          </label>
+        <div class="queue-tabs" aria-label="Review queue">
+          <button
+            class="queue-tab active"
+            type="button"
+            data-queue-type="legacy_identity_review"
+          >
+            Legacy identity
+          </button>
+          <button
+            class="queue-tab"
+            type="button"
+            data-queue-type="publication_candidate_review"
+          >
+            PubMed candidates
+          </button>
         </div>
         <div id="queue-summary" class="queue-summary"></div>
+        <div id="candidate-filters" class="candidate-filters" hidden>
+          <div class="filter-heading">
+            <h3>Candidate filters</h3>
+            <span id="active-filter-label" class="muted">All open PubMed candidates</span>
+          </div>
+          <div class="filter-chips" aria-label="Publication candidate filters">
+            <button class="filter-chip active" type="button" data-filter="">
+              All open
+            </button>
+            <button
+              class="filter-chip"
+              type="button"
+              data-filter="identity_status:needs_manual_identity_review"
+            >
+              Manual identity
+            </button>
+            <button
+              class="filter-chip"
+              type="button"
+              data-filter="identity_status:new_candidate"
+            >
+              New candidate
+            </button>
+            <button
+              class="filter-chip"
+              type="button"
+              data-filter="priority_tier:direct_title_or_indexed"
+            >
+              Direct evidence
+            </button>
+            <button
+              class="filter-chip"
+              type="button"
+              data-filter="full_text_review_priority:high_auto_full_text"
+            >
+              High auto full text
+            </button>
+            <button
+              class="filter-chip"
+              type="button"
+              data-filter="full_text_review_priority:high_manual_full_text"
+            >
+              High manual full text
+            </button>
+          </div>
+        </div>
         <h3 id="open-items-heading">Open items</h3>
         <div id="review-list" class="review-list" aria-live="polite"></div>
       </section>
@@ -66,6 +100,6 @@
       </section>
     </main>
 
-    <script src="/ui/static/app.js" defer></script>
+    <script src="/ui/static/app.js?v=3" defer></script>
   </body>
 </html>

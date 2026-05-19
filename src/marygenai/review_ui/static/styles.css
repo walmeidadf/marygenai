@@ -131,45 +131,92 @@ h3 {
   border-bottom: 1px solid var(--line);
 }
 
-.queue-summary {
+.queue-tabs {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  padding: 16px 16px 0;
+  gap: 6px;
+  padding: 12px 16px 0;
 }
 
-.queue-controls {
-  display: grid;
-  gap: 10px;
-  padding: 16px 16px 0;
-}
-
-.queue-controls label {
-  display: grid;
-  gap: 4px;
-  color: var(--muted);
-  font-size: 0.86rem;
-}
-
-.queue-controls select {
-  width: 100%;
+.queue-tab,
+.filter-chip {
+  min-height: 34px;
   border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 8px;
   background: #ffffff;
   color: var(--ink);
+  text-align: center;
+}
+
+.queue-tab.active,
+.filter-chip.active {
+  border-color: var(--accent);
+  background: var(--soft);
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+.queue-tab:hover,
+.filter-chip:hover {
+  border-color: var(--accent);
+}
+
+.queue-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding: 14px 16px 0;
 }
 
 .summary-card {
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 10px;
+  padding: 8px;
   background: #fbfcfa;
 }
 
 .summary-card strong {
   display: block;
-  font-size: 1.35rem;
+  font-size: 1.1rem;
+}
+
+.summary-card span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.candidate-filters {
+  margin: 14px 16px 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfa;
+}
+
+.filter-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.filter-heading h3 {
+  margin: 0;
+}
+
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filter-chip {
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.queue-panel > h3 {
+  margin: 18px 16px 10px;
 }
 
 .review-list {
@@ -204,6 +251,17 @@ h3 {
 .meta-grid {
   color: var(--muted);
   font-size: 0.86rem;
+}
+
+.review-id {
+  display: block;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    monospace;
+  font-size: 0.74rem;
 }
 
 .candidate-badges {
@@ -242,6 +300,15 @@ h3 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px 16px;
+}
+
+.meta-grid > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.meta-grid a {
+  overflow-wrap: anywhere;
 }
 
 .data-list {
