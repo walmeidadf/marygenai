@@ -348,6 +348,13 @@ and decision schema provenance. Applying a decision records application
 provenance in the review item's `metadata.status_history` and
 `metadata.last_identity_decision_application`.
 
+The reviewer-facing status reference is
+[`docs/review_status_guide.md`](review_status_guide.md). It defines the
+difference between queue workflow status, document review state, structured
+identity decisions, and PubMed discovery identity statuses such as
+`in_legacy_exact`, `possible_legacy_match`, `needs_manual_identity_review`, and
+`new_candidate`.
+
 Populated private bootstrap values should be treated as trusted curated
 references. Missing bootstrap fields should remain interpretable as
 `not_reported`, `not_applicable`, or `needs_more_evidence`, depending on the
@@ -535,6 +542,8 @@ when a milestone lands in `main`, not only when a design direction changes.
 - Run PubMed discovery month-by-month from January 2024 through the current date.
 - Review `publication_candidate_review` to decide which candidates are relevant
   enough for access and metadata enrichment.
+- Use `docs/review_status_guide.md` as the onboarding reference for interns or
+  reviewers before they update queue items.
 - Add simple API pagination and status filtering when the UI needs to navigate
   beyond first open-item pages.
 - Prepare reviewed snapshot exports that can become the public baseline.

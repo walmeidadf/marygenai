@@ -111,6 +111,10 @@ The first UI is available at `http://127.0.0.1:8000/ui` and is an internal
 review and curation surface for `legacy_identity_review`, not a clinical or
 public product.
 
+When working on review workflows, use `docs/review_status_guide.md` as the
+canonical status vocabulary. Keep queue workflow status, document review state,
+structured identity decisions, and PubMed candidate identity status separate.
+
 ## Public Documentation Expectations
 
 - Write docs for people encountering the repository without private context.
