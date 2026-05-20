@@ -49,6 +49,20 @@ def run(
             help="Allow candidates marked needs_manual_identity_review.",
         ),
     ] = False,
+    refresh_existing: Annotated[
+        bool,
+        typer.Option(
+            "--refresh-existing",
+            help="Re-enrich candidates that already have access enrichment artifacts.",
+        ),
+    ] = False,
+    skip_enriched: Annotated[
+        bool,
+        typer.Option(
+            "--skip-enriched/--no-skip-enriched",
+            help="Skip candidates that already have access enrichment artifacts.",
+        ),
+    ] = True,
     fetch_pmc_html: Annotated[
         bool,
         typer.Option("--fetch-pmc-html", help="Also retrieve PMC article HTML when PMCID exists."),
@@ -76,6 +90,7 @@ def run(
         full_text_priorities=full_text_priority,
         study_designs=study_design,
         include_manual_identity_review=include_manual_identity_review,
+        skip_enriched=False if refresh_existing else skip_enriched,
         fetch_pmc_html=fetch_pmc_html,
         fetch_pdf=fetch_pdf,
     )

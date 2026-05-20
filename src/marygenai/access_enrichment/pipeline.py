@@ -60,6 +60,7 @@ def run_access_enrichment(
     full_text_priorities: list[str] | None = None,
     study_designs: list[str] | None = None,
     include_manual_identity_review: bool = False,
+    skip_enriched: bool = True,
     fetch_pmc_html: bool = False,
     fetch_pdf: bool = False,
     clients: AccessClientBundle | None = None,
@@ -84,6 +85,7 @@ def run_access_enrichment(
             full_text_priorities=full_text_priorities or list(DEFAULT_FULL_TEXT_PRIORITY),
             study_designs=study_designs,
             include_manual_identity_review=include_manual_identity_review,
+            skip_enriched=skip_enriched,
         )
 
     client_bundle = clients or DefaultAccessClientBundle(
@@ -156,6 +158,7 @@ def select_access_enrichment_candidates(
     full_text_priorities: list[str] | None = None,
     study_designs: list[str] | None = None,
     include_manual_identity_review: bool = False,
+    skip_enriched: bool = True,
 ) -> list[AccessEnrichmentCandidate]:
     clauses = ["ri.queue_type = 'publication_candidate_review'"]
     params: list[Any] = []
@@ -172,6 +175,16 @@ def select_access_enrichment_candidates(
         )
     if study_designs:
         clauses.append(in_clause("discovery.study_design", study_designs, params))
+    if skip_enriched:
+        clauses.append(
+            """
+            NOT EXISTS (
+                SELECT 1
+                FROM access_enrichment_artifact AS artifact
+                WHERE artifact.document_id = discovery.document_id
+            )
+            """
+        )
     params.append(limit)
     rows = connection.execute(
         f"""
@@ -890,4 +903,3 @@ def artifact_provenance(run_id: str, fetched_at: str) -> dict[str, Any]:
         "fetched_at": fetched_at,
         "review_state": "needs_review",
     }
-
