@@ -344,3 +344,23 @@ For example, `review_item.status='resolved'` closes a local workflow item, while
 `publication_candidate_discovery.identity_status='new_candidate'` describes the
 candidate's relationship to the baseline. Neither status alone makes a PubMed
 candidate reviewed knowledge.
+
+## 2026-05-20: Allow Parallel Access Enrichment Without Reviewed-Knowledge Promotion
+
+Human review of PubMed candidates will be slower than discovery and access
+classification. The MVP should therefore allow targeted access/full-text
+enrichment to run in parallel with review for prioritized candidates, while
+keeping all retrieved files, parsed text, and extracted fields as candidate
+evidence.
+
+This does not change the review boundary. `needs_manual_identity_review`
+candidates should be identity-reviewed before file retrieval or downstream
+extraction, and no PubMed discovery or downloaded artifact becomes reviewed
+knowledge automatically. The preferred retrieval order remains HTML/XML first:
+PMC HTML/NXML when `PMCID` exists, Europe PMC XML/full-text metadata next,
+Unpaywall open-access locations for DOI-backed records, and narrow PDF fallback
+only for selected records.
+
+All raw payloads, downloaded files, and parsed text outputs should stay under
+ignored `data/` paths and preserve source, method, timestamp, access/license
+metadata, file hash, and errors.

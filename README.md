@@ -237,6 +237,15 @@ Only non-exact candidates enter the `publication_candidate_review` queue. They
 are not reviewed knowledge and remain separate from the Initial Load JSONL
 snapshots.
 
+After discovery, access and full-text enrichment can run in parallel with human
+review for prioritized candidates. Start with `direct_title_or_indexed` records
+that have `full_text_review_priority='high_auto_full_text'`, and avoid file
+retrieval for `needs_manual_identity_review` records until identity is checked.
+The preferred retrieval order is PMC HTML/NXML, Europe PMC XML/full-text
+metadata, Unpaywall open-access locations, and then narrow PDF fallback. Retrieved
+payloads and files must remain under ignored `data/` paths with provenance and
+must not be treated as reviewed knowledge.
+
 The local API exposes candidate inspection at:
 
 - `GET /publication-candidates`

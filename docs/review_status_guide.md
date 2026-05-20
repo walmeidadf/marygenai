@@ -188,13 +188,19 @@ For the current post-legacy PubMed workflow, use this order:
 6. Dismiss or defer `no_cannabinoid_signal` unless there is a specific reason to
    keep the item.
 
+Access and full-text enrichment can run in parallel with this review order for
+prioritized candidates. Keep `needs_manual_identity_review` items out of file
+retrieval until identity is checked, and keep all retrieved HTML, XML, PDFs,
+parsed text, and extracted fields as candidate evidence until a human review step
+accepts them.
+
 ## What Not To Do
 
 - Do not mark PubMed candidates as reviewed knowledge just because they were
   discovered.
+- Do not treat downloaded full text or PDFs as reviewed knowledge.
 - Do not merge `needs_manual_identity_review` candidates into the new-candidate
   workflow without checking the legacy match.
 - Do not edit or regenerate prior Initial Load JSONL snapshots while reviewing.
 - Do not commit generated `data/` or `temp/` files.
 - Do not treat citation metrics as more important than `cannabinoid_focus`.
-

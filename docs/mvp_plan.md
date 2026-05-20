@@ -382,7 +382,19 @@ download PDFs.
 
 ### 5. Enrichment
 
-Enrichment should run after discovery and prioritization. It should add:
+Enrichment should run after discovery and prioritization. It can proceed in
+parallel with human candidate review as long as it remains a candidate-evidence
+workflow: access metadata, retrieved files, parsed text, and extracted fields do
+not become reviewed knowledge until the review/export layer explicitly accepts
+them.
+
+The first parallel enrichment pass should target high-value PubMed candidates,
+especially `direct_title_or_indexed` records with
+`full_text_review_priority='high_auto_full_text'`. Candidates with
+`identity_status='needs_manual_identity_review'` should be reviewed for identity
+before file retrieval or downstream extraction.
+
+Enrichment should add:
 
 - PubMed metadata;
 - access classification;
@@ -392,8 +404,17 @@ Enrichment should run after discovery and prioritization. It should add:
 - optional iCite fields as secondary audit metrics;
 - optional Semantic Scholar fields when access becomes available.
 
-Enrichment sources should preserve raw payload references, source method,
-timestamp, and errors.
+The preferred retrieval order is HTML/XML first, PDF second:
+
+1. PMC HTML or NXML when a stable `PMCID` path exists.
+2. Europe PMC XML/full-text metadata when available.
+3. Unpaywall open-access locations and PDF candidates for DOI-backed records.
+4. Publisher or DOI landing pages only as later fallback paths.
+
+PDF download should be narrow and targeted, not bulk ingestion. Retrieved files
+and raw source payloads must stay under ignored `data/` paths, with provenance,
+license/access metadata, source method, timestamp, file hash, and errors.
+Download and parsing outputs remain candidate evidence until human review.
 
 ### 6. Review Interface
 
@@ -539,20 +560,21 @@ when a milestone lands in `main`, not only when a design direction changes.
 
 ### Next
 
-- Run PubMed discovery month-by-month from January 2024 through the current date.
 - Review `publication_candidate_review` to decide which candidates are relevant
   enough for access and metadata enrichment.
 - Use `docs/review_status_guide.md` as the onboarding reference for interns or
   reviewers before they update queue items.
+- Convert the validated access-enrichment POC into a reusable local command that
+  can classify access and retrieve targeted HTML/XML/PDF artifacts for selected
+  PubMed candidates while preserving provenance.
 - Add simple API pagination and status filtering when the UI needs to navigate
   beyond first open-item pages.
 - Prepare reviewed snapshot exports that can become the public baseline.
 
 ### Upcoming
 
-- Convert validated access and metadata enrichment POCs into reusable commands
-  for PubMed metadata, PMC access, Europe PMC, Unpaywall, and optional iCite
-  audit fields.
+- Add extraction candidate generation from retrieved HTML/XML and selected PDFs.
+- Add optional iCite audit fields after access/full-text enrichment is stable.
 - Improve PubMed discovery auditability by persisting raw ESearch and EFetch
   payloads under `data/raw/pubmed/` in addition to source-record hashes and
   normalized snapshots.
