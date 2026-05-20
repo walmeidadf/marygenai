@@ -267,6 +267,25 @@ enrichment snapshots and run manifests under ignored `data/` paths, and persists
 artifact provenance in SQLite without changing candidate review state or
 promoting outputs to reviewed knowledge.
 
+To run incremental overnight access batches, use the helper script. It defaults
+to 20 batches, 50 candidates per batch, and a 30 second delay between batches:
+
+```bash
+uv run python scripts/access_enrichment_batches.py
+```
+
+Tune the batch count, limit, and delay when needed:
+
+```bash
+uv run python scripts/access_enrichment_batches.py --batches 10 --limit 25 --sleep-seconds 60
+```
+
+Pass access-enrichment filters after `--`:
+
+```bash
+uv run python scripts/access_enrichment_batches.py -- --cannabinoid-focus direct_title_or_indexed --full-text-priority high_auto_full_text
+```
+
 The local API exposes candidate inspection at:
 
 - `GET /publication-candidates`
