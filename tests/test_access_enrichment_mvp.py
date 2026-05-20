@@ -164,6 +164,38 @@ def create_pubmed_candidate_database(tmp_path: Path) -> Path:
     return database_path
 
 
+def insert_access_enrichment_artifact(
+    connection: Any, *, document_id: str, run_id: str = "20260520T120000Z"
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO access_enrichment_artifact (
+            artifact_id, document_id, source, artifact_type, access_class, url, license,
+            payload_path, payload_sha256, payload_size_bytes, raw_payload_json, errors_json,
+            provenance_json, run_id, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            f"test-artifact:{document_id}",
+            document_id,
+            "europe_pmc",
+            "europe_pmc_metadata",
+            "open",
+            "https://example.org/full-text",
+            "cc-by",
+            None,
+            None,
+            None,
+            "{}",
+            "[]",
+            "{}",
+            run_id,
+            "2026-05-20T13:00:00+00:00",
+        ),
+    )
+
+
 def test_select_access_enrichment_candidates_skips_manual_identity_review(tmp_path: Path) -> None:
     database_path = create_pubmed_candidate_database(tmp_path)
 
@@ -180,6 +212,72 @@ def test_select_access_enrichment_candidates_skips_manual_identity_review(tmp_pa
     assert [candidate.document_id for candidate in selected] == ["publication:pubmed:99999991"]
     assert [candidate.identity_status for candidate in selected_with_manual] == [
         "needs_manual_identity_review"
+    ]
+
+
+def test_select_access_enrichment_candidates_skips_enriched_by_default(
+    tmp_path: Path,
+) -> None:
+    database_path = create_pubmed_candidate_database(tmp_path)
+
+    with connect_sqlite(database_path) as connection:
+        connection.row_factory = __import__("sqlite3").Row
+        insert_access_enrichment_artifact(
+            connection, document_id="publication:pubmed:99999991"
+        )
+        selected = select_access_enrichment_candidates(connection, limit=10)
+
+    assert selected == []
+
+
+def test_select_access_enrichment_candidates_can_refresh_existing(tmp_path: Path) -> None:
+    database_path = create_pubmed_candidate_database(tmp_path)
+
+    with connect_sqlite(database_path) as connection:
+        connection.row_factory = __import__("sqlite3").Row
+        insert_access_enrichment_artifact(
+            connection, document_id="publication:pubmed:99999991"
+        )
+        selected = select_access_enrichment_candidates(
+            connection, limit=10, skip_enriched=False
+        )
+
+    assert [candidate.document_id for candidate in selected] == ["publication:pubmed:99999991"]
+
+
+def test_select_access_enrichment_candidates_composes_filters_with_incremental_skip(
+    tmp_path: Path,
+) -> None:
+    database_path = create_pubmed_candidate_database(tmp_path)
+
+    with connect_sqlite(database_path) as connection:
+        connection.row_factory = __import__("sqlite3").Row
+        baseline = select_access_enrichment_candidates(connection, limit=10)
+        assert len(baseline) == 1
+        candidate = baseline[0]
+        insert_access_enrichment_artifact(connection, document_id=candidate.document_id)
+
+        selected = select_access_enrichment_candidates(
+            connection,
+            limit=10,
+            identity_statuses=[candidate.identity_status],
+            cannabinoid_focuses=[candidate.cannabinoid_focus],
+            full_text_priorities=[candidate.full_text_review_priority],
+            study_designs=[candidate.study_design or ""],
+        )
+        selected_with_refresh = select_access_enrichment_candidates(
+            connection,
+            limit=10,
+            identity_statuses=[candidate.identity_status],
+            cannabinoid_focuses=[candidate.cannabinoid_focus],
+            full_text_priorities=[candidate.full_text_review_priority],
+            study_designs=[candidate.study_design or ""],
+            skip_enriched=False,
+        )
+
+    assert selected == []
+    assert [candidate.document_id for candidate in selected_with_refresh] == [
+        "publication:pubmed:99999991"
     ]
 
 

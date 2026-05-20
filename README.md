@@ -258,11 +258,14 @@ uv run marygenai access-enrichment run --limit 50
 By default it selects unique SQLite candidates from `publication_candidate_discovery`
 where `cannabinoid_focus='direct_title_or_indexed'` and
 `full_text_review_priority='high_auto_full_text'`, excluding
-`identity_status='needs_manual_identity_review'`. It writes raw PMC, Europe PMC,
-and Unpaywall payloads plus normalized access enrichment snapshots and run
-manifests under ignored `data/` paths, and persists artifact provenance in SQLite
-without changing candidate review state or promoting outputs to reviewed
-knowledge.
+`identity_status='needs_manual_identity_review'` and candidates that already have
+at least one `access_enrichment_artifact` row. This makes repeated limited runs
+advance through new eligible candidates. Use `--refresh-existing` for deliberate
+re-enrichment, or `--no-skip-enriched` when testing compatibility behavior. It
+writes raw PMC, Europe PMC, and Unpaywall payloads plus normalized access
+enrichment snapshots and run manifests under ignored `data/` paths, and persists
+artifact provenance in SQLite without changing candidate review state or
+promoting outputs to reviewed knowledge.
 
 The local API exposes candidate inspection at:
 

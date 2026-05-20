@@ -404,12 +404,14 @@ uv run marygenai access-enrichment run --limit 50
 
 The command reads candidates from SQLite `publication_candidate_discovery`, uses
 `direct_title_or_indexed` plus `high_auto_full_text` as the default selection,
-and excludes `needs_manual_identity_review` unless explicitly requested. It
-retrieves PMC NXML when `PMCID` exists, records Europe PMC full-text metadata and
-XML when available, records Unpaywall metadata for DOI-backed candidates when
-`UNPAYWALL_EMAIL` is configured, and keeps PDF handling as URL classification
-unless a later narrow fallback is implemented. Outputs remain ignored local
-artifacts under `data/`:
+excludes `needs_manual_identity_review` unless explicitly requested, and skips
+candidates already present in `access_enrichment_artifact` by default. This
+supports incremental batches where repeated limited runs advance to new eligible
+candidates. It retrieves PMC NXML when `PMCID` exists, records Europe PMC
+full-text metadata and XML when available, records Unpaywall metadata for
+DOI-backed candidates when `UNPAYWALL_EMAIL` is configured, and keeps PDF
+handling as URL classification unless a later narrow fallback is implemented.
+Outputs remain ignored local artifacts under `data/`:
 
 - raw PMC XML/optional HTML, Europe PMC metadata/XML, and Unpaywall payloads;
 - normalized access enrichment JSONL snapshots and summaries;
@@ -420,6 +422,19 @@ artifacts under `data/`:
 These artifacts are candidate evidence only. They do not alter prior Initial Load
 JSONL snapshots, do not change `document.review_state`, and do not mark any field
 as reviewed.
+
+Incremental batch strategy: repeated `access-enrichment run` calls skip
+candidates that already have at least one `access_enrichment_artifact` row, so a
+fixed limit can be run repeatedly without reprocessing the same highest-priority
+candidates. Use `--refresh-existing` only for intentional re-fetching; the
+compatibility flag `--no-skip-enriched` also includes previously enriched
+candidates. Each run remains auditable through a distinct run manifest and
+artifact provenance.
+
+```bash
+uv run marygenai access-enrichment run --limit 50
+uv run marygenai access-enrichment run --limit 50 --refresh-existing
+```
 
 Enrichment should add:
 
@@ -595,8 +610,8 @@ when a milestone lands in `main`, not only when a design direction changes.
   enough for access and metadata enrichment.
 - Use `docs/review_status_guide.md` as the onboarding reference for interns or
   reviewers before they update queue items.
-- Exercise the new access enrichment command across small monthly candidate
-  batches and inspect coverage/errors before broadening retrieval behavior.
+- Exercise the access enrichment command across small monthly candidate batches
+  and inspect coverage/errors before broadening retrieval behavior.
 - Add simple API pagination and status filtering when the UI needs to navigate
   beyond first open-item pages.
 - Prepare reviewed snapshot exports that can become the public baseline.
