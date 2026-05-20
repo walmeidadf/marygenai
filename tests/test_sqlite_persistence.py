@@ -77,8 +77,8 @@ def test_initialize_schema_creates_core_tables(tmp_path: Path) -> None:
             ).fetchall()
         }
 
-    assert schema_version == 3
-    assert second_schema_version == 3
+    assert schema_version == 4
+    assert second_schema_version == 4
     assert {
         "run_manifest",
         "source_record",
@@ -90,6 +90,7 @@ def test_initialize_schema_creates_core_tables(tmp_path: Path) -> None:
         "review_item",
         "review_decision",
         "publication_candidate_discovery",
+        "access_enrichment_artifact",
     }.issubset(table_names)
 
 

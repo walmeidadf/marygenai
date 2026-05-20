@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 DEFAULT_SQLITE_FILENAME = "marygenai.sqlite"
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 def sqlite_database_path(data_dir: Path) -> Path:
@@ -281,6 +281,41 @@ MIGRATIONS = (
             """
             CREATE INDEX IF NOT EXISTS idx_pubmed_candidate_focus
             ON publication_candidate_discovery(cannabinoid_focus, priority_score DESC)
+            """,
+        ),
+    ),
+    Migration(
+        version=4,
+        name="access_enrichment_artifacts",
+        statements=(
+            """
+            CREATE TABLE IF NOT EXISTS access_enrichment_artifact (
+                artifact_id TEXT PRIMARY KEY,
+                document_id TEXT NOT NULL,
+                source TEXT NOT NULL,
+                artifact_type TEXT NOT NULL,
+                access_class TEXT NOT NULL,
+                url TEXT,
+                license TEXT,
+                payload_path TEXT,
+                payload_sha256 TEXT,
+                payload_size_bytes INTEGER,
+                raw_payload_json TEXT NOT NULL,
+                errors_json TEXT NOT NULL,
+                provenance_json TEXT NOT NULL,
+                run_id TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (document_id) REFERENCES document(document_id),
+                FOREIGN KEY (run_id) REFERENCES run_manifest(run_id)
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_access_enrichment_artifact_document
+            ON access_enrichment_artifact(document_id, created_at DESC)
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_access_enrichment_artifact_source
+            ON access_enrichment_artifact(source, access_class)
             """,
         ),
     ),
