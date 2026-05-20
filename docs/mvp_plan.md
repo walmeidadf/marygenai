@@ -394,6 +394,33 @@ especially `direct_title_or_indexed` records with
 `identity_status='needs_manual_identity_review'` should be reviewed for identity
 before file retrieval or downstream extraction.
 
+Status: the first operational slice was added on 2026-05-20.
+
+Command:
+
+```bash
+uv run marygenai access-enrichment run --limit 50
+```
+
+The command reads candidates from SQLite `publication_candidate_discovery`, uses
+`direct_title_or_indexed` plus `high_auto_full_text` as the default selection,
+and excludes `needs_manual_identity_review` unless explicitly requested. It
+retrieves PMC NXML when `PMCID` exists, records Europe PMC full-text metadata and
+XML when available, records Unpaywall metadata for DOI-backed candidates when
+`UNPAYWALL_EMAIL` is configured, and keeps PDF handling as URL classification
+unless a later narrow fallback is implemented. Outputs remain ignored local
+artifacts under `data/`:
+
+- raw PMC XML/optional HTML, Europe PMC metadata/XML, and Unpaywall payloads;
+- normalized access enrichment JSONL snapshots and summaries;
+- run manifests;
+- SQLite `access_enrichment_artifact` rows with source, method, URL,
+  access/license metadata, payload paths, hashes, errors, document id, and run id.
+
+These artifacts are candidate evidence only. They do not alter prior Initial Load
+JSONL snapshots, do not change `document.review_state`, and do not mark any field
+as reviewed.
+
 Enrichment should add:
 
 - PubMed metadata;
@@ -557,6 +584,10 @@ when a milestone lands in `main`, not only when a design direction changes.
 - The first PubMed candidate discovery command stages monthly or bounded PubMed
   windows, classifies candidate identity against the baseline, persists non-exact
   candidates as `needs_review`, and opens `publication_candidate_review`.
+- The first access enrichment command selects prioritized PubMed candidates from
+  SQLite, retrieves targeted HTML/XML or source metadata before any PDF fallback,
+  writes ignored local audit artifacts, and persists candidate-evidence artifact
+  provenance without marking anything reviewed.
 
 ### Next
 
@@ -564,9 +595,8 @@ when a milestone lands in `main`, not only when a design direction changes.
   enough for access and metadata enrichment.
 - Use `docs/review_status_guide.md` as the onboarding reference for interns or
   reviewers before they update queue items.
-- Convert the validated access-enrichment POC into a reusable local command that
-  can classify access and retrieve targeted HTML/XML/PDF artifacts for selected
-  PubMed candidates while preserving provenance.
+- Exercise the new access enrichment command across small monthly candidate
+  batches and inspect coverage/errors before broadening retrieval behavior.
 - Add simple API pagination and status filtering when the UI needs to navigate
   beyond first open-item pages.
 - Prepare reviewed snapshot exports that can become the public baseline.

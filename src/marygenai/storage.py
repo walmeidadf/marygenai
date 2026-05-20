@@ -38,6 +38,7 @@ LOCAL_DATA_DIRECTORIES = (
     "normalized/clinical_trial_records",
     "normalized/drug_interaction_documents",
     "normalized/publication_enrichments",
+    "normalized/publication_enrichments/access_enrichment",
     "normalized/publication_enrichments/pubmed",
     "normalized/review_items",
     "reviewed/snapshots",

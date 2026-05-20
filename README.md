@@ -46,6 +46,7 @@ PubMed discovery can be run after a local database has a baseline identity index
 
 ```bash
 uv run marygenai pubmed-discovery run --datetype pdat --mindate 2024/01/01 --maxdate 2024/01/31 --retmax 100
+uv run marygenai access-enrichment run --limit 50
 uv run marygenai review queues
 uv run marygenai review-api serve --host 127.0.0.1 --port 8000
 uv run marygenai review-ui serve --host 127.0.0.1 --port 8000
@@ -75,6 +76,8 @@ uv run marygenai review-ui serve --host 127.0.0.1 --port 8000
   `uv run marygenai pubmed-discovery run --datetype pdat --mindate 2024/01/01 --maxdate 2024/01/31 --retmax 100`
 - Persist an existing PubMed discovery run:
   `uv run marygenai pubmed-discovery persist --run-id <run_id>`
+- Run targeted access/full-text enrichment for prioritized PubMed candidates:
+  `uv run marygenai access-enrichment run --limit 50`
 - List local review queues: `uv run marygenai review queues`
 - List open legacy identity review items:
   `uv run marygenai review list --queue legacy_identity_review`
@@ -245,6 +248,21 @@ The preferred retrieval order is PMC HTML/NXML, Europe PMC XML/full-text
 metadata, Unpaywall open-access locations, and then narrow PDF fallback. Retrieved
 payloads and files must remain under ignored `data/` paths with provenance and
 must not be treated as reviewed knowledge.
+
+The first operational access enrichment command is:
+
+```bash
+uv run marygenai access-enrichment run --limit 50
+```
+
+By default it selects unique SQLite candidates from `publication_candidate_discovery`
+where `cannabinoid_focus='direct_title_or_indexed'` and
+`full_text_review_priority='high_auto_full_text'`, excluding
+`identity_status='needs_manual_identity_review'`. It writes raw PMC, Europe PMC,
+and Unpaywall payloads plus normalized access enrichment snapshots and run
+manifests under ignored `data/` paths, and persists artifact provenance in SQLite
+without changing candidate review state or promoting outputs to reviewed
+knowledge.
 
 The local API exposes candidate inspection at:
 

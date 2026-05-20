@@ -364,3 +364,18 @@ only for selected records.
 All raw payloads, downloaded files, and parsed text outputs should stay under
 ignored `data/` paths and preserve source, method, timestamp, access/license
 metadata, file hash, and errors.
+
+## 2026-05-20: Persist Access Artifacts As Candidate Evidence
+
+The first operational access enrichment command now selects prioritized PubMed
+candidates from `publication_candidate_discovery` and writes both file snapshots
+and SQLite artifact rows. The SQLite table is intentionally named
+`access_enrichment_artifact` and stores source, artifact type, access class, URL,
+license, payload path, payload hash, raw payload JSON when applicable, errors,
+provenance, document id, and run id.
+
+This is operational provenance, not reviewed knowledge. Access enrichment
+manifests are loaded into `run_manifest`, but candidate documents remain
+`review_state='needs_review'`, prior Initial Load JSONL snapshots are not
+rewritten, and downstream extraction still requires a separate review boundary
+before any field can enter reviewed exports.
