@@ -32,6 +32,8 @@ from marygenai.persistence.sqlite import sqlite_database_path
 from marygenai.schemas import InputArtifact, OutputArtifact, RunManifest
 from marygenai.settings import get_settings
 
+ProviderName = Literal["groq", "openai", "anthropic"]
+
 DEFAULT_COHORT_PATH = Path(
     "data/normalized/legacy_identity_validation/"
     "20260526T143818Z_identity_confirmed_for_triage.jsonl"
@@ -43,9 +45,24 @@ DEFAULT_TASK_PACKET_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "task_packets"
 DEFAULT_TASK_RUN_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "task_runs"
 DEFAULT_SUMMARY_PACKET_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "evidence_summary_packets"
 DEFAULT_SUMMARY_RUN_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "evidence_summary_runs"
+DEFAULT_MODEL_COMPARISON_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "model_comparison"
 DEFAULT_MODEL = "llama-3.3-70b-versatile"
+DEFAULT_PROVIDER = "groq"
+DEFAULT_PROVIDER_MODELS = {
+    "groq": DEFAULT_MODEL,
+    "openai": "gpt-4.1",
+    "anthropic": "claude-3-5-sonnet-latest",
+}
 PROMPT_VERSION = "llm_study_reclassification_v0.1"
 GROQ_CHAT_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions"
+OPENAI_CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions"
+ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages"
+ANTHROPIC_VERSION = "2023-06-01"
+COMPARISON_TASKS = (
+    "intervention_exposure",
+    "condition_organ_system_extraction",
+    "study_design_verification",
+)
 FULL_TEXT_ARTIFACT_PRIORITY = {
     "pmc_nxml": 0,
     "europe_pmc_full_text_xml": 1,
@@ -72,6 +89,7 @@ DIRECT_FULL_TEXT_CHAR_LIMIT = 12_000
 LARGE_FULL_TEXT_CHAR_LIMIT = 80_000
 CHUNK_MAX_CHARS = 1_800
 CHUNK_OVERLAP_CHARS = 180
+SUMMARY_MAX_OUTPUT_TOKENS = 2400
 EVIDENCE_TOPICS = {
     "study_design": (
         "randomized",
@@ -1065,6 +1083,192 @@ def run_summary_batch(
     print_summary_run_summary(summary, records_path, raw_responses_path)
 
 
+@app.command("compare-model-batch")
+def compare_model_batch(
+    cohort_path: Annotated[
+        Path,
+        typer.Option("--cohort-path", help="Identity-confirmed English triage cohort JSONL."),
+    ] = DEFAULT_COHORT_PATH,
+    database_path: Annotated[
+        Path | None,
+        typer.Option("--database-path", help="SQLite database path."),
+    ] = None,
+    output_dir: Annotated[
+        Path | None,
+        typer.Option("--output-dir", help="Model comparison output directory."),
+    ] = None,
+    raw_output_dir: Annotated[
+        Path | None,
+        typer.Option("--raw-output-dir", help="Raw model response output directory."),
+    ] = None,
+    task: Annotated[
+        str,
+        typer.Option("--task", help="Single task name to compare."),
+    ] = "intervention_exposure",
+    limit: Annotated[
+        int,
+        typer.Option("--limit", min=1, help="Maximum candidates to compare."),
+    ] = 5,
+    provider: Annotated[
+        str,
+        typer.Option(
+            "--provider",
+            help="Provider name or comma-separated providers: groq, openai, anthropic.",
+        ),
+    ] = DEFAULT_PROVIDER,
+    model: Annotated[
+        str | None,
+        typer.Option("--model", help="Model name when exactly one provider is selected."),
+    ] = None,
+    model_overrides: Annotated[
+        str | None,
+        typer.Option(
+            "--model-overrides",
+            help="Comma-separated provider:model overrides for multi-provider comparisons.",
+        ),
+    ] = None,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Prepare packets without calling model APIs."),
+    ] = False,
+    sleep_seconds: Annotated[
+        float,
+        typer.Option("--sleep-seconds", min=0.0, help="Delay between model calls."),
+    ] = 15.0,
+    max_spans: Annotated[
+        int,
+        typer.Option("--max-spans", min=3, max=24, help="Maximum extractive spans per task."),
+    ] = 10,
+    retry_errors: Annotated[
+        bool,
+        typer.Option("--retry-errors", help="Do not treat previous error records as processed."),
+    ] = False,
+) -> None:
+    """Compare providers on the same task-specific evidence spans."""
+    selected_tasks = resolve_task_names(task)
+    if len(selected_tasks) != 1 or task not in COMPARISON_TASKS:
+        raise typer.BadParameter(
+            "compare-model-batch accepts one of: " + ", ".join(COMPARISON_TASKS)
+        )
+    provider_models = resolve_provider_models(
+        provider,
+        model=model,
+        model_overrides=model_overrides,
+    )
+    load_dotenv()
+    settings = get_settings()
+    resolved_database_path = database_path or sqlite_database_path(settings.data_dir)
+    resolved_output_dir = output_dir or settings.data_dir / DEFAULT_MODEL_COMPARISON_SUBDIR
+    resolved_raw_output_dir = raw_output_dir or settings.data_dir / DEFAULT_RAW_SUBDIR
+    resolved_output_dir.mkdir(parents=True, exist_ok=True)
+    resolved_raw_output_dir.mkdir(parents=True, exist_ok=True)
+    run_started_at = datetime.now(UTC)
+    run_id = run_started_at.strftime("%Y%m%dT%H%M%SZ_llm_study_model_comparison")
+    records_path = resolved_output_dir / f"{run_id}_{task}_records.jsonl"
+    summary_path = resolved_output_dir / f"{run_id}_{task}_summary.json"
+    raw_responses_path = (
+        resolved_raw_output_dir / f"{run_id}_{task}_model_comparison_raw_responses.jsonl"
+    )
+    packet_previews_path = (
+        resolved_raw_output_dir / f"{run_id}_{task}_model_comparison_packet_previews.jsonl"
+    )
+
+    candidates = load_candidates_for_poc(
+        cohort_path=cohort_path,
+        database_path=resolved_database_path,
+    )
+    processed_keys = load_processed_model_comparison_keys(
+        resolved_output_dir,
+        retry_errors=retry_errors,
+    )
+    selected = select_candidates_for_model_comparison(
+        candidates,
+        processed_keys=processed_keys,
+        provider_models=provider_models,
+        task_name=task,
+        limit=limit,
+    )
+
+    records: list[dict[str, Any]] = []
+    raw_responses: list[dict[str, Any]] = []
+    packet_previews: list[dict[str, Any]] = []
+    pending_calls = 0
+    for candidate in selected:
+        evidence_plan = build_evidence_plan(
+            candidate,
+            max_source_chars=MAX_SOURCE_CHARS,
+            direct_full_text_char_limit=DIRECT_FULL_TEXT_CHAR_LIMIT,
+            large_full_text_char_limit=LARGE_FULL_TEXT_CHAR_LIMIT,
+        )
+        packet = build_evidence_summary_packet_record(
+            candidate,
+            evidence_plan=evidence_plan,
+            task_name=task,
+            run_id=run_id,
+            max_spans=max_spans,
+        )
+        packet_previews.append(evidence_summary_packet_preview(packet))
+        for provider_name, model_name in provider_models:
+            key = model_comparison_key(candidate.document_id, task, provider_name, model_name)
+            if key in processed_keys:
+                continue
+            if dry_run:
+                record = dry_run_summary_comparison_record(
+                    packet,
+                    provider=provider_name,
+                    model=model_name,
+                )
+                records.append(record)
+                append_jsonl(records_path, [record])
+                continue
+            api_key = resolve_provider_api_key(provider_name)
+            if not api_key:
+                record = error_summary_record(
+                    packet,
+                    provider=provider_name,
+                    model=model_name,
+                    error=f"{api_key_env_var(provider_name)} is not set.",
+                )
+                records.append(record)
+                append_jsonl(records_path, [record])
+                continue
+            record, raw_response = run_summary_packet_with_provider(
+                packet,
+                provider=provider_name,
+                model=model_name,
+                api_key=api_key,
+            )
+            records.append(record)
+            raw_responses.append(raw_response)
+            pending_calls += 1
+            append_jsonl(records_path, [record])
+            append_jsonl(raw_responses_path, [raw_response])
+            if sleep_seconds:
+                time.sleep(sleep_seconds)
+    append_jsonl(packet_previews_path, packet_previews)
+
+    summary = build_model_comparison_summary(
+        run_id=run_id,
+        task_name=task,
+        dry_run=dry_run,
+        provider_models=provider_models,
+        cohort_path=cohort_path,
+        database_path=resolved_database_path,
+        records_path=records_path,
+        raw_responses_path=raw_responses_path,
+        packet_previews_path=packet_previews_path,
+        selected=selected,
+        records=records,
+        processed_keys=processed_keys,
+        started_at=run_started_at,
+        completed_at=datetime.now(UTC),
+    )
+    write_json(summary_path, summary)
+    print_model_comparison_summary(summary, records_path, raw_responses_path)
+    if pending_calls == 0 and not dry_run:
+        console.print("No model API calls were made.")
+
+
 def build_run_paths(*, output_dir: Path, raw_output_dir: Path, run_id: str) -> RunPaths:
     output_dir.mkdir(parents=True, exist_ok=True)
     raw_output_dir.mkdir(parents=True, exist_ok=True)
@@ -1075,6 +1279,157 @@ def build_run_paths(*, output_dir: Path, raw_output_dir: Path, run_id: str) -> R
         prompt_preview_path=raw_output_dir / f"{run_id}_prompt_previews.jsonl",
         raw_responses_path=raw_output_dir / f"{run_id}_raw_responses.jsonl",
     )
+
+
+def resolve_provider_models(
+    provider: str,
+    *,
+    model: str | None,
+    model_overrides: str | None,
+) -> list[tuple[ProviderName, str]]:
+    providers = [
+        resolve_provider(value.strip())
+        for value in provider.split(",")
+        if value.strip()
+    ]
+    if not providers:
+        raise typer.BadParameter("At least one provider is required.")
+    if model and len(providers) != 1:
+        raise typer.BadParameter("--model can only be used with a single --provider.")
+    overrides = parse_model_overrides(model_overrides)
+    provider_models: list[tuple[ProviderName, str]] = []
+    for provider_name in providers:
+        model_name = (
+            model
+            or overrides.get(provider_name)
+            or default_model_for_provider(provider_name)
+        )
+        provider_models.append((provider_name, model_name))
+    return provider_models
+
+
+def parse_model_overrides(value: str | None) -> dict[ProviderName, str]:
+    overrides: dict[ProviderName, str] = {}
+    if not value:
+        return overrides
+    for item in value.split(","):
+        if not item.strip():
+            continue
+        provider_value, separator, model_name = item.partition(":")
+        if not separator or not model_name.strip():
+            raise typer.BadParameter(
+                "--model-overrides must use provider:model entries."
+            )
+        overrides[resolve_provider(provider_value.strip())] = model_name.strip()
+    return overrides
+
+
+def model_comparison_key(
+    document_id: str,
+    task_name: str,
+    provider: ProviderName,
+    model: str,
+) -> tuple[str, str, str, str]:
+    return (document_id, task_name, provider, model)
+
+
+def load_processed_model_comparison_keys(
+    output_dir: Path,
+    *,
+    retry_errors: bool,
+) -> set[tuple[str, str, str, str]]:
+    processed: set[tuple[str, str, str, str]] = set()
+    if not output_dir.exists():
+        return processed
+    for path in sorted(output_dir.glob("*_records.jsonl")):
+        for record in load_jsonl(path):
+            if record.get("poc_status") == "dry_run_prompt_prepared":
+                continue
+            if retry_errors and record.get("poc_status") == "error":
+                continue
+            document_id = record.get("document_id")
+            task_name = record.get("task_name")
+            provider = record.get("provider")
+            model = record.get("model")
+            if document_id and task_name and provider and model:
+                processed.add(
+                    (
+                        str(document_id),
+                        str(task_name),
+                        str(provider),
+                        str(model),
+                    )
+                )
+    return processed
+
+
+def select_candidates_for_model_comparison(
+    candidates: list[StudyCandidate],
+    *,
+    processed_keys: set[tuple[str, str, str, str]],
+    provider_models: list[tuple[ProviderName, str]],
+    task_name: str,
+    limit: int,
+) -> list[StudyCandidate]:
+    fully_processed_document_ids = {
+        candidate.document_id
+        for candidate in candidates
+        if all(
+            model_comparison_key(candidate.document_id, task_name, provider, model)
+            in processed_keys
+            for provider, model in provider_models
+        )
+    }
+    return select_stratified_candidates(
+        candidates,
+        processed_document_ids=fully_processed_document_ids,
+        limit=limit,
+    )
+
+
+def dry_run_summary_comparison_record(
+    packet: EvidenceSummaryPacketRecord,
+    *,
+    provider: ProviderName,
+    model: str,
+) -> dict[str, Any]:
+    record = {
+        "run_id": packet.run_id,
+        "document_id": packet.document_id,
+        "task_name": packet.task_name,
+        "provider": provider,
+        "model": model,
+        "poc_status": "dry_run_prompt_prepared",
+        "errors": [],
+        "needs_human_review": True,
+        "review_reasons": ["Dry run only; no model evidence synthesis was generated."],
+        "cited_span_ids": [],
+        "span_grounding_audit": build_span_grounding_audit({}, packet),
+        "provenance": {
+            **packet.provenance,
+            "provider": provider,
+            "model": model,
+            "prompt_version": packet.prompt_version,
+            "selected_span_ids": packet.selected_span_ids,
+            "selected_chunk_ids": packet.selected_chunk_ids,
+            "context_strategy": packet.context_strategy,
+            "evidence_source_used": packet.evidence_source_used,
+            "input_prompt_chars": len(packet.prompt),
+            "rough_input_token_estimate": rough_token_count(packet.prompt),
+        },
+    }
+    record["comparison_audit"] = {
+        "latency_seconds": None,
+        "status_code": None,
+        "attempt_count": 0,
+        "not_found_or_insufficient_evidence_count": 0,
+        "conflict_count": 0,
+        "unsupported_evidence_text_count": 0,
+        "evidence_text_coverage": {"evidence_text_count": 0, "evidence_texts_with_cited_spans": 0},
+        "needs_human_review": True,
+        "review_reason_count": 1,
+    }
+    return record
 
 
 def prompt_preview_record(prompt_package: PromptPackage) -> dict[str, Any]:
@@ -1733,12 +2088,25 @@ def task_output_schema(task_name: str) -> dict[str, Any]:
         },
         "intervention_exposure": {
             **common,
+            "role_of_cannabinoid": (
+                "intervention | exposure | condition_context | population_context | "
+                "background_only | unclear"
+            ),
+            "is_primary_study_target": "boolean | unclear",
             "cannabinoids": ["string"],
             "terpenes": ["string"],
             "route_of_administration": ["string"],
             "dosage": ["string"],
             "treatment_duration": ["string"],
             "comparator_or_control": ["string"],
+            "support_status": {
+                "field_name": (
+                    "supported | conflicting | partial | not_found | insufficient_evidence"
+                )
+            },
+            "explicit_or_inferred": {"field_name": "explicit | inferred | unclear"},
+            "cited_span_ids": ["span_id"],
+            "evidence_text": "short verbatim evidence text",
             "confidence": {"field_name": "high | medium | low"},
         },
         "outcomes_safety": {
@@ -1859,6 +2227,8 @@ def build_evidence_summary_packet_record(
     )
     legacy_guardrail = build_legacy_guardrail_text(candidate)
     schema = evidence_summary_output_schema(task_name)
+    source_artifacts = [candidate.selected_artifact] if candidate.selected_artifact else []
+    source_artifacts.extend(candidate.metadata_artifacts)
     prompt = build_evidence_summary_prompt(
         candidate=candidate,
         task_name=task_name,
@@ -1890,6 +2260,15 @@ def build_evidence_summary_packet_record(
             "review_boundary": "summary_candidate_input_not_reviewed_knowledge",
             "retrieval_method": evidence_plan.retrieval_method,
             "compression_method": "deterministic_extractive_spans_v0.1",
+            "source_artifact_ids": [
+                artifact.artifact_id for artifact in source_artifacts
+            ],
+            "source_artifact_paths": [
+                artifact.payload_path
+                for artifact in source_artifacts
+                if artifact.payload_path
+            ],
+            "legacy_context_id": candidate.context_id,
         },
     )
 
@@ -2040,7 +2419,7 @@ def required_span_candidates(spans: list[EvidenceSpan]) -> list[EvidenceSpan]:
 
 
 def evidence_summary_output_schema(task_name: str) -> dict[str, Any]:
-    return {
+    schema = {
         "document_id": "string",
         "task_name": task_name,
         "evidence_synthesis": [
@@ -2079,6 +2458,22 @@ def evidence_summary_output_schema(task_name: str) -> dict[str, Any]:
         "needs_human_review": "boolean",
         "review_reasons": ["string"],
     }
+    if task_name == "intervention_exposure":
+        schema["intervention_exposure_summary"] = {
+            "role_of_cannabinoid": (
+                "intervention | exposure | condition_context | population_context | "
+                "background_only | unclear"
+            ),
+            "is_primary_study_target": "boolean | unclear",
+            "explicit_or_inferred": "explicit | inferred | unclear",
+            "support_status": (
+                "supported | conflicting | partial | not_found | insufficient_evidence"
+            ),
+            "cited_span_ids": ["span_id"],
+            "evidence_text": "short verbatim evidence text",
+            "confidence": "high | medium | low",
+        }
+    return schema
 
 
 def build_evidence_summary_prompt(
@@ -2156,6 +2551,9 @@ def evidence_summary_task_instruction(task_name: str) -> str:
     if task_name == "intervention_exposure":
         return (
             "Separate cannabinoid intervention or exposure from background cannabis context. "
+            "Classify role_of_cannabinoid as intervention, exposure, condition_context, "
+            "population_context, background_only, or unclear, and mark whether the "
+            "cannabinoid is the primary study target. "
             "Do not extract route, dose, duration, or comparator unless those details are "
             "explicitly tied to the study intervention or exposure in the cited span."
         )
@@ -2181,47 +2579,95 @@ def evidence_summary_packet_preview(packet: EvidenceSummaryPacketRecord) -> dict
     }
 
 
-def run_summary_packet_with_groq(
+def resolve_provider(provider: str) -> ProviderName:
+    if provider not in DEFAULT_PROVIDER_MODELS:
+        raise typer.BadParameter(
+            "provider must be one of: " + ", ".join(DEFAULT_PROVIDER_MODELS)
+        )
+    return provider  # type: ignore[return-value]
+
+
+def default_model_for_provider(provider: ProviderName) -> str:
+    return DEFAULT_PROVIDER_MODELS[provider]
+
+
+def api_key_env_var(provider: ProviderName) -> str:
+    return {
+        "groq": "GROQ_API_KEY",
+        "openai": "OPENAI_API_KEY",
+        "anthropic": "ANTHROPIC_API_KEY",
+    }[provider]
+
+
+def resolve_provider_api_key(provider: ProviderName) -> str | None:
+    return os.getenv(api_key_env_var(provider))
+
+
+def build_summary_chat_request(
     packet: EvidenceSummaryPacketRecord,
     *,
+    provider: ProviderName,
     model: str,
-    api_key: str,
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    request_payload = {
+) -> dict[str, Any]:
+    system_content = (
+        "You create concise auditable evidence syntheses as JSON only. "
+        "You never provide medical advice."
+    )
+    if provider == "anthropic":
+        return {
+            "model": model,
+            "system": system_content,
+            "messages": [{"role": "user", "content": packet.prompt}],
+            "temperature": 0,
+            "max_tokens": SUMMARY_MAX_OUTPUT_TOKENS,
+        }
+    return {
         "model": model,
         "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "You create concise auditable evidence syntheses as JSON only. "
-                    "You never provide medical advice."
-                ),
-            },
+            {"role": "system", "content": system_content},
             {"role": "user", "content": packet.prompt},
         ],
         "temperature": 0,
-        "max_completion_tokens": 1200,
+        "max_completion_tokens": SUMMARY_MAX_OUTPUT_TOKENS,
         "response_format": {"type": "json_object"},
     }
+
+
+def run_summary_packet_with_provider(
+    packet: EvidenceSummaryPacketRecord,
+    *,
+    provider: ProviderName,
+    model: str,
+    api_key: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    request_payload = build_summary_chat_request(packet, provider=provider, model=model)
     raw_response: dict[str, Any] = {
         "run_id": packet.run_id,
         "document_id": packet.document_id,
         "task_name": packet.task_name,
+        "provider": provider,
+        "model": model,
         "request": redacted_request_payload(request_payload),
         "provenance": packet.provenance,
     }
+    started = time.monotonic()
     try:
         with httpx.Client(timeout=120) as client:
-            response, attempts = post_groq_with_retries(
+            response, attempts = post_provider_with_retries(
                 client,
+                provider=provider,
                 request_payload=request_payload,
                 api_key=api_key,
             )
+        raw_response["latency_seconds"] = round(time.monotonic() - started, 3)
         raw_response["attempts"] = attempts
         raw_response["status_code"] = response.status_code
         raw_response["response_json"] = response.json()
         response.raise_for_status()
-        content = raw_response["response_json"]["choices"][0]["message"]["content"]
+        content = response_content_text(
+            raw_response["response_json"],
+            provider=provider,
+        )
         parsed = json.loads(content)
         record = dict(parsed)
         record.update(
@@ -2229,42 +2675,58 @@ def run_summary_packet_with_groq(
                 "run_id": packet.run_id,
                 "document_id": packet.document_id,
                 "task_name": packet.task_name,
+                "provider": provider,
+                "model": model,
                 "poc_status": "candidate_evidence_summary",
                 "errors": [],
                 "provenance": {
                     **packet.provenance,
+                    "provider": provider,
                     "model": model,
                     "prompt_version": packet.prompt_version,
                     "selected_span_ids": packet.selected_span_ids,
                     "selected_chunk_ids": packet.selected_chunk_ids,
+                    "source_artifact_ids": source_artifact_ids_from_packet(packet),
+                    "source_artifact_paths": source_artifact_paths_from_packet(packet),
+                    "legacy_context_id": packet.context_id,
                     "context_strategy": packet.context_strategy,
                     "evidence_source_used": packet.evidence_source_used,
+                    "input_prompt_chars": len(packet.prompt),
+                    "rough_input_token_estimate": rough_token_count(packet.prompt),
+                    "latency_seconds": raw_response["latency_seconds"],
                 },
             }
         )
         record["span_grounding_audit"] = build_span_grounding_audit(record, packet)
+        record["comparison_audit"] = build_model_comparison_record_audit(
+            record,
+            raw_response=raw_response,
+        )
         return record, raw_response
     except Exception as exc:
-        record = {
-            "run_id": packet.run_id,
-            "document_id": packet.document_id,
-            "task_name": packet.task_name,
-            "poc_status": "error",
-            "errors": [str(exc)],
-            "needs_human_review": True,
-            "review_reasons": ["Evidence summary failed; inspect raw response before retry."],
-            "provenance": {
-                **packet.provenance,
-                "model": model,
-                "prompt_version": packet.prompt_version,
-                "selected_span_ids": packet.selected_span_ids,
-                "selected_chunk_ids": packet.selected_chunk_ids,
-                "context_strategy": packet.context_strategy,
-                "evidence_source_used": packet.evidence_source_used,
-            },
-        }
+        record = error_summary_record(
+            packet,
+            provider=provider,
+            model=model,
+            error=str(exc),
+        )
+        raw_response["latency_seconds"] = round(time.monotonic() - started, 3)
         raw_response["error"] = str(exc)
         return record, raw_response
+
+
+def run_summary_packet_with_groq(
+    packet: EvidenceSummaryPacketRecord,
+    *,
+    model: str,
+    api_key: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    return run_summary_packet_with_provider(
+        packet,
+        provider="groq",
+        model=model,
+        api_key=api_key,
+    )
 
 
 def build_span_grounding_audit(
@@ -2964,6 +3426,75 @@ def post_groq_with_retries(
     return response, attempts
 
 
+def post_provider_with_retries(
+    client: httpx.Client,
+    *,
+    provider: ProviderName,
+    request_payload: dict[str, Any],
+    api_key: str,
+    max_attempts: int = 3,
+) -> tuple[httpx.Response, list[dict[str, Any]]]:
+    if provider == "groq":
+        return post_groq_with_retries(
+            client,
+            request_payload=request_payload,
+            api_key=api_key,
+            max_attempts=max_attempts,
+        )
+
+    attempts: list[dict[str, Any]] = []
+    response: httpx.Response | None = None
+    for attempt_number in range(1, max_attempts + 1):
+        response = client.post(
+            provider_url(provider),
+            headers=provider_headers(provider, api_key),
+            json=request_payload,
+        )
+        attempt = {"attempt": attempt_number, "status_code": response.status_code}
+        attempts.append(attempt)
+        if response.status_code not in {429, 500, 502, 503, 504} or attempt_number == max_attempts:
+            return response, attempts
+        wait_seconds = retry_wait_seconds(response)
+        attempt["retry_wait_seconds"] = wait_seconds
+        time.sleep(wait_seconds)
+    if response is None:
+        raise RuntimeError(f"{provider} request did not execute.")
+    return response, attempts
+
+
+def provider_url(provider: ProviderName) -> str:
+    return {
+        "groq": GROQ_CHAT_COMPLETIONS_URL,
+        "openai": OPENAI_CHAT_COMPLETIONS_URL,
+        "anthropic": ANTHROPIC_MESSAGES_URL,
+    }[provider]
+
+
+def provider_headers(provider: ProviderName, api_key: str) -> dict[str, str]:
+    if provider == "anthropic":
+        return {
+            "x-api-key": api_key,
+            "anthropic-version": ANTHROPIC_VERSION,
+            "Content-Type": "application/json",
+        }
+    return {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+
+def response_content_text(response_json: dict[str, Any], *, provider: ProviderName) -> str:
+    if provider == "anthropic":
+        parts = response_json.get("content", [])
+        text_parts = [
+            str(part.get("text", ""))
+            for part in parts
+            if isinstance(part, dict) and part.get("type") == "text"
+        ]
+        return "\n".join(part for part in text_parts if part).strip()
+    return str(response_json["choices"][0]["message"]["content"])
+
+
 def retry_wait_seconds(response: httpx.Response) -> float:
     retry_after = response.headers.get("retry-after")
     if retry_after:
@@ -2995,7 +3526,136 @@ def redacted_request_payload(payload: dict[str, Any]) -> dict[str, Any]:
         {"role": message["role"], "content_chars": len(message["content"])}
         for message in payload["messages"]
     ]
+    if "system" in payload:
+        redacted["system_chars"] = len(str(payload["system"]))
+        redacted.pop("system", None)
     return redacted
+
+
+def source_artifact_ids_from_packet(packet: EvidenceSummaryPacketRecord) -> list[str]:
+    ids = packet.provenance.get("source_artifact_ids", [])
+    return [str(value) for value in ids] if isinstance(ids, list) else []
+
+
+def source_artifact_paths_from_packet(packet: EvidenceSummaryPacketRecord) -> list[str]:
+    paths = packet.provenance.get("source_artifact_paths", [])
+    return [str(value) for value in paths] if isinstance(paths, list) else []
+
+
+def rough_token_count(text: str) -> int:
+    return max(1, round(len(text) / 4))
+
+
+def error_summary_record(
+    packet: EvidenceSummaryPacketRecord,
+    *,
+    provider: ProviderName,
+    model: str,
+    error: str,
+) -> dict[str, Any]:
+    return {
+        "run_id": packet.run_id,
+        "document_id": packet.document_id,
+        "task_name": packet.task_name,
+        "provider": provider,
+        "model": model,
+        "poc_status": "error",
+        "errors": [error],
+        "needs_human_review": True,
+        "review_reasons": ["Evidence summary failed; inspect raw response before retry."],
+        "provenance": {
+            **packet.provenance,
+            "provider": provider,
+            "model": model,
+            "prompt_version": packet.prompt_version,
+            "selected_span_ids": packet.selected_span_ids,
+            "selected_chunk_ids": packet.selected_chunk_ids,
+            "context_strategy": packet.context_strategy,
+            "evidence_source_used": packet.evidence_source_used,
+            "input_prompt_chars": len(packet.prompt),
+            "rough_input_token_estimate": rough_token_count(packet.prompt),
+        },
+    }
+
+
+def build_model_comparison_record_audit(
+    record: dict[str, Any],
+    *,
+    raw_response: dict[str, Any],
+) -> dict[str, Any]:
+    grounding = record.get("span_grounding_audit")
+    unsupported_count = 0
+    if isinstance(grounding, dict):
+        unsupported = grounding.get("unsupported_evidence_texts", [])
+        unsupported_count = len(unsupported) if isinstance(unsupported, list) else 0
+    return {
+        "latency_seconds": raw_response.get("latency_seconds"),
+        "status_code": raw_response.get("status_code"),
+        "attempt_count": len(raw_response.get("attempts", [])),
+        "not_found_or_insufficient_evidence_count": count_support_statuses(
+            record,
+            {"not_found", "insufficient_evidence"},
+        ),
+        "conflict_count": count_support_statuses(record, {"conflicting"})
+        + count_legacy_conflicts(record),
+        "unsupported_evidence_text_count": unsupported_count,
+        "evidence_text_coverage": evidence_text_coverage(record),
+        "needs_human_review": bool(record.get("needs_human_review")),
+        "review_reason_count": (
+            len(record.get("review_reasons", []))
+            if isinstance(record.get("review_reasons"), list)
+            else 0
+        ),
+    }
+
+
+def count_support_statuses(record: dict[str, Any], statuses: set[str]) -> int:
+    count = 0
+    for value in iter_nested_values(record):
+        if isinstance(value, dict):
+            status = normalize_label(str(value.get("support_status", "")))
+            if status in statuses:
+                count += 1
+    return count
+
+
+def count_legacy_conflicts(record: dict[str, Any]) -> int:
+    count = 0
+    for value in iter_nested_values(record):
+        if isinstance(value, dict):
+            alignment = normalize_label(str(value.get("alignment", "")))
+            if alignment in {"conflicts", "conflicting", "conflicts with legacy"}:
+                count += 1
+    return count
+
+
+def evidence_text_coverage(record: dict[str, Any]) -> dict[str, int]:
+    evidence_text_count = 0
+    supported_evidence_text_count = 0
+    for value in iter_nested_values(record):
+        if not isinstance(value, dict):
+            continue
+        evidence_text = clean_text(str(value.get("evidence_text", "")))
+        if not evidence_text:
+            continue
+        evidence_text_count += 1
+        if value.get("cited_span_ids"):
+            supported_evidence_text_count += 1
+    return {
+        "evidence_text_count": evidence_text_count,
+        "evidence_texts_with_cited_spans": supported_evidence_text_count,
+    }
+
+
+def iter_nested_values(value: Any) -> list[Any]:
+    values = [value]
+    if isinstance(value, dict):
+        for nested in value.values():
+            values.extend(iter_nested_values(nested))
+    elif isinstance(value, list):
+        for nested in value:
+            values.extend(iter_nested_values(nested))
+    return values
 
 
 def normalize_llm_record(
@@ -3221,6 +3881,141 @@ def build_summary(
     }
 
 
+def build_model_comparison_summary(
+    *,
+    run_id: str,
+    task_name: str,
+    dry_run: bool,
+    provider_models: list[tuple[ProviderName, str]],
+    cohort_path: Path,
+    database_path: Path,
+    records_path: Path,
+    raw_responses_path: Path,
+    packet_previews_path: Path,
+    selected: list[StudyCandidate],
+    records: list[dict[str, Any]],
+    processed_keys: set[tuple[str, str, str, str]],
+    started_at: datetime,
+    completed_at: datetime,
+) -> dict[str, Any]:
+    provider_model_counts = Counter(
+        f"{record.get('provider')}:{record.get('model')}" for record in records
+    )
+    provider_model_grounding: dict[str, dict[str, Any]] = {}
+    for provider, model in provider_models:
+        label = f"{provider}:{model}"
+        subset = [
+            record
+            for record in records
+            if record.get("provider") == provider and record.get("model") == model
+        ]
+        grounding_records = [
+            record
+            for record in subset
+            if isinstance(record.get("span_grounding_audit"), dict)
+        ]
+        passing = [
+            record
+            for record in grounding_records
+            if record["span_grounding_audit"].get("passes_basic_grounding") is True
+        ]
+        provider_model_grounding[label] = {
+            "record_count": len(subset),
+            "grounding_audited_count": len(grounding_records),
+            "grounding_pass_count": len(passing),
+            "grounding_pass_rate": (
+                round(len(passing) / len(grounding_records), 4)
+                if grounding_records
+                else None
+            ),
+            "unsupported_evidence_count": sum(
+                len(record.get("span_grounding_audit", {}).get("unsupported_evidence_texts", []))
+                for record in grounding_records
+            ),
+            "cited_span_count": sum(
+                len(record.get("cited_span_ids", []))
+                for record in subset
+                if isinstance(record.get("cited_span_ids"), list)
+            ),
+            "records_with_errors": sum(bool(record.get("errors")) for record in subset),
+            "needs_human_review_count": sum(
+                bool(record.get("needs_human_review")) for record in subset
+            ),
+            "mean_latency_seconds": mean_latency_seconds(subset),
+        }
+    return {
+        "run_id": run_id,
+        "source": "llm_study_reclassification_poc",
+        "method": "compare_models_on_task_evidence_summary_packets",
+        "task": task_name,
+        "prompt_version": f"{PROMPT_VERSION}_{task_name}_evidence_summary",
+        "dry_run": dry_run,
+        "provider_models": [
+            {"provider": provider, "model": model} for provider, model in provider_models
+        ],
+        "started_at": started_at.isoformat(),
+        "completed_at": completed_at.isoformat(),
+        "cohort_path": str(cohort_path),
+        "database_path": str(database_path),
+        "records_path": str(records_path),
+        "raw_responses_path": str(raw_responses_path),
+        "packet_previews_path": str(packet_previews_path),
+        "selected_count": len(selected),
+        "record_count": len(records),
+        "already_processed_key_count": len(processed_keys),
+        "records_with_errors": sum(bool(record.get("errors")) for record in records),
+        "status_counts": dict(Counter(str(record.get("poc_status")) for record in records)),
+        "task_provider_model_counts": dict(provider_model_counts.most_common()),
+        "provider_model_grounding": provider_model_grounding,
+        "records_needing_human_review": sum(
+            bool(record.get("needs_human_review")) for record in records
+        ),
+        "notes": [
+            "Comparison records use the same deterministic evidence spans per document.",
+            "Outputs are candidate evidence only, not reviewed knowledge.",
+            "This command does not validate identity, download full text, mutate SQLite, "
+            "or update review workflow state.",
+            preliminary_model_comparison_note(provider_model_grounding, dry_run=dry_run),
+        ],
+    }
+
+
+def mean_latency_seconds(records: list[dict[str, Any]]) -> float | None:
+    latencies = [
+        float(record["provenance"]["latency_seconds"])
+        for record in records
+        if isinstance(record.get("provenance"), dict)
+        and record["provenance"].get("latency_seconds") is not None
+    ]
+    if not latencies:
+        return None
+    return round(sum(latencies) / len(latencies), 3)
+
+
+def preliminary_model_comparison_note(
+    provider_model_grounding: dict[str, dict[str, Any]],
+    *,
+    dry_run: bool,
+) -> str:
+    if dry_run:
+        return "Dry run prepared prompts and spans; no model quality interpretation is available."
+    if not provider_model_grounding:
+        return "No comparison records were generated."
+    ranked = sorted(
+        provider_model_grounding.items(),
+        key=lambda item: (
+            item[1].get("grounding_pass_rate") is None,
+            -(item[1].get("grounding_pass_rate") or 0),
+            item[1].get("unsupported_evidence_count") or 0,
+        ),
+    )
+    best_label, best_metrics = ranked[0]
+    return (
+        f"Preliminary audit leader by basic grounding is {best_label} with "
+        f"pass_rate={best_metrics.get('grounding_pass_rate')}; human review is still required."
+    )
+
+
 def legacy_comparison_audit_counts(records: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
     counters: dict[str, Counter[str]] = {
         "study_type_normalized_match": Counter(),
@@ -3428,6 +4223,26 @@ def print_summary_run_summary(
     table.add_row("selected", str(summary["selected_count"]))
     table.add_row("records_with_errors", str(summary["records_with_errors"]))
     table.add_row("cited_spans", str(summary["cited_span_count"]))
+    console.print(table)
+    console.print({"records": str(records_path), "raw_responses": str(raw_responses_path)})
+
+
+def print_model_comparison_summary(
+    summary: dict[str, Any],
+    records_path: Path,
+    raw_responses_path: Path,
+) -> None:
+    table = Table(title="LLM study model comparison")
+    table.add_column("Metric")
+    table.add_column("Value", justify="right")
+    table.add_row("selected", str(summary["selected_count"]))
+    table.add_row("records", str(summary["record_count"]))
+    table.add_row("records_with_errors", str(summary["records_with_errors"]))
+    for label, metrics in summary["provider_model_grounding"].items():
+        table.add_row(
+            f"grounding_pass_rate:{label}",
+            str(metrics["grounding_pass_rate"]),
+        )
     console.print(table)
     console.print({"records": str(records_path), "raw_responses": str(raw_responses_path)})
 

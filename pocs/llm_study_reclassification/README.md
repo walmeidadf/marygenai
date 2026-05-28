@@ -74,6 +74,42 @@ If `GROQ_API_KEY` is present, run a small synthesis batch:
 uv run python pocs/llm_study_reclassification/reclassify_studies.py run-summary-batch --task condition_organ_system_extraction --limit 3
 ```
 
+Compare providers on the same deterministic evidence spans:
+
+```bash
+uv run python pocs/llm_study_reclassification/reclassify_studies.py compare-model-batch --task intervention_exposure --limit 5 --provider groq,openai --dry-run
+uv run python pocs/llm_study_reclassification/reclassify_studies.py compare-model-batch --task condition_organ_system_extraction --limit 5 --provider groq,openai --dry-run
+```
+
+`compare-model-batch` supports `groq`, `openai`, and `anthropic` through direct
+HTTP calls with keys loaded from the environment or `.env`:
+
+- `GROQ_API_KEY`
+- `OPENAI_API_KEY`
+- `ANTHROPIC_API_KEY`
+
+The default models are `llama-3.3-70b-versatile` for Groq, `gpt-4.1` for
+OpenAI, and `claude-3-5-sonnet-latest` for Anthropic. Use `--model` when running
+one provider, or `--model-overrides openai:gpt-4.1-mini,groq:MODEL_NAME` for a
+multi-provider run.
+
+The comparison command currently accepts these high-judgment extraction tasks:
+
+- `intervention_exposure`
+- `condition_organ_system_extraction`
+- `study_design_verification`
+
+It writes normalized candidate evidence and per-run summary JSON under:
+
+- `data/normalized/llm_study_reclassification/model_comparison/`
+- `data/raw/llm_study_reclassification/`
+
+Each record preserves `document_id`, `task_name`, provider, model, prompt
+version, selected span ids, selected chunk ids, source artifact ids/paths,
+legacy context id, rough prompt size, latency when available, and local grounding
+audit metrics. Previous non-dry-run records are skipped by
+document/task/provider/model unless `--retry-errors` is used.
+
 ```bash
 uv run python pocs/llm_study_reclassification/reclassify_studies.py run --dry-run --limit 5
 ```

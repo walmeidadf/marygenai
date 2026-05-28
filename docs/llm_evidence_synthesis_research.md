@@ -91,6 +91,24 @@ steps for retrieval, compression, and low-risk extraction candidates.
 Priority: evaluate after the P1/P2 prompt shape is stable. A stronger model
 should improve judgment, but it should not compensate for a vague task.
 
+### P4a: High-Tier Extraction Comparison
+
+Compare stronger hosted models on the same extractive spans before reserving
+them only for final adjudication. This tests whether model capability improves
+complex extraction tasks where role and context matter: cannabinoid as
+intervention versus exposure versus population/background context, conservative
+condition and organ-system extraction, and study-design verification against the
+legacy English guardrail.
+
+The comparison must keep the document sample, selected chunks, selected spans,
+prompt version, and legacy context fixed across providers. Outputs remain
+candidate evidence only and are evaluated with local grounding checks, error
+counts, latency, unsupported evidence text counts, not-found/insufficient
+evidence counts, and human-review flags.
+
+Priority: run as a small side-by-side experiment after P2 packet generation, not
+as a replacement for human review.
+
 ### P5: Graph Or Relation Intermediate
 
 Represent candidate entities and relations as a graph-like intermediate:
@@ -109,7 +127,10 @@ Priority: defer.
    `condition_organ_system_extraction` or `intervention_exposure`.
 4. Compare summary outputs against the direct `run-task-batch` outputs for the
    same documents.
-5. Only then test a high-tier model on adjudication or extraction.
+5. Run `compare-model-batch` for `intervention_exposure`,
+   `condition_organ_system_extraction`, and `study_design_verification` on the
+   same summary packets.
+6. Only then test a high-tier model on final adjudication.
 
 ## Evaluation Criteria
 

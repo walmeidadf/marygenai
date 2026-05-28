@@ -9,8 +9,11 @@ from pocs.llm_study_reclassification.reclassify_studies import (
     build_prompt_package,
     build_span_grounding_audit,
     build_task_packet_record,
+    dry_run_summary_comparison_record,
+    evidence_summary_output_schema,
     load_artifacts_by_document_id,
     normalize_label,
+    resolve_provider_models,
     result_direction_matches,
     select_best_full_text_artifact,
     select_evidence_chunks,
@@ -536,3 +539,89 @@ def test_span_grounding_audit_flags_evidence_text_not_in_cited_span(
 
     assert audit["passes_basic_grounding"] is False
     assert audit["unsupported_evidence_texts"][0]["field_name"] == "condition"
+
+
+def test_intervention_exposure_summary_schema_tracks_cannabinoid_role() -> None:
+    schema = evidence_summary_output_schema("intervention_exposure")
+
+    role_schema = schema["intervention_exposure_summary"]
+
+    assert "role_of_cannabinoid" in role_schema
+    assert "background_only" in role_schema["role_of_cannabinoid"]
+    assert "is_primary_study_target" in role_schema
+    assert "support_status" in role_schema
+    assert "cited_span_ids" in role_schema
+
+
+def test_resolve_provider_models_allows_provider_overrides() -> None:
+    provider_models = resolve_provider_models(
+        "groq,openai",
+        model=None,
+        model_overrides="openai:gpt-4.1-mini",
+    )
+
+    assert provider_models == [
+        ("groq", "llama-3.3-70b-versatile"),
+        ("openai", "gpt-4.1-mini"),
+    ]
+
+
+def test_model_comparison_dry_run_preserves_packet_provenance(tmp_path: Path) -> None:
+    xml_path = tmp_path / "article.nxml"
+    xml_path.write_text(
+        """
+        <article><body>
+          <sec><title>Methods</title>
+            <p>Participants received oral cannabidiol or placebo for pain.</p>
+          </sec>
+        </body></article>
+        """,
+        encoding="utf-8",
+    )
+    candidate = build_candidates(
+        [
+            {
+                "document_id": "publication:pmid:1",
+                "context_id": "legacy_english_context:1",
+                "title": "Cannabidiol and pain",
+                "type_of_study": "Clinical Trial",
+                "study_result": "Positive",
+            }
+        ],
+        artifacts_by_document_id={
+            "publication:pmid:1": [
+                make_artifact(
+                    "pmc_nxml",
+                    document_id="publication:pmid:1",
+                    payload_path=str(xml_path),
+                )
+            ]
+        },
+        abstracts_by_document_id={},
+    )[0]
+    evidence_plan = build_evidence_plan(
+        candidate,
+        max_source_chars=5_000,
+        direct_full_text_char_limit=50,
+        large_full_text_char_limit=80_000,
+    )
+    packet = build_evidence_summary_packet_record(
+        candidate,
+        evidence_plan=evidence_plan,
+        task_name="intervention_exposure",
+        run_id="test-run",
+        max_spans=4,
+    )
+
+    record = dry_run_summary_comparison_record(
+        packet,
+        provider="openai",
+        model="gpt-4.1",
+    )
+
+    assert record["poc_status"] == "dry_run_prompt_prepared"
+    assert record["provider"] == "openai"
+    assert record["model"] == "gpt-4.1"
+    assert record["provenance"]["selected_span_ids"] == packet.selected_span_ids
+    assert record["provenance"]["legacy_context_id"] == "legacy_english_context:1"
+    assert record["span_grounding_audit"]["passes_basic_grounding"] is True

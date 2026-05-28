@@ -195,6 +195,21 @@ stores, search indexes, graph stores, and vector indexes remain future options
 based on demonstrated review, ontology, collaboration, and GenAI retrieval access
 patterns.
 
+## 2026-05-28: Compare LLM Providers On Fixed Evidence Spans
+
+The LLM study reclassification POC should compare providers on the same
+deterministic evidence summary packets before drawing conclusions about model
+quality. For complex extraction tasks, provider/model comparisons must preserve
+the document sample, selected spans, selected chunks, prompt version, source
+artifact provenance, and legacy English context id.
+
+Comparison outputs remain candidate evidence for human review. They must not
+validate identity, mutate SQLite review state, update reviewed knowledge, or
+download new full text. Local metrics such as grounding pass rate, unsupported
+evidence text count, not-found/insufficient-evidence counts, latency, and errors
+are operational audit signals, not acceptance criteria for automatic knowledge
+updates.
+
 ## 2026-05-15: Put Review Queue Access Behind Reusable DTOs Before UI
 
 The first review workflow implementation should expose SQLite review state
