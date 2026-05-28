@@ -3,17 +3,25 @@ const QUEUE_TYPES = {
   publication_candidate_review: "Publication candidate review",
 };
 const FILTER_LABELS = {
-  "": "All open PubMed candidates",
+  "": "All PubMed candidates",
   "identity_status:needs_manual_identity_review": "Needs manual identity review",
   "identity_status:new_candidate": "New candidates",
   "priority_tier:direct_title_or_indexed": "Direct title or indexed evidence",
   "full_text_review_priority:high_auto_full_text": "High auto full text",
   "full_text_review_priority:high_manual_full_text": "High manual full text",
 };
+const WORKFLOW_STATUS_LABELS = {
+  open: "Open workflow tasks",
+  in_review: "In-review workflow tasks",
+  resolved: "Workflow-resolved tasks",
+  dismissed: "Dismissed workflow tasks",
+  all: "All workflow tasks",
+};
 const state = {
   items: [],
   queues: [],
   selectedQueueType: "legacy_identity_review",
+  selectedWorkflowStatus: "open",
   selectedFilter: "",
   selectedReviewItemId: null,
   provenanceByDocumentId: {},
@@ -25,7 +33,9 @@ const elements = {
   queueTabs: document.querySelectorAll("[data-queue-type]"),
   candidateFilters: document.querySelector("#candidate-filters"),
   filterChips: document.querySelectorAll("[data-filter]"),
+  workflowStatusChips: document.querySelectorAll("[data-workflow-status]"),
   activeFilterLabel: document.querySelector("#active-filter-label"),
+  activeWorkflowStatusLabel: document.querySelector("#active-workflow-status-label"),
   openItemsHeading: document.querySelector("#open-items-heading"),
   reviewList: document.querySelector("#review-list"),
   detailContent: document.querySelector("#detail-content"),
@@ -51,6 +61,14 @@ elements.filterChips.forEach((button) => {
     loadDashboard();
   });
 });
+elements.workflowStatusChips.forEach((button) => {
+  button.addEventListener("click", () => {
+    state.selectedWorkflowStatus = button.dataset.workflowStatus;
+    state.selectedReviewItemId = null;
+    renderControls();
+    loadDashboard();
+  });
+});
 
 loadDashboard();
 
@@ -71,9 +89,9 @@ async function loadDashboard() {
       state.selectedReviewItemId = null;
       elements.selectedItemLabel.textContent = "No item selected";
       elements.detailContent.className = "detail-empty";
-      elements.detailContent.textContent = `No open ${queueLabel(
-        state.selectedQueueType,
-      ).toLowerCase()} items were returned.`;
+      elements.detailContent.textContent = `No ${workflowStatusLabel(
+        state.selectedWorkflowStatus,
+      ).toLowerCase()} were returned for ${queueLabel(state.selectedQueueType)}.`;
     }
   } catch (error) {
     showApiError(error);
@@ -91,7 +109,7 @@ async function loadHealth() {
 }
 
 async function loadQueueItems() {
-  const params = new URLSearchParams({ status: "open", limit: "100" });
+  const params = new URLSearchParams({ status: state.selectedWorkflowStatus, limit: "100" });
   const filter = parseFilter(state.selectedFilter);
   if (filter) {
     params.set(filter.name, filter.value);
@@ -134,7 +152,9 @@ async function loadDetail(reviewItemId) {
 
 function renderQueues(queues) {
   renderControls();
-  elements.openItemsHeading.textContent = `Open ${queueLabel(state.selectedQueueType)} items`;
+  elements.openItemsHeading.textContent = `${workflowStatusLabel(
+    state.selectedWorkflowStatus,
+  )} for ${queueLabel(state.selectedQueueType)}`;
   const queue = queues.find((entry) => entry.queue_type === state.selectedQueueType);
   if (!queue) {
     elements.queueSummary.innerHTML = `<div class="summary-card">No ${escapeHtml(
@@ -145,7 +165,7 @@ function renderQueues(queues) {
   const cards = [
     ["Open", queue.open_items],
     ["In review", queue.in_review_items],
-    ["Resolved", queue.resolved_items],
+    ["Workflow-resolved", queue.resolved_items],
     ["Dismissed", queue.dismissed_items],
   ];
   elements.queueSummary.innerHTML = cards
@@ -161,11 +181,13 @@ function renderQueues(queues) {
 }
 
 function renderReviewList(items) {
-  elements.openItemsHeading.textContent = `Open ${queueLabel(
-    state.selectedQueueType,
-  )} items (${items.length} shown)`;
+  elements.openItemsHeading.textContent = `${workflowStatusLabel(
+    state.selectedWorkflowStatus,
+  )} for ${queueLabel(state.selectedQueueType)} (${items.length} shown)`;
   if (items.length === 0) {
-    elements.reviewList.innerHTML = `<p class="muted">No open items.</p>`;
+    elements.reviewList.innerHTML = `<p class="muted">No ${workflowStatusLabel(
+      state.selectedWorkflowStatus,
+    ).toLowerCase()}.</p>`;
     return;
   }
   elements.reviewList.innerHTML = items
@@ -180,6 +202,7 @@ function renderReviewList(items) {
           <span class="review-title">${escapeHtml(title)}</span>
           <span class="review-meta">
             ${escapeHtml(queueItemPrefix(item))}
+            / workflow ${escapeHtml(workflowStatusDisplay(item.status))}
             / score ${formatNumber(item.priority_score)}
             / ${escapeHtml(item.priority_tier)}
           </span>
@@ -551,11 +574,30 @@ function renderControls() {
   elements.filterChips.forEach((button) => {
     button.classList.toggle("active", button.dataset.filter === state.selectedFilter);
   });
+  elements.workflowStatusChips.forEach((button) => {
+    button.classList.toggle(
+      "active",
+      button.dataset.workflowStatus === state.selectedWorkflowStatus,
+    );
+  });
   elements.activeFilterLabel.textContent = FILTER_LABELS[state.selectedFilter] || "Filtered view";
+  elements.activeWorkflowStatusLabel.textContent =
+    WORKFLOW_STATUS_LABELS[state.selectedWorkflowStatus] || "Filtered workflow tasks";
 }
 
 function queueLabel(queueType) {
   return QUEUE_TYPES[queueType] || queueType;
+}
+
+function workflowStatusLabel(status) {
+  return WORKFLOW_STATUS_LABELS[status] || `${status} workflow tasks`;
+}
+
+function workflowStatusDisplay(status) {
+  if (status === "resolved") {
+    return "workflow-resolved";
+  }
+  return status;
 }
 
 function queueItemPrefix(item) {

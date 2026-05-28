@@ -51,8 +51,16 @@ def test_review_ui_static_assets_are_served(tmp_path: Path) -> None:
     assert "/identity-decisions" in response.text
     assert "/identity-decisions/apply" in response.text
     assert "Apply decision to workflow" in response.text
+    assert "selectedWorkflowStatus" in response.text
+    assert "workflow-resolved" in response.text
 
     index_response = client.get("/ui")
+    assert 'data-workflow-status="open"' in index_response.text
+    assert 'data-workflow-status="in_review"' in index_response.text
+    assert 'data-workflow-status="resolved"' in index_response.text
+    assert 'data-workflow-status="dismissed"' in index_response.text
+    assert 'data-workflow-status="all"' in index_response.text
+    assert "Workflow status" in index_response.text
     assert "identity_status:needs_manual_identity_review" in index_response.text
     assert "full_text_review_priority:high_manual_full_text" in index_response.text
 
@@ -110,10 +118,56 @@ def test_list_open_items_ordered_by_priority(tmp_path: Path) -> None:
 
     assert response.status_code == 200
     payload = response.json()
-    assert [item["priority_score"] for item in payload] == [80.0, 10.0]
+    assert [item["priority_score"] for item in payload] == [5080.0, 10.0]
     assert payload[0]["publication"]["primary_title"] == (
         "Cannabinoid Trial Without Stable Identifier"
     )
+
+
+def test_list_items_accepts_workflow_status_filters(tmp_path: Path) -> None:
+    database_path = create_review_database(tmp_path)
+    resolved_item_id = review_item_id(
+        "legacy_identity_review",
+        "publication:pmid:35319936",
+    )
+    with connect_sqlite(database_path) as connection:
+        connection.execute(
+            """
+            INSERT INTO review_item (
+                review_item_id, queue_type, document_id, priority_tier, priority_score,
+                assignee, status, batch_run_id, metadata_json, created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                resolved_item_id,
+                "legacy_identity_review",
+                "publication:pmid:35319936",
+                "manual_test_resolved",
+                10.0,
+                None,
+                "resolved",
+                "20260515T120000Z",
+                "{}",
+                "2026-05-15T12:00:00+00:00",
+                "2026-05-15T12:00:00+00:00",
+            ),
+        )
+    client = create_review_api_client(database_path)
+
+    resolved_response = client.get(
+        "/review/queues/legacy_identity_review/items?status=resolved&limit=20"
+    )
+    all_response = client.get("/review/queues/legacy_identity_review/items?status=all&limit=20")
+    invalid_response = client.get(
+        "/review/queues/legacy_identity_review/items?status=reviewed&limit=20"
+    )
+
+    assert resolved_response.status_code == 200
+    assert [item["status"] for item in resolved_response.json()] == ["resolved"]
+    assert all_response.status_code == 200
+    assert [item["status"] for item in all_response.json()] == ["open", "resolved"]
+    assert invalid_response.status_code == 422
 
 
 def test_get_review_item_detail(tmp_path: Path) -> None:

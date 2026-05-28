@@ -25,6 +25,7 @@ from marygenai.review.models import (
     PublicationIdentitySummary,
     PublicationSummary,
     ReviewItemStatus,
+    ReviewItemStatusFilter,
     ReviewItemStatusResult,
     ReviewItemStatusUpdate,
     ReviewQueueItem,
@@ -43,6 +44,7 @@ REVIEW_SCHEMA_TABLES = {
 }
 
 STATUS_ADAPTER = TypeAdapter(ReviewItemStatus)
+STATUS_FILTER_ADAPTER = TypeAdapter(ReviewItemStatusFilter)
 
 
 class ReviewDatabaseNotInitializedError(RuntimeError):
@@ -124,18 +126,23 @@ def list_review_queues(connection: sqlite3.Connection) -> list[ReviewQueueSummar
     return list(summaries.values())
 
 
-def list_open_review_items(
+def list_review_items(
     connection: sqlite3.Connection,
     *,
     queue_type: str = "legacy_identity_review",
+    status: ReviewItemStatusFilter = "open",
     limit: int = 20,
     identity_status: str | None = None,
     priority_tier: str | None = None,
     full_text_review_priority: str | None = None,
 ) -> list[ReviewQueueItem]:
     require_review_schema(connection)
-    filters = ["ri.queue_type = ?", "ri.status = 'open'"]
+    status_filter = STATUS_FILTER_ADAPTER.validate_python(status)
+    filters = ["ri.queue_type = ?"]
     parameters: list[Any] = [queue_type]
+    if status_filter != "all":
+        filters.append("ri.status = ?")
+        parameters.append(status_filter)
     if identity_status:
         filters.append("discovery.identity_status = ?")
         parameters.append(identity_status)
@@ -182,12 +189,42 @@ def list_open_review_items(
         LEFT JOIN publication_candidate_discovery AS discovery
             ON discovery.document_id = ri.document_id
         WHERE {where_clause}
-        ORDER BY ri.priority_score DESC, ri.created_at ASC, ri.review_item_id ASC
+        ORDER BY
+            CASE ri.status
+                WHEN 'open' THEN 0
+                WHEN 'in_review' THEN 1
+                WHEN 'resolved' THEN 2
+                WHEN 'dismissed' THEN 3
+                ELSE 4
+            END,
+            ri.priority_score DESC,
+            ri.created_at ASC,
+            ri.review_item_id ASC
         LIMIT ?
         """,
         parameters,
     ).fetchall()
     return [_queue_item_from_row(row) for row in rows]
+
+
+def list_open_review_items(
+    connection: sqlite3.Connection,
+    *,
+    queue_type: str = "legacy_identity_review",
+    limit: int = 20,
+    identity_status: str | None = None,
+    priority_tier: str | None = None,
+    full_text_review_priority: str | None = None,
+) -> list[ReviewQueueItem]:
+    return list_review_items(
+        connection,
+        queue_type=queue_type,
+        status="open",
+        limit=limit,
+        identity_status=identity_status,
+        priority_tier=priority_tier,
+        full_text_review_priority=full_text_review_priority,
+    )
 
 
 def list_publication_candidate_discoveries(

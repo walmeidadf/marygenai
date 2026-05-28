@@ -16,6 +16,7 @@ from marygenai.review.models import (
     PublicationCandidateProvenance,
     PublicationDetail,
     ReviewItemStatus,
+    ReviewItemStatusFilter,
     ReviewItemStatusResult,
     ReviewItemStatusUpdate,
     ReviewQueueItem,
@@ -35,8 +36,8 @@ from marygenai.review.repository import (
     get_publication_detail_for_review_item,
     list_identity_review_decisions_for_item,
     list_identity_review_decisions_for_publication,
-    list_open_review_items,
     list_publication_candidate_discoveries,
+    list_review_items,
     list_review_queues,
     update_review_item_status,
 )
@@ -91,20 +92,16 @@ def create_app(database_path: Path | None = None) -> FastAPI:
     def review_queue_items(
         queue_type: str,
         connection: Connection,
-        status: Annotated[ReviewItemStatus, Query()] = "open",
+        status: Annotated[ReviewItemStatusFilter, Query()] = "open",
         limit: Annotated[int, Query(ge=1, le=500)] = 20,
         identity_status: Annotated[str | None, Query()] = None,
         priority_tier: Annotated[str | None, Query()] = None,
         full_text_review_priority: Annotated[str | None, Query()] = None,
     ) -> list[ReviewQueueItem]:
-        if status != "open":
-            raise HTTPException(
-                status_code=400,
-                detail="Only status=open is supported for review queue item listing.",
-            )
-        return list_open_review_items(
+        return list_review_items(
             connection,
             queue_type=queue_type,
+            status=status,
             limit=limit,
             identity_status=identity_status,
             priority_tier=priority_tier,

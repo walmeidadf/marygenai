@@ -199,6 +199,14 @@ def test_persist_pubmed_candidates_creates_review_queue_and_provenance(
             identity_status="new_candidate",
             priority_tier="direct_title_or_indexed",
         )
+        connection.execute(
+            """
+            UPDATE review_item
+            SET status = 'in_review'
+            WHERE review_item_id = ?
+            """,
+            (queue_items[0].review_item_id,),
+        )
 
     assert len(queue_items) == 1
     assert queue_items[0].publication.review_state == "needs_review"
@@ -211,9 +219,10 @@ def test_persist_pubmed_candidates_creates_review_queue_and_provenance(
     client = TestClient(create_app(database_path))
     response = client.get(
         "/review/queues/publication_candidate_review/items"
-        "?status=open&identity_status=new_candidate&priority_tier=direct_title_or_indexed"
+        "?status=in_review&identity_status=new_candidate&priority_tier=direct_title_or_indexed"
     )
 
     assert [item.review_item_id for item in filtered_items] == [queue_items[0].review_item_id]
     assert response.status_code == 200
     assert response.json()[0]["metadata"]["identity_status"] == "new_candidate"
+    assert response.json()[0]["status"] == "in_review"

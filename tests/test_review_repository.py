@@ -21,6 +21,7 @@ from marygenai.review.repository import (
     list_identity_review_decisions_for_item,
     list_identity_review_decisions_for_publication,
     list_open_review_items,
+    list_review_items,
     list_review_queues,
     update_review_item_status,
 )
@@ -73,9 +74,61 @@ def test_list_open_review_items_orders_by_priority(tmp_path: Path) -> None:
 
         items = list_open_review_items(connection, queue_type="legacy_identity_review")
 
-    assert [item.priority_score for item in items] == [80.0, 10.0]
+    assert [item.priority_score for item in items] == [5080.0, 10.0]
     assert items[0].publication.primary_title == "Cannabinoid Trial Without Stable Identifier"
     assert items[1].publication.document_id == "publication:pmid:35319936"
+
+
+def test_list_review_items_filters_by_workflow_status(tmp_path: Path) -> None:
+    database_path = create_review_database(tmp_path)
+    lower_priority_item_id = review_item_id(
+        "legacy_identity_review",
+        "publication:pmid:35319936",
+    )
+    with connect_sqlite(database_path) as connection:
+        open_item = list_open_review_items(connection, queue_type="legacy_identity_review")[0]
+        connection.execute(
+            """
+            INSERT INTO review_item (
+                review_item_id, queue_type, document_id, priority_tier, priority_score,
+                assignee, status, batch_run_id, metadata_json, created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                lower_priority_item_id,
+                "legacy_identity_review",
+                "publication:pmid:35319936",
+                "manual_test_low_priority",
+                10.0,
+                None,
+                "resolved",
+                "20260515T120000Z",
+                "{}",
+                "2026-05-15T12:00:00+00:00",
+                "2026-05-15T12:00:00+00:00",
+            ),
+        )
+
+        open_items = list_review_items(
+            connection,
+            queue_type="legacy_identity_review",
+            status="open",
+        )
+        resolved_items = list_review_items(
+            connection,
+            queue_type="legacy_identity_review",
+            status="resolved",
+        )
+        all_items = list_review_items(
+            connection,
+            queue_type="legacy_identity_review",
+            status="all",
+        )
+
+    assert [item.review_item_id for item in open_items] == [open_item.review_item_id]
+    assert [item.review_item_id for item in resolved_items] == [lower_priority_item_id]
+    assert [item.status for item in all_items] == ["open", "resolved"]
 
 
 def test_get_publication_detail_includes_identities_and_ontology_links(tmp_path: Path) -> None:

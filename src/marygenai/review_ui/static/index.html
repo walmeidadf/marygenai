@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>MaryGenAI Review</title>
-    <link rel="stylesheet" href="/ui/static/styles.css?v=3" />
+    <link rel="stylesheet" href="/ui/static/styles.css?v=4" />
   </head>
   <body>
     <header class="topbar">
@@ -38,14 +38,37 @@
           </button>
         </div>
         <div id="queue-summary" class="queue-summary"></div>
+        <div class="workflow-filters">
+          <div class="filter-heading">
+            <h3>Workflow status</h3>
+            <span id="active-workflow-status-label" class="muted">Open workflow tasks</span>
+          </div>
+          <div class="filter-chips" aria-label="Workflow status filters">
+            <button class="filter-chip active" type="button" data-workflow-status="open">
+              Open
+            </button>
+            <button class="filter-chip" type="button" data-workflow-status="in_review">
+              In review
+            </button>
+            <button class="filter-chip" type="button" data-workflow-status="resolved">
+              Workflow-resolved
+            </button>
+            <button class="filter-chip" type="button" data-workflow-status="dismissed">
+              Dismissed
+            </button>
+            <button class="filter-chip" type="button" data-workflow-status="all">
+              All
+            </button>
+          </div>
+        </div>
         <div id="candidate-filters" class="candidate-filters" hidden>
           <div class="filter-heading">
             <h3>Candidate filters</h3>
-            <span id="active-filter-label" class="muted">All open PubMed candidates</span>
+            <span id="active-filter-label" class="muted">All PubMed candidates</span>
           </div>
           <div class="filter-chips" aria-label="Publication candidate filters">
             <button class="filter-chip active" type="button" data-filter="">
-              All open
+              All candidates
             </button>
             <button
               class="filter-chip"
@@ -84,7 +107,7 @@
             </button>
           </div>
         </div>
-        <h3 id="open-items-heading">Open items</h3>
+        <h3 id="open-items-heading">Open workflow items</h3>
         <div id="review-list" class="review-list" aria-live="polite"></div>
       </section>
 
@@ -94,12 +117,12 @@
           <span id="selected-item-label" class="muted">No item selected</span>
         </div>
         <div id="detail-content" class="detail-empty">
-          Select an open review item to inspect publication metadata, review signals,
+          Select a review item to inspect publication metadata, review signals,
           provenance, and workflow status.
         </div>
       </section>
     </main>
 
-    <script src="/ui/static/app.js?v=3" defer></script>
+    <script src="/ui/static/app.js?v=4" defer></script>
   </body>
 </html>

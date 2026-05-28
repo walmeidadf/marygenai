@@ -5,6 +5,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 ReviewItemStatus = Literal["open", "in_review", "resolved", "dismissed"]
+ReviewItemStatusFilter = Literal["open", "in_review", "resolved", "dismissed", "all"]
 IdentityDecision = Literal[
     "confirmed_identity",
     "corrected_identity",

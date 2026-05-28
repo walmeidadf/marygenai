@@ -55,6 +55,31 @@ uv run marygenai review list --queue publication_candidate_review
 uv run marygenai review update <review_item_id> --status in_review --note "Review started"
 ```
 
+### UI Status Filters
+
+The review UI should filter by `review_item.status` without changing the meaning
+of any other status layer. A status filter is only an operational queue filter:
+it answers "which workflow tasks should I show?", not "which publications are
+reviewed knowledge?"
+
+Recommended UI behavior:
+
+- Default to `open` items for each queue.
+- Offer explicit filters for `open`, `in_review`, `resolved`, `dismissed`, and
+  `all`.
+- Apply the same workflow-status filter to both `legacy_identity_review` and
+  `publication_candidate_review`.
+- Keep PubMed candidate filters such as `identity_status`, `cannabinoid_focus`,
+  and `full_text_review_priority` visually separate from workflow-status
+  filters.
+- Label resolved items as workflow-resolved, not fully curated or reviewed
+  evidence.
+
+Do not reuse `document.review_state`,
+`publication_candidate_discovery.identity_status`, or `review_decision.decision`
+as if they were queue-list status filters. They answer different questions and
+should remain separate in the UI.
+
 ## Legacy Identity Review
 
 The `legacy_identity_review` queue exists because some private legacy records
@@ -90,6 +115,53 @@ uv run marygenai review decision-create <review_item_id> \
 uv run marygenai review decision-apply <review_item_id>
 uv run marygenai review decision-list <review_item_id_or_document_id>
 ```
+
+### DOI-First Identity Review
+
+Some legacy items can be confidently identified by DOI before the reviewer has a
+PMID or PMCID. This is acceptable as an intermediate review state. A DOI is often
+the strongest durable identifier available from a publisher page, citation page,
+or DOI resolver.
+
+When a reviewer confirms only the DOI:
+
+1. Set `review_item.status` to `in_review`.
+2. Save or draft a structured identity decision with the DOI and, when useful,
+   the canonical DOI URL.
+3. Leave PMID and PMCID empty when they have not been independently confirmed.
+4. Add a rationale such as: "DOI confirmed from publisher/DOI landing page.
+   PMID/PMCID deferred for batch identifier resolution."
+5. Do not mark the item `resolved` until the identity is sufficient for the
+   current workflow or a later identifier-resolution batch has completed.
+
+Use only the DOI value in the DOI field, without the resolver URL prefix:
+
+```text
+DOI: 10.1016/j.biopha.2020.110624
+Canonical URL: https://doi.org/10.1016/j.biopha.2020.110624
+```
+
+To find or confirm a DOI manually, prefer:
+
+- the publisher landing page;
+- the DOI resolver page at `https://doi.org/<doi>`;
+- PubMed article pages when the DOI is listed;
+- Crossref or another public citation source when publisher metadata is unclear.
+
+For batch completion, DOI-to-PMID should use PubMed/E-utilities or another
+PubMed-backed resolver. The PMC ID Converter is useful for PMID/DOI/PMCID
+crosswalks, but "Identifier not found in PMC" usually means no PMCID was found;
+it does not prove that the article lacks a PMID. PMCID should remain empty when
+the article is not available in PubMed Central.
+
+After a batch resolver adds or confirms PMID/PMCID:
+
+- keep the original DOI review rationale as provenance;
+- add the resolver method, timestamp, and source to the identifier provenance;
+- apply `confirmed_identity` or `corrected_identity` only when the combined
+  identifiers are sufficient to close the identity task;
+- keep unresolved or ambiguous DOI-only cases in `in_review` or save an
+  `unresolved` decision rather than forcing `resolved`.
 
 ## PubMed Candidate Review
 
@@ -193,6 +265,53 @@ prioritized candidates. Keep `needs_manual_identity_review` items out of file
 retrieval until identity is checked, and keep all retrieved HTML, XML, PDFs,
 parsed text, and extracted fields as candidate evidence until a human review step
 accepts them.
+
+## Manual Public Document Capture During Review
+
+Reviewers sometimes open publisher, PubMed, PMC, Europe PMC, DOI, or repository
+pages while deciding whether an item is relevant or whether an identity is
+correct. If the reviewer finds a public document that is useful for curation, it
+can be saved as local candidate evidence, but it must not be treated as reviewed
+knowledge just because a human opened or downloaded it.
+
+Save a public HTML, XML, or PDF artifact only when all of the following are true:
+
+- The page or file is publicly reachable without private credentials,
+  institutional access, or bypassing access controls.
+- The source page indicates open access, a public repository copy, PMC/Europe
+  PMC availability, or another lawful public access route.
+- The artifact is relevant to the item being reviewed.
+- The reviewer can record enough provenance: source URL, access date, source
+  name, file type, observed access/license note when available, and why it was
+  saved.
+
+Preferred order for saved artifacts:
+
+1. PMC or Europe PMC XML when available.
+2. Stable public HTML when XML is not available.
+3. PDF only when the PDF is clearly public/open or is a public repository copy
+   and HTML/XML is unavailable or insufficient.
+
+Manual captures should live under ignored `data/` paths and should be persisted
+as candidate-evidence provenance before they are used for extraction. They should
+not be committed to Git, should not alter prior JSONL snapshots, and should not
+change `document.review_state` by themselves.
+
+Suggested reviewer workflow:
+
+1. Set the queue item to `in_review` before manual source inspection.
+2. Open source links from the UI or from the item detail.
+3. Confirm whether the source is public/open enough to save.
+4. Save or queue the public artifact as candidate evidence with provenance.
+5. Record a review note explaining what was accessed and why it matters.
+6. Create a structured identity or candidate decision separately from the saved
+   artifact.
+
+Do not save documents found only through paid access, personal accounts, private
+legacy files, institutional subscriptions, or browser sessions that another
+contributor could not reproduce through a public route. If a relevant document is
+not publicly downloadable, record the citation, DOI, landing page, or access
+barrier as review evidence instead of saving the file.
 
 ## What Not To Do
 

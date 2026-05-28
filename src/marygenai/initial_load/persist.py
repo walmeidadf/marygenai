@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import unicodedata
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,17 @@ from marygenai.schemas import (
     RunManifest,
 )
 from marygenai.storage import LocalStorage
+
+LEGACY_STUDY_TYPE_RANKS = {
+    "case_report": 10,
+    "case_series": 20,
+    "case_control": 30,
+    "cohort_study": 40,
+    "controlled_clinical_trial": 50,
+    "randomized_controlled_trial": 60,
+    "systematic_review": 70,
+    "meta_analysis": 80,
+}
 
 
 def persist_initial_load(
@@ -494,13 +506,72 @@ def persist_legacy_identity_review_queue(
 
 
 def identity_review_priority(publication: CanonicalPublicationCandidate) -> tuple[str, float]:
+    study_design, study_rank = legacy_study_design_rank(publication.legacy_study_type)
     if publication.canonical_url and publication.normalized_title:
-        return "canonical_url_and_title", 80.0
-    if publication.canonical_url:
-        return "canonical_url_only", 70.0
-    if publication.normalized_title:
-        return "title_only", 60.0
-    return "weak_identity", 50.0
+        identity_tier = "canonical_url_and_title"
+        identity_score = 80.0
+    elif publication.canonical_url:
+        identity_tier = "canonical_url_only"
+        identity_score = 70.0
+    elif publication.normalized_title:
+        identity_tier = "title_only"
+        identity_score = 60.0
+    else:
+        identity_tier = "weak_identity"
+        identity_score = 50.0
+
+    if study_design:
+        return f"legacy_study_type:{study_design}|identity:{identity_tier}", (
+            study_rank * 100.0
+        ) + identity_score
+    return f"legacy_study_type:unclassified|identity:{identity_tier}", identity_score
+
+
+def legacy_study_design_rank(legacy_study_type: str | None) -> tuple[str | None, int]:
+    normalized = _normalize_legacy_study_type(legacy_study_type)
+    if not normalized:
+        return None, 0
+    if any(term in normalized for term in ("meta analysis", "meta analise", "metanalise")):
+        return "meta_analysis", LEGACY_STUDY_TYPE_RANKS["meta_analysis"]
+    if "systematic review" in normalized or "revisao sistematica" in normalized:
+        return "systematic_review", LEGACY_STUDY_TYPE_RANKS["systematic_review"]
+    if any(term in normalized for term in ("randomized", "randomised", "randomizado")):
+        return (
+            "randomized_controlled_trial",
+            LEGACY_STUDY_TYPE_RANKS["randomized_controlled_trial"],
+        )
+    if any(
+        term in normalized
+        for term in (
+            "controlled clinical trial",
+            "clinical trial",
+            "ensaio clinico controlado",
+            "ensaio clinico",
+        )
+    ):
+        return (
+            "controlled_clinical_trial",
+            LEGACY_STUDY_TYPE_RANKS["controlled_clinical_trial"],
+        )
+    if "cohort" in normalized or "coorte" in normalized:
+        return "cohort_study", LEGACY_STUDY_TYPE_RANKS["cohort_study"]
+    if "case control" in normalized or "caso controle" in normalized:
+        return "case_control", LEGACY_STUDY_TYPE_RANKS["case_control"]
+    if "case series" in normalized or "serie de casos" in normalized:
+        return "case_series", LEGACY_STUDY_TYPE_RANKS["case_series"]
+    if "case report" in normalized or "relato de caso" in normalized:
+        return "case_report", LEGACY_STUDY_TYPE_RANKS["case_report"]
+    return None, 0
+
+
+def _normalize_legacy_study_type(value: str | None) -> str:
+    if not value:
+        return ""
+    normalized = unicodedata.normalize("NFKD", value)
+    ascii_text = "".join(
+        character for character in normalized if not unicodedata.combining(character)
+    )
+    return " ".join(ascii_text.lower().replace("-", " ").split())
 
 
 def review_item_id(queue_type: str, document_id: str) -> str:

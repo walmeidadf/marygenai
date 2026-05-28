@@ -168,7 +168,7 @@ Initial endpoints:
 
 - `GET /health`
 - `GET /review/queues`
-- `GET /review/queues/{queue_type}/items?status=open&limit=20`
+- `GET /review/queues/{queue_type}/items?status=open|in_review|resolved|dismissed|all&limit=20`
 - `GET /review/items/{review_item_id}`
 - `GET /review/items/{review_item_id}/identity-decisions`
 - `POST /review/items/{review_item_id}/identity-decisions`
