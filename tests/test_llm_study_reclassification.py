@@ -1,0 +1,538 @@
+import sqlite3
+from pathlib import Path
+
+from pocs.llm_study_reclassification.reclassify_studies import (
+    ArtifactReference,
+    build_candidates,
+    build_evidence_plan,
+    build_evidence_summary_packet_record,
+    build_prompt_package,
+    build_span_grounding_audit,
+    build_task_packet_record,
+    load_artifacts_by_document_id,
+    normalize_label,
+    result_direction_matches,
+    select_best_full_text_artifact,
+    select_evidence_chunks,
+    select_stratified_candidates,
+    select_task_evidence_spans,
+)
+
+
+def make_artifact(
+    artifact_type: str,
+    *,
+    document_id: str = "publication:pmid:1",
+    payload_path: str | None = "data/raw/example.xml",
+    payload_size_bytes: int = 100,
+) -> ArtifactReference:
+    return ArtifactReference(
+        artifact_id=f"artifact:{artifact_type}",
+        document_id=document_id,
+        artifact_type=artifact_type,
+        source="pmc",
+        payload_path=payload_path,
+        payload_sha256="sha",
+        payload_size_bytes=payload_size_bytes,
+        raw_payload={},
+        url="https://example.org/article",
+        license="cc-by",
+        created_at="2026-05-27T00:00:00+00:00",
+    )
+
+
+def test_select_best_full_text_artifact_prefers_pmc_nxml() -> None:
+    selected = select_best_full_text_artifact(
+        [
+            make_artifact("pmc_html", payload_size_bytes=10_000),
+            make_artifact("europe_pmc_full_text_xml", payload_size_bytes=20_000),
+            make_artifact("pmc_nxml", payload_size_bytes=1_000),
+        ]
+    )
+
+    assert selected is not None
+    assert selected.artifact_type == "pmc_nxml"
+
+
+def test_legacy_comparison_normalization_handles_case() -> None:
+    assert normalize_label("Double Blind Clinical Trial") == "double blind clinical trial"
+    assert result_direction_matches("Positive", "positive") is True
+    assert result_direction_matches("Negative", "neutral") is False
+
+
+def test_select_stratified_candidates_skips_processed_and_round_robins() -> None:
+    records = [
+        {
+            "document_id": "publication:pmid:1",
+            "context_id": "context:1",
+            "title": "Cannabis and cancer",
+            "type_of_study": "Meta-analysis",
+            "study_result": "Positive",
+        },
+        {
+            "document_id": "publication:pmid:2",
+            "context_id": "context:2",
+            "title": "Cannabis and pain",
+            "type_of_study": "Clinical Trial",
+            "study_result": "Positive",
+        },
+        {
+            "document_id": "publication:pmid:3",
+            "context_id": "context:3",
+            "title": "Cannabis and inflammation",
+            "type_of_study": "Meta-analysis",
+            "study_result": "Mixed",
+        },
+    ]
+    candidates = build_candidates(
+        records,
+        artifacts_by_document_id={
+            "publication:pmid:1": [make_artifact("pmc_nxml", document_id="publication:pmid:1")],
+            "publication:pmid:2": [make_artifact("pmc_nxml", document_id="publication:pmid:2")],
+            "publication:pmid:3": [make_artifact("pmc_nxml", document_id="publication:pmid:3")],
+        },
+        abstracts_by_document_id={},
+    )
+
+    selected = select_stratified_candidates(
+        candidates,
+        processed_document_ids={"publication:pmid:1"},
+        limit=2,
+    )
+
+    assert [candidate.document_id for candidate in selected] == [
+        "publication:pmid:3",
+        "publication:pmid:2",
+    ]
+
+
+def test_build_prompt_package_includes_legacy_guardrail_and_safety_boundary(tmp_path: Path) -> None:
+    xml_path = tmp_path / "article.nxml"
+    xml_path.write_text(
+        "<article><body><p>Randomized trial of cannabidiol for pain in "
+        "42 humans.</p></body></article>",
+        encoding="utf-8",
+    )
+    record = {
+        "document_id": "publication:pmid:1",
+        "context_id": "legacy_english_context:1",
+        "title": "Cannabidiol for pain",
+        "type_of_study": "Clinical Trial",
+        "study_result": "Positive",
+        "key_findings": ["Pain improved."],
+    }
+    candidate = build_candidates(
+        [record],
+        artifacts_by_document_id={
+            "publication:pmid:1": [
+                make_artifact(
+                    "pmc_nxml",
+                    document_id="publication:pmid:1",
+                    payload_path=str(xml_path),
+                )
+            ]
+        },
+        abstracts_by_document_id={},
+    )[0]
+
+    package = build_prompt_package(candidate, max_source_chars=5_000)
+
+    assert package.evidence_source_used == "full_text"
+    assert "Do not provide medical advice" in package.prompt
+    assert "guardrail and comparison baseline, not absolute truth" in package.prompt
+    assert "insufficient_evidence" in package.prompt
+    assert "Randomized trial of cannabidiol" in package.prompt
+    assert "field_evidence_chunks" in package.prompt
+    assert package.context_strategy == "full_text_compact"
+    assert package.retrieval_method == "direct_full_text_v0.1"
+
+
+def test_load_artifacts_by_document_id_reads_raw_payload_json() -> None:
+    connection = sqlite3.connect(":memory:")
+    connection.row_factory = sqlite3.Row
+    connection.execute(
+        """
+        CREATE TABLE access_enrichment_artifact (
+            artifact_id TEXT,
+            document_id TEXT,
+            source TEXT,
+            artifact_type TEXT,
+            url TEXT,
+            license TEXT,
+            payload_path TEXT,
+            payload_sha256 TEXT,
+            payload_size_bytes INTEGER,
+            raw_payload_json TEXT,
+            created_at TEXT
+        )
+        """
+    )
+    connection.execute(
+        """
+        INSERT INTO access_enrichment_artifact VALUES (
+            'artifact:1',
+            'publication:pmid:1',
+            'europe_pmc',
+            'europe_pmc_metadata',
+            'https://example.org',
+            'cc-by',
+            NULL,
+            NULL,
+            NULL,
+            '{"resultList":{"result":[{"abstractText":"<b>Abstract text</b>"}]}}',
+            '2026-05-27T00:00:00+00:00'
+        )
+        """
+    )
+
+    artifacts = load_artifacts_by_document_id(connection, ["publication:pmid:1"])
+
+    assert artifacts["publication:pmid:1"][0].raw_payload["resultList"]["result"][0][
+        "abstractText"
+    ] == "<b>Abstract text</b>"
+
+
+def test_select_evidence_chunks_retrieves_relevant_results_beyond_prefix(
+    tmp_path: Path,
+) -> None:
+    xml_path = tmp_path / "article.nxml"
+    long_intro = "Background context without extraction targets. " * 160
+    xml_path.write_text(
+        f"""
+        <article>
+          <front>
+            <article-meta>
+              <abstract><p>Trial abstract about cannabis and pain.</p></abstract>
+            </article-meta>
+          </front>
+          <body>
+            <sec><title>Introduction</title><p>{long_intro}</p></sec>
+            <sec><title>Methods</title>
+              <p>Forty-two human participants were randomized to cannabidiol or placebo.</p>
+            </sec>
+            <sec><title>Results</title>
+              <p>Cannabidiol 25 mg reduced pain scores and adverse events were mild nausea.</p>
+            </sec>
+          </body>
+        </article>
+        """,
+        encoding="utf-8",
+    )
+    candidate = build_candidates(
+        [
+            {
+                "document_id": "publication:pmid:1",
+                "context_id": "legacy_english_context:1",
+                "title": "Cannabidiol for pain",
+                "type_of_study": "Clinical Trial",
+                "study_result": "Positive",
+            }
+        ],
+        artifacts_by_document_id={
+            "publication:pmid:1": [
+                make_artifact(
+                    "pmc_nxml",
+                    document_id="publication:pmid:1",
+                    payload_path=str(xml_path),
+                )
+            ]
+        },
+        abstracts_by_document_id={},
+    )[0]
+
+    chunks = select_evidence_chunks(candidate, max_source_chars=5_000)
+    packet = build_prompt_package(candidate, max_source_chars=5_000).prompt
+
+    assert any(chunk.section == "Results" for chunk in chunks)
+    assert "Cannabidiol 25 mg reduced pain scores" in packet
+    assert "adverse events were mild nausea" in packet
+
+
+def test_study_design_task_packet_starts_from_legacy(tmp_path: Path) -> None:
+    xml_path = tmp_path / "article.nxml"
+    xml_path.write_text(
+        """
+        <article><body>
+          <sec><title>Methods</title>
+            <p>This randomized placebo-controlled trial enrolled 42 participants.</p>
+          </sec>
+        </body></article>
+        """,
+        encoding="utf-8",
+    )
+    candidate = build_candidates(
+        [
+            {
+                "document_id": "publication:pmid:1",
+                "context_id": "legacy_english_context:1",
+                "title": "Cannabidiol trial",
+                "type_of_study": "Clinical Trial",
+                "study_result": "Positive",
+            }
+        ],
+        artifacts_by_document_id={
+            "publication:pmid:1": [
+                make_artifact(
+                    "pmc_nxml",
+                    document_id="publication:pmid:1",
+                    payload_path=str(xml_path),
+                )
+            ]
+        },
+        abstracts_by_document_id={},
+    )[0]
+    evidence_plan = build_evidence_plan(
+        candidate,
+        max_source_chars=5_000,
+        direct_full_text_char_limit=50,
+        large_full_text_char_limit=80_000,
+    )
+
+    packet = build_task_packet_record(
+        candidate,
+        evidence_plan=evidence_plan,
+        task_name="study_design_verification",
+        run_id="test-run",
+    )
+
+    assert packet.task_order == 1
+    assert packet.model_tier_hint == "high_tier_recommended"
+    assert "Start from the legacy study type" in packet.prompt
+    assert "keep_legacy | change_legacy | insufficient_evidence" in packet.prompt
+
+
+def test_condition_organ_system_task_requires_explicit_conditions(tmp_path: Path) -> None:
+    xml_path = tmp_path / "article.nxml"
+    xml_path.write_text(
+        """
+        <article><body>
+          <sec><title>Results</title>
+            <p>Cannabidiol reduced inflammatory pain behavior in a mouse model.</p>
+          </sec>
+        </body></article>
+        """,
+        encoding="utf-8",
+    )
+    candidate = build_candidates(
+        [
+            {
+                "document_id": "publication:pmid:1",
+                "context_id": "legacy_english_context:1",
+                "title": "Cannabidiol and inflammatory pain",
+                "type_of_study": "Animal Study",
+                "study_result": "Positive",
+            }
+        ],
+        artifacts_by_document_id={
+            "publication:pmid:1": [
+                make_artifact(
+                    "pmc_nxml",
+                    document_id="publication:pmid:1",
+                    payload_path=str(xml_path),
+                )
+            ]
+        },
+        abstracts_by_document_id={},
+    )[0]
+    evidence_plan = build_evidence_plan(
+        candidate,
+        max_source_chars=5_000,
+        direct_full_text_char_limit=50,
+        large_full_text_char_limit=80_000,
+    )
+
+    packet = build_task_packet_record(
+        candidate,
+        evidence_plan=evidence_plan,
+        task_name="condition_organ_system_extraction",
+        run_id="test-run",
+    )
+
+    assert packet.task_order == 3
+    assert "Organ systems may be inferred only from a specific extracted condition" in packet.prompt
+    assert "pathologies_or_conditions" in packet.prompt
+    assert "legacy_condition_alignment" in packet.prompt
+
+
+def test_summary_spans_are_extractive_and_task_scored(tmp_path: Path) -> None:
+    xml_path = tmp_path / "article.nxml"
+    xml_path.write_text(
+        """
+        <article><body>
+          <sec><title>Methods</title>
+            <p>Forty-two participants were randomized to placebo or oral cannabidiol.</p>
+          </sec>
+          <sec><title>Results</title>
+            <p>Cannabidiol 25 mg reduced inflammatory pain scores.</p>
+            <p>Unrelated background about botanical taxonomy was discussed.</p>
+          </sec>
+        </body></article>
+        """,
+        encoding="utf-8",
+    )
+    candidate = build_candidates(
+        [
+            {
+                "document_id": "publication:pmid:1",
+                "context_id": "legacy_english_context:1",
+                "title": "Cannabidiol and inflammatory pain",
+                "type_of_study": "Clinical Trial",
+                "study_result": "Positive",
+            }
+        ],
+        artifacts_by_document_id={
+            "publication:pmid:1": [
+                make_artifact(
+                    "pmc_nxml",
+                    document_id="publication:pmid:1",
+                    payload_path=str(xml_path),
+                )
+            ]
+        },
+        abstracts_by_document_id={},
+    )[0]
+    evidence_plan = build_evidence_plan(
+        candidate,
+        max_source_chars=5_000,
+        direct_full_text_char_limit=50,
+        large_full_text_char_limit=80_000,
+    )
+
+    spans = select_task_evidence_spans(
+        candidate,
+        evidence_plan=evidence_plan,
+        task_name="intervention_exposure",
+        max_spans=4,
+    )
+
+    source_text = " ".join(chunk.text for chunk in evidence_plan.source_chunks)
+
+    assert spans
+    assert all(span.text in source_text for span in spans)
+    assert any("cannabidiol" in span.text.lower() for span in spans)
+    assert any(span.chunk_id for span in spans)
+
+
+def test_summary_packet_requires_span_citations_and_no_unsupported_facts(
+    tmp_path: Path,
+) -> None:
+    xml_path = tmp_path / "article.nxml"
+    xml_path.write_text(
+        """
+        <article><body>
+          <sec><title>Results</title>
+            <p>Cannabidiol reduced inflammatory pain behavior in a mouse model.</p>
+          </sec>
+        </body></article>
+        """,
+        encoding="utf-8",
+    )
+    candidate = build_candidates(
+        [
+            {
+                "document_id": "publication:pmid:1",
+                "context_id": "legacy_english_context:1",
+                "title": "Cannabidiol and inflammatory pain",
+                "type_of_study": "Animal Study",
+                "study_result": "Positive",
+            }
+        ],
+        artifacts_by_document_id={
+            "publication:pmid:1": [
+                make_artifact(
+                    "pmc_nxml",
+                    document_id="publication:pmid:1",
+                    payload_path=str(xml_path),
+                )
+            ]
+        },
+        abstracts_by_document_id={},
+    )[0]
+    evidence_plan = build_evidence_plan(
+        candidate,
+        max_source_chars=5_000,
+        direct_full_text_char_limit=1_000,
+        large_full_text_char_limit=80_000,
+    )
+
+    packet = build_evidence_summary_packet_record(
+        candidate,
+        evidence_plan=evidence_plan,
+        task_name="condition_organ_system_extraction",
+        run_id="test-run",
+        max_spans=4,
+    )
+
+    assert packet.selected_span_ids
+    assert "Every synthesized claim must cite at least one span_id" in packet.prompt
+    assert "Evidence text must be a short verbatim substring" in packet.prompt
+    assert "candidate_value must be explicitly named in the cited span" in packet.prompt
+    assert "Do not add background knowledge" in packet.prompt
+    assert "legacy English context is a guardrail" in packet.prompt
+    assert "field_support" in packet.prompt
+
+
+def test_span_grounding_audit_flags_evidence_text_not_in_cited_span(
+    tmp_path: Path,
+) -> None:
+    xml_path = tmp_path / "article.nxml"
+    xml_path.write_text(
+        """
+        <article><body>
+          <sec><title>Results</title>
+            <p>Cannabidiol reduced inflammatory pain behavior in a mouse model.</p>
+          </sec>
+        </body></article>
+        """,
+        encoding="utf-8",
+    )
+    candidate = build_candidates(
+        [
+            {
+                "document_id": "publication:pmid:1",
+                "context_id": "legacy_english_context:1",
+                "title": "Cannabidiol and inflammatory pain",
+                "type_of_study": "Animal Study",
+                "study_result": "Positive",
+            }
+        ],
+        artifacts_by_document_id={
+            "publication:pmid:1": [
+                make_artifact(
+                    "pmc_nxml",
+                    document_id="publication:pmid:1",
+                    payload_path=str(xml_path),
+                )
+            ]
+        },
+        abstracts_by_document_id={},
+    )[0]
+    evidence_plan = build_evidence_plan(
+        candidate,
+        max_source_chars=5_000,
+        direct_full_text_char_limit=50,
+        large_full_text_char_limit=80_000,
+    )
+    packet = build_evidence_summary_packet_record(
+        candidate,
+        evidence_plan=evidence_plan,
+        task_name="condition_organ_system_extraction",
+        run_id="test-run",
+        max_spans=4,
+    )
+    record = {
+        "field_support": {
+            "condition": [
+                {
+                    "candidate_value": "inflammatory pain",
+                    "cited_span_ids": [packet.selected_span_ids[0]],
+                    "evidence_text": "this text is not present in the span",
+                }
+            ]
+        }
+    }
+
+    audit = build_span_grounding_audit(record, packet)
+
+    assert audit["passes_basic_grounding"] is False
+    assert audit["unsupported_evidence_texts"][0]["field_name"] == "condition"

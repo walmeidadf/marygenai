@@ -1,0 +1,102 @@
+# LLM Study Reclassification POC
+
+This POC prepares candidate study reclassification and extraction records for
+human review. It starts from the identity-confirmed English legacy cohort,
+prefers previously persisted full-text artifacts, includes legacy English
+context as a guardrail, and writes auditable JSONL outputs.
+
+For full-text studies, the runner builds a small evidence packet instead of
+sending an arbitrary full-text prefix. NXML/HTML payloads are split into
+deterministic section chunks, scored with a local lexical retrieval pass for
+study design, sample/model, conditions, cannabinoids, dosage, comparators,
+results, and safety terms, then passed to the LLM with stable `chunk_id`
+markers. LLM outputs remain candidate evidence and should cite chunk ids in
+`field_evidence_chunks` when supporting important fields.
+
+The outputs are candidate evidence only. This POC does not validate identity,
+does not mutate SQLite, and does not update reviewed knowledge, review queues,
+review items, review decisions, or document review state.
+
+## Run
+
+Prepare an adaptive evidence index without calling Groq:
+
+```bash
+uv run python pocs/llm_study_reclassification/reclassify_studies.py prepare-evidence-index --limit 20
+```
+
+The index decides the context strategy for each candidate:
+
+- `full_text_compact` for full texts that fit the direct prompt budget.
+- `section_keyword_chunks` for larger studies that need local chunk retrieval.
+- `large_section_keyword_chunks` for very large studies where embeddings may be
+  useful in a later pass.
+- `abstract_metadata` or `legacy_context_only` when full text is unavailable.
+
+Explore smaller task prompts before choosing a model:
+
+```bash
+uv run python pocs/llm_study_reclassification/reclassify_studies.py prepare-task-packets --limit 10
+```
+
+The task sequence is:
+
+1. `study_design_verification`
+2. `population_model_sample`
+3. `condition_organ_system_extraction`
+4. `intervention_exposure`
+5. `outcomes_safety`
+6. `legacy_adjudication`
+
+The first and last tasks are marked as `high_tier_recommended` because they are
+where schema discipline and judgment against the legacy guardrail matter most.
+
+Prepare extractive spans plus synthesis prompts before extraction:
+
+```bash
+uv run python pocs/llm_study_reclassification/reclassify_studies.py prepare-summary-packets --task condition_organ_system_extraction --limit 5
+```
+
+This command tests the long-document hypothesis documented in
+`docs/llm_evidence_synthesis_research.md`: for large studies, first compress
+retrieved chunks into short verbatim spans, then ask for a task-specific synthesis
+with required `span_id` citations. The synthesis remains intermediate candidate
+evidence, not reviewed knowledge.
+
+Summary batch records include a local `span_grounding_audit` that checks whether
+cited span ids exist and whether each `field_support[*].evidence_text` is a
+verbatim substring of the cited spans. Failed grounding does not discard the
+record; it marks the output as candidate evidence that needs human review.
+
+If `GROQ_API_KEY` is present, run a small synthesis batch:
+
+```bash
+uv run python pocs/llm_study_reclassification/reclassify_studies.py run-summary-batch --task condition_organ_system_extraction --limit 3
+```
+
+```bash
+uv run python pocs/llm_study_reclassification/reclassify_studies.py run --dry-run --limit 5
+```
+
+If `GROQ_API_KEY` is present in the environment or `.env`, the same command
+without `--dry-run` calls Groq:
+
+```bash
+uv run python pocs/llm_study_reclassification/reclassify_studies.py run --limit 5
+```
+
+Outputs are written under ignored paths:
+
+- `data/normalized/llm_study_reclassification/`
+- `data/raw/llm_study_reclassification/`
+
+## Research Notes
+
+The synthesis/chunking research notes live in
+`docs/llm_evidence_synthesis_research.md`. The prioritized POC sequence is:
+
+1. Direct narrow-task chunks as the baseline.
+2. Extractive compression into auditable spans.
+3. Task-specific synthesis with span citations.
+4. Entity-first extraction if synthesis still over-infers.
+5. High-tier model adjudication for hard conflicts only.

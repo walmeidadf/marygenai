@@ -365,6 +365,113 @@ All raw payloads, downloaded files, and parsed text outputs should stay under
 ignored `data/` paths and preserve source, method, timestamp, access/license
 metadata, file hash, and errors.
 
+## 2026-05-24: Evaluate ScienceDirect PII As A Legacy Identity Signal
+
+Many `legacy_identity_review` items have ScienceDirect URLs whose `/pii/...`
+segment contains a Publisher Item Identifier. The MVP should evaluate that PII
+as an identity-resolution signal before asking a human reviewer to search by
+hand.
+
+The first POC path is intentionally audit-only: extract PII from review-queue
+URLs, query Crossref/OpenAlex and optional Elsevier for DOI candidates, then
+query PubMed by DOI for PMID/PMCID. Outputs remain under ignored `data/` paths
+and do not update review state or create structured identity decisions
+automatically. In a local 3-item ScienceDirect sample, Crossref matched the PII
+as an `alternative-id`, recovered DOI, and PubMed recovered PMID for all 3
+items; PMCID was not present in that sample.
+
+## 2026-05-25: Treat Strong Legacy Identity Resolution As An Audited Transition
+
+ScienceDirect PII recovery should become the first audited transition from
+legacy identity review toward stronger bibliographic identity, not a one-off
+queue cleanup. The first local full ScienceDirect run recovered DOI for all
+resolved ScienceDirect PII records and PMID for most of them, which makes it a
+good pilot for applying conservative identity decisions.
+
+The next command should read POC JSONL records, classify each item into
+`gold_identity_seed`, `auto_identity_resolved`, `ambiguous_identity`, or
+`needs_manual_identity_review`, and support `--dry-run` before writing any
+SQLite updates. Automatic identity resolution should require auditable evidence
+such as a ScienceDirect PII, a Crossref candidate whose `alternative-id` matches
+that PII, high title similarity, compatible publication year, and a recovered
+DOI. PubMed PMID/PMCID evidence should strengthen the classification but should
+not be required for every legacy record to leave identity review.
+
+Applying a resolution must preserve provenance and should not erase history:
+write recovered identifiers and structured review evidence, then close the local
+identity-review workflow item only when the confidence rule passes. This same
+identity-confidence layer should later validate legacy records that already have
+apparently strong identifiers, while PubMed-discovered records can start with
+high bibliographic identity confidence because PMID is source-native evidence.
+
+## 2026-05-25: Use English Legacy Export As LLM Triage Context
+
+The maintainer-local English legacy HTML export should be normalized as an
+additional context layer for LLM triage, not as a replacement for the current
+Portuguese Cannadocs bootstrap. The English export contains fields such as
+`Key Findings`, `Type of Study`, `Study Result`, cannabinoid fields, dosing
+fields, clinical relevance, and adverse events in English, which reduces
+translation noise when prompting hosted or local LLMs.
+
+The export is page-oriented and contains repeated studies across condition,
+cannabinoid, and organ-system pages. The normalization step should deduplicate
+by strong identifiers first, then URL/title keys, aggregate repeated filenames
+and curated English fields, and link the resulting records back to local SQLite
+documents by PMID, PMCID, DOI, canonical URL, or normalized title/year. Outputs
+remain under ignored `data/normalized/legacy_english_context/` and are
+audit-only.
+
+This English context should become the default input for the first large-scale
+Groq triage runner. Full text remains useful for later evidence extraction, but
+LLM triage should be allowed to start from curated English legacy metadata so
+thousands of records can be prioritized without waiting for all downloads.
+
+## 2026-05-25: Separate Local Identity Validation From LLM Scientific Triage
+
+Identity validation and scientific/medical triage should use different model
+paths. Identity validation should be primarily deterministic and local:
+identifier equality for PMID, PMCID, DOI, PII, and canonical URLs; publication
+year compatibility; title normalization; fuzzy title comparison; and local
+embedding similarity with a small sentence-transformer model such as
+`all-MiniLM-L6-v2`. This should be fast, cheap, repeatable, and suitable for the
+full legacy set.
+
+Hosted LLMs such as Groq should be reserved for tasks that require semantic
+interpretation: study-design triage, human/animal/in-vitro classification,
+cannabinoid relevance, condition/pathology grouping, evidence-priority buckets,
+and concise reviewer-facing rationales. Groq can also be used as a fallback for
+ambiguous identity cases, but not as the default identity linker.
+
+The recommended workflow is therefore:
+
+1. Build deduplicated English legacy context.
+2. Link/validate identity locally with identifiers, rules, and embeddings.
+3. Split records into exact, strong, ambiguous, and no-match identity buckets.
+4. Run Groq triage first on exact/strong records with checkpointed batch output.
+5. Keep ambiguous identity records out of downstream LLM medical triage until
+   their identity is resolved or explicitly reviewed.
+
+## 2026-05-28: Test Evidence Synthesis Before Broad Structured Extraction
+
+The first Groq study-reclassification batches showed that broad structured
+extraction can over-infer fields such as condition, organ system, cannabinoid
+role, route, dosage, and comparator when the task and context packet are too
+generic. The next POC layer should therefore test a narrower evidence-synthesis
+step before downstream extraction.
+
+For long studies, the pipeline should first retrieve task-relevant chunks, then
+compress those chunks into short verbatim spans with stable `span_id` and
+`chunk_id` provenance. An LLM may then create a concise task-specific synthesis,
+but every claim must cite source spans and mark missing or conflicting evidence.
+The legacy English context remains a guardrail and comparison baseline, not
+absolute truth.
+
+The evaluation baseline remains direct narrow-task chunk extraction. Synthesis is
+useful only if it improves faithfulness and schema discipline while preserving
+auditability for human review. High-tier models should be considered for
+adjudication and hard conflict resolution after the task and evidence packet
+shape are stable, not as a substitute for a well-scoped extraction task.
+
 ## 2026-05-20: Persist Access Artifacts As Candidate Evidence
 
 The first operational access enrichment command now selects prioritized PubMed
