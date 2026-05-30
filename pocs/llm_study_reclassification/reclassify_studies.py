@@ -292,6 +292,14 @@ class EvidenceParagraph(BaseModel):
     document_id: str
     ordinal: int
     section: str
+    unit_type: Literal[
+        "paragraph",
+        "abstract",
+        "section",
+        "table",
+        "figure_caption",
+        "list_item",
+    ] = "paragraph"
     text: str
     artifact_id: str | None = None
     artifact_path: str | None = None
@@ -2099,6 +2107,9 @@ def load_candidate_paragraphs(candidate: StudyCandidate) -> list[EvidenceParagra
                     document_id=candidate.document_id,
                     ordinal=len(paragraphs) + 1,
                     section=section,
+                    unit_type=(
+                        "abstract" if section == "abstract_metadata" else "paragraph"
+                    ),
                     text=truncate_text(sentence, 1_200),
                     source_kind=(
                         "abstract_metadata"
@@ -2151,16 +2162,44 @@ def extract_xml_paragraphs(raw: bytes, *, artifact: ArtifactReference) -> list[E
             element,
             artifact=artifact,
             section="abstract",
+            unit_type="abstract",
         )
     for index, section_element in enumerate(root.xpath(".//*[local-name()='sec']")):
         section = section_title(section_element) or f"section_{index + 1}"
         for paragraph_element in section_element.xpath(".//*[local-name()='p']"):
+            if has_xml_ancestor(paragraph_element, {"table-wrap", "fig"}):
+                continue
             append_paragraph_from_element(
                 paragraphs,
                 paragraph_element,
                 artifact=artifact,
                 section=section,
             )
+    for index, table_element in enumerate(root.xpath(".//*[local-name()='table-wrap']")):
+        append_document_unit_from_text(
+            paragraphs,
+            clean_text(" ".join(table_element.itertext())),
+            artifact=artifact,
+            section=nearest_xml_section_title(table_element) or f"table_{index + 1}",
+            unit_type="table",
+            max_chars=2_500,
+        )
+    for index, figure_element in enumerate(root.xpath(".//*[local-name()='fig']")):
+        caption_text = clean_text(
+            " ".join(
+                caption_part
+                for caption in figure_element.xpath(".//*[local-name()='caption']")
+                for caption_part in caption.itertext()
+            )
+        )
+        append_document_unit_from_text(
+            paragraphs,
+            caption_text,
+            artifact=artifact,
+            section=nearest_xml_section_title(figure_element) or f"figure_{index + 1}",
+            unit_type="figure_caption",
+            max_chars=2_000,
+        )
     if not paragraphs:
         return paragraphs_from_plain_text(
             extract_xml_text(raw),
@@ -2178,11 +2217,38 @@ def extract_html_paragraphs(raw: bytes, *, artifact: ArtifactReference) -> list[
             parent.remove(element)
     paragraphs: list[EvidenceParagraph] = []
     for element in document.xpath("//p"):
+        if has_html_ancestor(element, {"table", "figure"}):
+            continue
         append_paragraph_from_element(
             paragraphs,
             element,
             artifact=artifact,
             section=nearest_html_section(element),
+        )
+    for index, table_element in enumerate(document.xpath("//table")):
+        append_document_unit_from_text(
+            paragraphs,
+            clean_text(" ".join(table_element.itertext())),
+            artifact=artifact,
+            section=nearest_html_section(table_element) or f"table_{index + 1}",
+            unit_type="table",
+            max_chars=2_500,
+        )
+    for index, figure_element in enumerate(document.xpath("//figure")):
+        caption_text = clean_text(
+            " ".join(
+                caption_part
+                for caption in figure_element.xpath(".//figcaption|.//*[@class='caption']")
+                for caption_part in caption.itertext()
+            )
+        )
+        append_document_unit_from_text(
+            paragraphs,
+            caption_text,
+            artifact=artifact,
+            section=nearest_html_section(figure_element) or f"figure_{index + 1}",
+            unit_type="figure_caption",
+            max_chars=2_000,
         )
     if not paragraphs:
         return paragraphs_from_plain_text(
@@ -2199,8 +2265,33 @@ def append_paragraph_from_element(
     *,
     artifact: ArtifactReference,
     section: str,
+    unit_type: Literal["paragraph", "abstract", "list_item"] = "paragraph",
 ) -> None:
-    text = clean_text(" ".join(element.itertext()))
+    append_document_unit_from_text(
+        paragraphs,
+        clean_text(" ".join(element.itertext())),
+        artifact=artifact,
+        section=section,
+        unit_type=unit_type,
+    )
+
+
+def append_document_unit_from_text(
+    paragraphs: list[EvidenceParagraph],
+    text: str,
+    *,
+    artifact: ArtifactReference,
+    section: str,
+    unit_type: Literal[
+        "paragraph",
+        "abstract",
+        "section",
+        "table",
+        "figure_caption",
+        "list_item",
+    ],
+    max_chars: int = 1_500,
+) -> None:
     if len(text) < 30 or is_boilerplate_paragraph(text):
         return
     paragraphs.append(
@@ -2209,7 +2300,8 @@ def append_paragraph_from_element(
             document_id=artifact.document_id,
             ordinal=len(paragraphs) + 1,
             section=section,
-            text=truncate_text(text, 1_500),
+            unit_type=unit_type,
+            text=truncate_text(text, max_chars),
             artifact_id=artifact.artifact_id,
             artifact_path=artifact.payload_path,
             source_kind="full_text",
@@ -2237,6 +2329,7 @@ def paragraphs_from_plain_text(
                 document_id=artifact.document_id,
                 ordinal=len(paragraphs) + 1,
                 section=section,
+                unit_type="paragraph",
                 text=truncate_text(normalized, 1_500),
                 artifact_id=artifact.artifact_id,
                 artifact_path=artifact.payload_path,
@@ -2265,6 +2358,36 @@ def nearest_html_section(element: etree._Element) -> str:
             previous = previous.getprevious()
         current = current.getparent()
     return "html_full_text"
+
+
+def has_html_ancestor(element: etree._Element, tag_names: set[str]) -> bool:
+    current = element.getparent()
+    while current is not None:
+        tag = str(current.tag).lower() if current.tag is not None else ""
+        if tag in tag_names:
+            return True
+        current = current.getparent()
+    return False
+
+
+def nearest_xml_section_title(element: etree._Element) -> str | None:
+    current = element.getparent()
+    while current is not None:
+        if etree.QName(current).localname == "sec":
+            title = section_title(current)
+            if title:
+                return title
+        current = current.getparent()
+    return None
+
+
+def has_xml_ancestor(element: etree._Element, local_names: set[str]) -> bool:
+    current = element.getparent()
+    while current is not None:
+        if etree.QName(current).localname in local_names:
+            return True
+        current = current.getparent()
+    return False
 
 
 def is_boilerplate_paragraph(text: str) -> bool:
@@ -2402,6 +2525,7 @@ def build_semantic_paragraph_prompt(
         "\n".join(
             [
                 f"[paragraph_id={paragraph.paragraph_id}]",
+                f"unit_type: {paragraph.unit_type}",
                 f"section: {paragraph.section}",
                 f"text: {paragraph.text}",
             ]
@@ -2409,22 +2533,23 @@ def build_semantic_paragraph_prompt(
         for paragraph in window.paragraphs
     )
     return (
-        f"You are creating candidate paragraph-level index metadata for a "
+        f"You are creating candidate document-unit index metadata for a "
         f"""human-reviewed cannabinoid evidence knowledge base.
 
 Rules:
 - Do not provide medical advice, recommendations, or clinical instructions.
 - Return only valid JSON matching the schema.
 - Use English only.
-- Classify each paragraph_id in the window exactly once.
+- Classify each paragraph_id in the window exactly once. Each paragraph_id may
+  refer to a paragraph, abstract sentence, table text, or figure caption.
 - Do not paraphrase or rewrite the article.
 - Labels are candidate retrieval metadata, not reviewed truth.
 - Use only these labels: {", ".join(SEMANTIC_PARAGRAPH_LABELS)}.
 - Use not_relevant only when no more specific label applies.
-- evidence_terms must be short verbatim substrings from the same paragraph.
+- evidence_terms must be short verbatim substrings from the same unit.
 - evidence_terms must not use ellipses, approximations, or combined non-contiguous text.
 - Use the legacy English context only as a guardrail for relevance; do not copy
-  legacy claims into paragraph labels unless the paragraph itself supports them.
+  legacy claims into unit labels unless the unit itself supports them.
 
 Output JSON schema:
 {json.dumps(schema, indent=2)}
@@ -2440,11 +2565,11 @@ legacy_sample_size: {candidate.legacy_sample_size or ""}
 Legacy English context:
 {legacy_context_text}
 
-Paragraph window:
+Document-unit window:
 window_id: {window.window_id}
-paragraph_count: {len(window.paragraphs)}
+unit_count: {len(window.paragraphs)}
 
-Paragraphs:
+Document units:
 {paragraph_text}
 """
     )
@@ -2457,6 +2582,11 @@ def semantic_paragraph_window_preview(packet: dict[str, Any]) -> dict[str, Any]:
         "window_id": packet["window_id"],
         "prompt_chars": len(packet["prompt"]),
         "paragraph_ids": packet["paragraph_ids"],
+        "unit_types": [
+            paragraph.unit_type
+            for paragraph in packet["paragraphs"]
+            if isinstance(paragraph, EvidenceParagraph)
+        ],
         "prompt": packet["prompt"],
     }
 
@@ -4303,6 +4433,7 @@ def merge_paragraph_annotations(
     return {
         "paragraph_id": paragraph.paragraph_id,
         "section": paragraph.section,
+        "unit_type": paragraph.unit_type,
         "ordinal": paragraph.ordinal,
         "text": paragraph.text,
         "labels": labels,
@@ -5755,6 +5886,12 @@ def build_semantic_paragraph_index_summary(
             document_id: len(paragraphs)
             for document_id, paragraphs in paragraphs_by_document.items()
         },
+        "unit_type_counts": {
+            document_id: dict(
+                Counter(paragraph.unit_type for paragraph in paragraphs).most_common()
+            )
+            for document_id, paragraphs in paragraphs_by_document.items()
+        },
         "window_record_count": len(window_records),
         "merged_record_count": len(merged_records),
         "records_with_errors": sum(bool(record.get("errors")) for record in window_records),
@@ -5768,8 +5905,12 @@ def build_semantic_paragraph_index_summary(
             "max_windows_per_document": max_windows_per_document,
         },
         "notes": [
-            "Semantic paragraph labels are candidate retrieval metadata, not reviewed truth.",
-            "Paragraph text is literal cleaned source text, not paraphrased synthesis.",
+            "Semantic document-unit labels are candidate retrieval metadata, not reviewed truth.",
+            "Unit text is literal cleaned source text, not paraphrased synthesis.",
+            "Tables and figure captions are mapped as text units for future enrichment; "
+            "this POC does not interpret images or charts visually.",
+            "Window size is an empirical calibration parameter monitored through audit "
+            "scores, downstream extraction quality, latency, and review burden.",
             "This command does not validate identity, download full text, mutate SQLite, "
             "or update review workflow state.",
         ],

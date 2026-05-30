@@ -113,17 +113,27 @@ legacy context id, rough prompt size, latency when available, and local groundin
 audit metrics. Previous non-dry-run records are skipped by
 document/task/provider/model unless `--retry-errors` is used.
 
-Prepare a semantic paragraph index from literal cleaned article paragraphs:
+Prepare a semantic document-unit index from literal cleaned article text:
 
 ```bash
 uv run python pocs/llm_study_reclassification/reclassify_studies.py compare-semantic-paragraph-index --provider openai --document-id publication:url:05c015f9550941da --window-paragraphs 10 --overlap-paragraphs 2 --max-windows-per-document 3
 ```
 
-This command does not paraphrase the article. It removes obvious boilerplate,
-assigns short paragraph ids such as `p0001`, classifies paragraph windows with
-overlap, audits paragraph ids and labels, then writes a merged candidate index
+This command does not paraphrase the article and does not send raw HTML to the
+model. It removes obvious boilerplate, maps cleaned paragraphs, abstract text,
+table text, and figure captions into short ids such as `p0001`, classifies
+overlapping windows, audits ids and labels, then writes a merged candidate index
 under `data/normalized/llm_study_reclassification/semantic_paragraph_index/`.
-The labels are candidate retrieval metadata only, not reviewed knowledge.
+Tables and figure captions are mapped only as text units for future enrichment;
+the POC does not interpret images, plots, or graphical content visually. The
+labels are candidate retrieval metadata only, not reviewed knowledge.
+
+Window size is intentionally empirical. Current runs should monitor audit pass
+rate, evidence-term support, downstream extraction quality against the legacy
+English guardrail, latency, and human review burden before choosing a default
+chunk size. Robust large-context models are the preferred first-pass preparation
+tools in this experiment; Groq and Cerebras remain useful candidates for later,
+more specific or final classification steps after context has been narrowed.
 
 ```bash
 uv run python pocs/llm_study_reclassification/reclassify_studies.py run --dry-run --limit 5

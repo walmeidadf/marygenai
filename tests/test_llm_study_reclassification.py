@@ -16,6 +16,7 @@ from pocs.llm_study_reclassification.reclassify_studies import (
     build_task_packet_record,
     dry_run_summary_comparison_record,
     evidence_summary_output_schema,
+    extract_html_paragraphs,
     extract_xml_paragraphs,
     load_artifacts_by_document_id,
     normalize_label,
@@ -777,6 +778,7 @@ def test_extract_xml_paragraphs_preserves_literal_clean_text() -> None:
     assert [paragraph.section for paragraph in paragraphs] == ["Methods", "Results"]
     assert paragraphs[0].text == "Participants received oral cannabidiol or placebo."
     assert paragraphs[0].paragraph_id == "p0001"
+    assert paragraphs[0].unit_type == "paragraph"
     assert paragraphs[1].text == "Cannabidiol reduced pain scores in the treatment arm."
 
 
@@ -795,6 +797,57 @@ def test_extract_xml_paragraphs_skips_obvious_boilerplate() -> None:
 
     assert len(paragraphs) == 1
     assert paragraphs[0].text == "Participants received oral cannabidiol or placebo."
+
+
+def test_extract_xml_paragraphs_maps_tables_and_figure_captions() -> None:
+    raw = b"""
+    <article><body>
+      <sec><title>Results</title>
+        <p>Participants received oral cannabidiol or placebo.</p>
+        <table-wrap>
+          <caption><title>Table 1</title><p>Cannabidiol dose and pain outcomes.</p></caption>
+          <table><tr><td>CBD 25 mg</td><td>Pain improved</td></tr></table>
+        </table-wrap>
+        <fig>
+          <caption><p>Figure 1 shows cannabinoid exposure response.</p></caption>
+        </fig>
+      </sec>
+    </body></article>
+    """
+    artifact = make_artifact("pmc_nxml")
+
+    paragraphs = extract_xml_paragraphs(raw, artifact=artifact)
+
+    assert [paragraph.unit_type for paragraph in paragraphs] == [
+        "paragraph",
+        "table",
+        "figure_caption",
+    ]
+    assert paragraphs[1].section == "Results"
+    assert "CBD 25 mg" in paragraphs[1].text
+    assert paragraphs[2].text == "Figure 1 shows cannabinoid exposure response."
+
+
+def test_extract_html_paragraphs_maps_tables_without_duplicate_paragraphs() -> None:
+    raw = b"""
+    <html><body>
+      <h2>Results</h2>
+      <p>Participants received oral cannabidiol or placebo.</p>
+      <table><tr><td>CBD 25 mg oral dose</td><td>Pain improved after treatment</td></tr></table>
+      <figure><figcaption>Figure shows cannabinoid exposure response.</figcaption></figure>
+    </body></html>
+    """
+    artifact = make_artifact("pmc_html")
+
+    paragraphs = extract_html_paragraphs(raw, artifact=artifact)
+
+    assert [paragraph.unit_type for paragraph in paragraphs] == [
+        "paragraph",
+        "table",
+        "figure_caption",
+    ]
+    assert paragraphs[1].text == "CBD 25 mg oral dose Pain improved after treatment"
+    assert paragraphs[2].text == "Figure shows cannabinoid exposure response."
 
 
 def test_build_paragraph_windows_uses_overlap() -> None:
@@ -896,3 +949,4 @@ def test_merge_semantic_paragraph_indexes_deduplicates_votes() -> None:
     annotation = merged[0]["merged_annotations"][0]
     assert annotation["labels"] == ["intervention_or_exposure"]
     assert annotation["label_votes"] == {"intervention_or_exposure": 1}
+    assert annotation["unit_type"] == "paragraph"
