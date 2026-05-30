@@ -135,6 +135,22 @@ chunk size. Robust large-context models are the preferred first-pass preparation
 tools in this experiment; Groq and Cerebras remain useful candidates for later,
 more specific or final classification steps after context has been narrowed.
 
+Classify study-level task families from selected document units:
+
+```bash
+uv run python pocs/llm_study_reclassification/reclassify_studies.py compare-unit-classification-batch --provider openai --task all --document-id publication:url:05c015f9550941da --max-units 18
+```
+
+This command tests the next pipeline stage after semantic indexing. It selects
+literal document units for `condition_classification`,
+`cannabinoid_classification`, and `study_classification`, optionally using a
+merged semantic index as retrieval hints. The model must cite `unit_id`s and
+short verbatim evidence text. Outputs are written under
+`data/normalized/llm_study_reclassification/unit_classification/`; prompt
+previews and raw responses are written under
+`data/raw/llm_study_reclassification/`. These records remain candidate evidence
+for human review and do not update reviewed knowledge.
+
 ```bash
 uv run python pocs/llm_study_reclassification/reclassify_studies.py run --dry-run --limit 5
 ```

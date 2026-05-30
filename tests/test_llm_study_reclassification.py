@@ -14,6 +14,7 @@ from pocs.llm_study_reclassification.reclassify_studies import (
     build_prompt_package,
     build_span_grounding_audit,
     build_task_packet_record,
+    build_unit_grounding_audit,
     dry_run_summary_comparison_record,
     evidence_summary_output_schema,
     extract_html_paragraphs,
@@ -27,6 +28,7 @@ from pocs.llm_study_reclassification.reclassify_studies import (
     select_micro_extraction_candidates,
     select_stratified_candidates,
     select_task_evidence_spans,
+    select_units_for_classification_task,
 )
 
 
@@ -848,6 +850,56 @@ def test_extract_html_paragraphs_maps_tables_without_duplicate_paragraphs() -> N
     ]
     assert paragraphs[1].text == "CBD 25 mg oral dose Pain improved after treatment"
     assert paragraphs[2].text == "Figure shows cannabinoid exposure response."
+
+
+def test_select_units_for_classification_task_uses_semantic_labels() -> None:
+    artifact = make_artifact("pmc_nxml")
+    paragraphs = extract_xml_paragraphs(
+        b"""
+        <article><body><sec><title>Methods</title>
+          <p>Participants received oral cannabidiol or placebo.</p>
+          <p>Major depressive disorder was the target condition.</p>
+          <p>Randomized trial procedures enrolled fifty participants.</p>
+        </sec></body></article>
+        """,
+        artifact=artifact,
+    )
+
+    selected = select_units_for_classification_task(
+        paragraphs,
+        task_name="cannabinoid_classification",
+        labels_by_unit={paragraphs[0].paragraph_id: ["intervention_or_exposure"]},
+        max_units=1,
+    )
+
+    assert [unit.paragraph_id for unit in selected] == [paragraphs[0].paragraph_id]
+
+
+def test_unit_grounding_audit_flags_unknown_ids_and_unsupported_text() -> None:
+    artifact = make_artifact("pmc_nxml")
+    paragraphs = extract_xml_paragraphs(
+        b"""
+        <article><body><sec><title>Methods</title>
+          <p>Participants received oral cannabidiol or placebo.</p>
+        </sec></body></article>
+        """,
+        artifact=artifact,
+    )
+    packet = {"units": paragraphs}
+    record = {
+        "task_name": "cannabinoid_classification",
+        "cannabinoid_classification": {
+            "support_status": "supported",
+            "cited_unit_ids": ["unknown"],
+            "evidence_text": "unsupported phrase",
+        },
+    }
+
+    audit = build_unit_grounding_audit(record, packet)
+
+    assert audit["passes_basic_grounding"] is False
+    assert audit["unknown_unit_ids"] == ["unknown"]
+    assert audit["unsupported_evidence_texts"][0]["evidence_text"] == "unsupported phrase"
 
 
 def test_build_paragraph_windows_uses_overlap() -> None:

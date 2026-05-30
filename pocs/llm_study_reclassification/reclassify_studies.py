@@ -48,6 +48,7 @@ DEFAULT_SUMMARY_RUN_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "evidence_summary_runs"
 DEFAULT_MODEL_COMPARISON_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "model_comparison"
 DEFAULT_MICRO_EXTRACTION_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "micro_extraction"
 DEFAULT_SEMANTIC_PARAGRAPH_INDEX_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "semantic_paragraph_index"
+DEFAULT_UNIT_CLASSIFICATION_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "unit_classification"
 DEFAULT_MODEL = "llama-3.3-70b-versatile"
 DEFAULT_PROVIDER = "groq"
 DEFAULT_PROVIDER_MODELS = {
@@ -71,6 +72,11 @@ MICRO_EXTRACTION_FIELDS = (
     "cannabinoid_role",
     "target_condition",
     "study_design",
+)
+UNIT_CLASSIFICATION_TASKS = (
+    "condition_classification",
+    "cannabinoid_classification",
+    "study_classification",
 )
 SEMANTIC_PARAGRAPH_LABELS = (
     "study_design",
@@ -1681,6 +1687,189 @@ def compare_semantic_paragraph_index(
     print_semantic_paragraph_index_summary(summary, records_path, merged_index_path)
 
 
+@app.command("compare-unit-classification-batch")
+def compare_unit_classification_batch(
+    cohort_path: Annotated[
+        Path,
+        typer.Option("--cohort-path", help="Identity-confirmed English triage cohort JSONL."),
+    ] = DEFAULT_COHORT_PATH,
+    database_path: Annotated[
+        Path | None,
+        typer.Option("--database-path", help="SQLite database path."),
+    ] = None,
+    output_dir: Annotated[
+        Path | None,
+        typer.Option("--output-dir", help="Document-unit classification output directory."),
+    ] = None,
+    raw_output_dir: Annotated[
+        Path | None,
+        typer.Option("--raw-output-dir", help="Raw model response output directory."),
+    ] = None,
+    task: Annotated[
+        str,
+        typer.Option("--task", help="Classification task name or 'all'."),
+    ] = "all",
+    document_id: Annotated[
+        list[str] | None,
+        typer.Option("--document-id", help="Document id to include; repeat for fixed samples."),
+    ] = None,
+    limit: Annotated[
+        int | None,
+        typer.Option("--limit", min=1, help="Maximum candidates when document ids are omitted."),
+    ] = None,
+    provider: Annotated[
+        str,
+        typer.Option(
+            "--provider",
+            help="Provider name or comma-separated providers: groq, openai, anthropic.",
+        ),
+    ] = "openai",
+    model: Annotated[
+        str | None,
+        typer.Option("--model", help="Model name when exactly one provider is selected."),
+    ] = None,
+    model_overrides: Annotated[
+        str | None,
+        typer.Option(
+            "--model-overrides",
+            help="Comma-separated provider:model overrides for multi-provider comparisons.",
+        ),
+    ] = None,
+    semantic_index_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--semantic-index-path",
+            help="Optional merged semantic document-unit index JSONL used to boost retrieval.",
+        ),
+    ] = None,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Prepare task prompts without calling model APIs."),
+    ] = False,
+    max_units: Annotated[
+        int,
+        typer.Option("--max-units", min=4, max=40, help="Maximum document units per task."),
+    ] = 18,
+    sleep_seconds: Annotated[
+        float,
+        typer.Option("--sleep-seconds", min=0.0, help="Delay between model calls."),
+    ] = 3.0,
+) -> None:
+    """Classify studies from selected semantic document units."""
+    selected_tasks = resolve_unit_classification_tasks(task)
+    provider_models = resolve_provider_models(
+        provider,
+        model=model,
+        model_overrides=model_overrides,
+    )
+    load_dotenv()
+    settings = get_settings()
+    resolved_database_path = database_path or sqlite_database_path(settings.data_dir)
+    resolved_output_dir = output_dir or settings.data_dir / DEFAULT_UNIT_CLASSIFICATION_SUBDIR
+    resolved_raw_output_dir = raw_output_dir or settings.data_dir / DEFAULT_RAW_SUBDIR
+    resolved_output_dir.mkdir(parents=True, exist_ok=True)
+    resolved_raw_output_dir.mkdir(parents=True, exist_ok=True)
+    run_started_at = datetime.now(UTC)
+    run_id = run_started_at.strftime("%Y%m%dT%H%M%SZ_unit_classification")
+    task_slug = "all" if len(selected_tasks) > 1 else selected_tasks[0]
+    records_path = resolved_output_dir / f"{run_id}_{task_slug}_records.jsonl"
+    summary_path = resolved_output_dir / f"{run_id}_{task_slug}_summary.json"
+    raw_responses_path = (
+        resolved_raw_output_dir / f"{run_id}_{task_slug}_unit_classification_raw_responses.jsonl"
+    )
+    prompt_previews_path = (
+        resolved_raw_output_dir / f"{run_id}_{task_slug}_unit_classification_prompt_previews.jsonl"
+    )
+    label_index = load_semantic_label_index(semantic_index_path) if semantic_index_path else {}
+
+    candidates = load_candidates_for_poc(
+        cohort_path=cohort_path,
+        database_path=resolved_database_path,
+    )
+    selected = select_micro_extraction_candidates(
+        candidates,
+        document_ids=document_id or [],
+        limit=limit,
+    )
+
+    records: list[dict[str, Any]] = []
+    raw_responses: list[dict[str, Any]] = []
+    prompt_previews: list[dict[str, Any]] = []
+    for candidate in selected:
+        units = load_candidate_paragraphs(candidate)
+        labels_by_unit = label_index.get(candidate.document_id, {})
+        for task_name in selected_tasks:
+            selected_units = select_units_for_classification_task(
+                units,
+                task_name=task_name,
+                labels_by_unit=labels_by_unit,
+                max_units=max_units,
+            )
+            packet = build_unit_classification_packet(
+                candidate,
+                task_name=task_name,
+                units=selected_units,
+                labels_by_unit=labels_by_unit,
+                run_id=run_id,
+                semantic_index_path=semantic_index_path,
+            )
+            prompt_previews.append(unit_classification_packet_preview(packet))
+            for provider_name, model_name in provider_models:
+                if dry_run:
+                    record = dry_run_unit_classification_record(
+                        packet,
+                        provider=provider_name,
+                        model=model_name,
+                    )
+                    records.append(record)
+                    append_jsonl(records_path, [record])
+                    continue
+                api_key = resolve_provider_api_key(provider_name)
+                if not api_key:
+                    record = error_unit_classification_record(
+                        packet,
+                        provider=provider_name,
+                        model=model_name,
+                        error=f"{api_key_env_var(provider_name)} is not set.",
+                    )
+                    records.append(record)
+                    append_jsonl(records_path, [record])
+                    continue
+                record, raw_response = run_unit_classification_packet_with_provider(
+                    packet,
+                    provider=provider_name,
+                    model=model_name,
+                    api_key=api_key,
+                )
+                records.append(record)
+                raw_responses.append(raw_response)
+                append_jsonl(records_path, [record])
+                append_jsonl(raw_responses_path, [raw_response])
+                if sleep_seconds:
+                    time.sleep(sleep_seconds)
+    append_jsonl(prompt_previews_path, prompt_previews)
+
+    summary = build_unit_classification_summary(
+        run_id=run_id,
+        dry_run=dry_run,
+        selected_tasks=selected_tasks,
+        provider_models=provider_models,
+        cohort_path=cohort_path,
+        database_path=resolved_database_path,
+        semantic_index_path=semantic_index_path,
+        records_path=records_path,
+        raw_responses_path=raw_responses_path,
+        prompt_previews_path=prompt_previews_path,
+        selected=selected,
+        records=records,
+        started_at=run_started_at,
+        completed_at=datetime.now(UTC),
+        max_units=max_units,
+    )
+    write_json(summary_path, summary)
+    print_unit_classification_summary(summary, records_path, raw_responses_path)
+
+
 def build_run_paths(*, output_dir: Path, raw_output_dir: Path, run_id: str) -> RunPaths:
     output_dir.mkdir(parents=True, exist_ok=True)
     raw_output_dir.mkdir(parents=True, exist_ok=True)
@@ -2082,6 +2271,346 @@ def micro_extraction_packet_preview(packet: dict[str, Any]) -> dict[str, Any]:
         "selected_chunk_ids": packet["selected_chunk_ids"],
         "context_strategy": packet["context_strategy"],
         "evidence_source_used": packet["evidence_source_used"],
+        "prompt": packet["prompt"],
+    }
+
+
+def resolve_unit_classification_tasks(task: str) -> list[str]:
+    if task == "all":
+        return list(UNIT_CLASSIFICATION_TASKS)
+    if task not in UNIT_CLASSIFICATION_TASKS:
+        raise typer.BadParameter(
+            "task must be 'all' or one of: " + ", ".join(UNIT_CLASSIFICATION_TASKS)
+        )
+    return [task]
+
+
+def load_semantic_label_index(path: Path) -> dict[str, dict[str, list[str]]]:
+    label_index: dict[str, dict[str, list[str]]] = defaultdict(dict)
+    for row in load_jsonl(path):
+        document_id = str(row.get("document_id") or "")
+        annotations = row.get("merged_annotations", [])
+        if not document_id or not isinstance(annotations, list):
+            continue
+        for annotation in annotations:
+            if not isinstance(annotation, dict):
+                continue
+            paragraph_id = str(annotation.get("paragraph_id") or "")
+            labels = annotation.get("labels", [])
+            if paragraph_id and isinstance(labels, list):
+                label_index[document_id][paragraph_id] = [str(label) for label in labels]
+    return dict(label_index)
+
+
+def select_units_for_classification_task(
+    units: list[EvidenceParagraph],
+    *,
+    task_name: str,
+    labels_by_unit: dict[str, list[str]],
+    max_units: int,
+) -> list[EvidenceParagraph]:
+    scored = [
+        (score_unit_for_classification_task(unit, task_name, labels_by_unit), unit)
+        for unit in units
+    ]
+    selected = [
+        unit
+        for score, unit in sorted(scored, key=lambda item: (-item[0], item[1].ordinal))
+        if score > 0
+    ][:max_units]
+    if len(selected) < min(max_units, 4):
+        selected_ids = {unit.paragraph_id for unit in selected}
+        for unit in units:
+            if unit.paragraph_id not in selected_ids:
+                selected.append(unit)
+                selected_ids.add(unit.paragraph_id)
+            if len(selected) >= min(max_units, 4):
+                break
+    return sorted(selected, key=lambda unit: unit.ordinal)
+
+
+def score_unit_for_classification_task(
+    unit: EvidenceParagraph,
+    task_name: str,
+    labels_by_unit: dict[str, list[str]],
+) -> int:
+    labels = set(labels_by_unit.get(unit.paragraph_id, []))
+    text = normalize_label(" ".join([unit.section, unit.text]))
+    score = 0
+    label_weights = {
+        "condition_classification": {
+            "condition_or_target": 10,
+            "population_model": 4,
+            "outcomes_results": 3,
+            "safety_adverse_events": 2,
+        },
+        "cannabinoid_classification": {
+            "intervention_or_exposure": 10,
+            "dose_route_duration": 6,
+            "outcomes_results": 3,
+            "safety_adverse_events": 3,
+        },
+        "study_classification": {
+            "study_design": 10,
+            "population_model": 6,
+            "comparator_control": 5,
+            "outcomes_results": 4,
+        },
+    }[task_name]
+    score += sum(label_weights.get(label, 0) for label in labels)
+    keywords = {
+        "condition_classification": (
+            "condition",
+            "disease",
+            "pain",
+            "cancer",
+            "inflammation",
+            "depression",
+            "anxiety",
+            "epilepsy",
+            "symptom",
+            "diagnosis",
+            "patient",
+        ),
+        "cannabinoid_classification": (
+            "cannabis",
+            "cannabinoid",
+            "cannabidiol",
+            "cbd",
+            "thc",
+            "marijuana",
+            "nabiximols",
+            "dronabinol",
+            "nabilone",
+            "dose",
+            "route",
+        ),
+        "study_classification": (
+            "randomized",
+            "trial",
+            "cohort",
+            "case-control",
+            "cross-sectional",
+            "systematic review",
+            "meta-analysis",
+            "sample",
+            "participants",
+            "subjects",
+            "country",
+            "placebo",
+        ),
+    }[task_name]
+    score += sum(2 for keyword in keywords if keyword in text)
+    if unit.unit_type == "table":
+        score += 2
+    if normalize_label(unit.section) in {"methods", "results", "abstract"}:
+        score += 1
+    return score
+
+
+def build_unit_classification_packet(
+    candidate: StudyCandidate,
+    *,
+    task_name: str,
+    units: list[EvidenceParagraph],
+    labels_by_unit: dict[str, list[str]],
+    run_id: str,
+    semantic_index_path: Path | None,
+) -> dict[str, Any]:
+    schema = unit_classification_output_schema(task_name)
+    prompt = build_unit_classification_prompt(
+        candidate=candidate,
+        task_name=task_name,
+        schema=schema,
+        units=units,
+        labels_by_unit=labels_by_unit,
+        legacy_context_text=build_legacy_guardrail_text(candidate),
+    )
+    source_artifacts = [candidate.selected_artifact] if candidate.selected_artifact else []
+    source_artifacts.extend(candidate.metadata_artifacts)
+    return {
+        "run_id": run_id,
+        "document_id": candidate.document_id,
+        "context_id": candidate.context_id,
+        "task_name": task_name,
+        "prompt_version": f"{PROMPT_VERSION}_unit_{task_name}",
+        "prompt": prompt,
+        "expected_output_schema": schema,
+        "selected_unit_ids": [unit.paragraph_id for unit in units],
+        "units": units,
+        "provenance": {
+            "source": "llm_study_reclassification_poc",
+            "method": "unit_index_task_classification",
+            "does_not_mutate_sqlite_review_state": True,
+            "review_boundary": "unit_classification_candidate_not_reviewed_knowledge",
+            "retrieval_method": "semantic_document_unit_label_keyword_selection_v0.1",
+            "semantic_index_path": str(semantic_index_path) if semantic_index_path else None,
+            "source_artifact_ids": [
+                artifact.artifact_id for artifact in source_artifacts
+            ],
+            "source_artifact_paths": [
+                artifact.payload_path
+                for artifact in source_artifacts
+                if artifact.payload_path
+            ],
+            "legacy_context_id": candidate.context_id,
+        },
+    }
+
+
+def unit_classification_output_schema(task_name: str) -> dict[str, Any]:
+    common: dict[str, Any] = {
+        "document_id": "string",
+        "task_name": task_name,
+        "task_support_status": (
+            "supported | conflicting | partial | not_found | insufficient_evidence"
+        ),
+        "legacy_alignment": {
+            "alignment": "supports | conflicts | partial | not_in_legacy | insufficient_evidence",
+            "note": "string",
+            "cited_unit_ids": ["unit id"],
+        },
+        "needs_human_review": "boolean",
+        "review_reasons": ["string"],
+    }
+    evidence_entry = {
+        "support_status": "supported | conflicting | partial | not_found | insufficient_evidence",
+        "explicit_or_inferred": "explicit | inferred | unclear",
+        "cited_unit_ids": ["unit id"],
+        "evidence_text": "short verbatim substring from cited units, or empty string",
+        "confidence": "high | medium | low",
+    }
+    if task_name == "condition_classification":
+        common["condition_classification"] = {
+            "conditions": [
+                {
+                    "condition_name": "string",
+                    "condition_role": (
+                        "primary_target | secondary_target | comorbidity | context | "
+                        "outcome | not_found | unclear"
+                    ),
+                    "organ_systems": ["string"],
+                    **evidence_entry,
+                }
+            ],
+            "human_relevance": {
+                "population_type": "human | animal | in_vitro | mixed | unclear",
+                **evidence_entry,
+            },
+        }
+    elif task_name == "cannabinoid_classification":
+        common["cannabinoid_classification"] = {
+            "role_of_cannabinoid": (
+                "intervention | exposure | condition_context | population_context | "
+                "background_only | not_found | unclear"
+            ),
+            "is_primary_study_target": "boolean | unclear",
+            "cannabinoids_or_products": [
+                {
+                    "name": "string",
+                    "composition": "string | null",
+                    "dose_route_duration": "string | null",
+                    **evidence_entry,
+                }
+            ],
+            **evidence_entry,
+        }
+    elif task_name == "study_classification":
+        common["study_classification"] = {
+            "study_design": "string | null",
+            "study_design_family": (
+                "evidence_synthesis | human_clinical | human_observational | animal | "
+                "laboratory | case_report | mixed | not_found | unclear"
+            ),
+            "sample_size": "string | null",
+            "country_or_setting": "string | null",
+            "result_direction": (
+                "positive | negative | mixed | neutral | safety_signal | "
+                "not_reported | unclear"
+            ),
+            **evidence_entry,
+        }
+    return common
+
+
+def build_unit_classification_prompt(
+    *,
+    candidate: StudyCandidate,
+    task_name: str,
+    schema: dict[str, Any],
+    units: list[EvidenceParagraph],
+    labels_by_unit: dict[str, list[str]],
+    legacy_context_text: str,
+) -> str:
+    unit_text = "\n\n".join(
+        "\n".join(
+            [
+                f"[unit_id={unit.paragraph_id}]",
+                f"unit_type: {unit.unit_type}",
+                f"section: {unit.section}",
+                f"candidate_index_labels: {', '.join(labels_by_unit.get(unit.paragraph_id, []))}",
+                f"text: {unit.text}",
+            ]
+        )
+        for unit in units
+    )
+    return (
+        f"You are classifying one study-level task for a human-reviewed cannabinoid "
+        f"""evidence knowledge base.
+
+Task: {task_name}
+
+Rules:
+- Do not provide medical advice, treatment recommendations, or clinical instructions.
+- Return only valid JSON matching the schema.
+- Use English only.
+- Use only the selected document units below for source support.
+- Use the legacy English context only as a guardrail and comparison baseline.
+- Treat candidate_index_labels as retrieval hints, not truth.
+- Do not extract a field unless cited document units support that exact field.
+- Evidence text must be a short verbatim substring from the cited units.
+- Evidence text must be one contiguous substring from one cited unit; do not combine
+  separate passages, use ellipses, or summarize multiple units in one evidence_text.
+- If support_status is supported, conflicting, or partial, cited_unit_ids must be non-empty.
+- If evidence is missing, use not_found or insufficient_evidence.
+- Mark needs_human_review true when source evidence and legacy context conflict.
+- Prefer explicit source wording over legacy values when they conflict, but preserve
+  the conflict for human review.
+- legacy_alignment must be conflicts when the note says the source units and legacy
+  context describe different studies, populations, interventions, or conditions.
+- For study_classification, randomized trials, controlled trials, double-blind trials,
+  and open-label intervention trials are human_clinical unless the units clearly show
+  animal, laboratory, observational, or evidence-synthesis design.
+
+Output JSON schema:
+{json.dumps(schema, indent=2)}
+
+Document metadata:
+document_id: {candidate.document_id}
+title: {candidate.title or ""}
+publication_year: {candidate.publication_year or ""}
+legacy_study_type: {candidate.legacy_study_type or ""}
+legacy_study_result: {candidate.legacy_study_result or ""}
+legacy_sample_size: {candidate.legacy_sample_size or ""}
+
+Legacy English context:
+{legacy_context_text}
+
+Selected document units:
+{unit_text}
+"""
+    )
+
+
+def unit_classification_packet_preview(packet: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "run_id": packet["run_id"],
+        "document_id": packet["document_id"],
+        "task_name": packet["task_name"],
+        "prompt_version": packet["prompt_version"],
+        "prompt_chars": len(packet["prompt"]),
+        "selected_unit_ids": packet["selected_unit_ids"],
+        "unit_types": [unit.unit_type for unit in packet["units"]],
         "prompt": packet["prompt"],
     }
 
@@ -4116,6 +4645,226 @@ def build_micro_span_grounding_audit(
     }
 
 
+def build_unit_classification_chat_request(
+    packet: dict[str, Any],
+    *,
+    provider: ProviderName,
+    model: str,
+) -> dict[str, Any]:
+    system_content = (
+        "You classify auditable scientific evidence from selected document units "
+        "as compact JSON only. You never provide medical advice."
+    )
+    if provider == "anthropic":
+        return {
+            "model": model,
+            "system": system_content,
+            "messages": [{"role": "user", "content": packet["prompt"]}],
+            "temperature": 0,
+            "max_tokens": 1800,
+        }
+    return {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_content},
+            {"role": "user", "content": packet["prompt"]},
+        ],
+        "temperature": 0,
+        "max_completion_tokens": 1800,
+        "response_format": {"type": "json_object"},
+    }
+
+
+def run_unit_classification_packet_with_provider(
+    packet: dict[str, Any],
+    *,
+    provider: ProviderName,
+    model: str,
+    api_key: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    request_payload = build_unit_classification_chat_request(
+        packet,
+        provider=provider,
+        model=model,
+    )
+    raw_response: dict[str, Any] = {
+        "run_id": packet["run_id"],
+        "document_id": packet["document_id"],
+        "task_name": packet["task_name"],
+        "provider": provider,
+        "model": model,
+        "request": redacted_request_payload(request_payload),
+        "provenance": packet["provenance"],
+    }
+    started = time.monotonic()
+    try:
+        with httpx.Client(timeout=180) as client:
+            response, attempts = post_provider_with_retries(
+                client,
+                provider=provider,
+                request_payload=request_payload,
+                api_key=api_key,
+            )
+        raw_response["latency_seconds"] = round(time.monotonic() - started, 3)
+        raw_response["attempts"] = attempts
+        raw_response["status_code"] = response.status_code
+        raw_response["response_json"] = response.json()
+        response.raise_for_status()
+        content = response_content_text(raw_response["response_json"], provider=provider)
+        parsed = json.loads(content)
+        record = dict(parsed)
+        record.update(
+            {
+                "run_id": packet["run_id"],
+                "document_id": packet["document_id"],
+                "task_name": packet["task_name"],
+                "provider": provider,
+                "model": model,
+                "poc_status": "candidate_unit_classification",
+                "errors": [],
+                "provenance": unit_classification_provenance(
+                    packet,
+                    provider=provider,
+                    model=model,
+                    latency_seconds=raw_response["latency_seconds"],
+                ),
+            }
+        )
+        record["unit_grounding_audit"] = build_unit_grounding_audit(record, packet)
+        return record, raw_response
+    except Exception as exc:
+        record = error_unit_classification_record(
+            packet,
+            provider=provider,
+            model=model,
+            error=str(exc),
+        )
+        raw_response["latency_seconds"] = round(time.monotonic() - started, 3)
+        raw_response["error"] = str(exc)
+        return record, raw_response
+
+
+def unit_classification_provenance(
+    packet: dict[str, Any],
+    *,
+    provider: ProviderName,
+    model: str,
+    latency_seconds: float | None,
+) -> dict[str, Any]:
+    provenance = {
+        **packet["provenance"],
+        "provider": provider,
+        "model": model,
+        "prompt_version": packet["prompt_version"],
+        "selected_unit_ids": packet["selected_unit_ids"],
+        "input_prompt_chars": len(packet["prompt"]),
+        "rough_input_token_estimate": rough_token_count(packet["prompt"]),
+    }
+    if latency_seconds is not None:
+        provenance["latency_seconds"] = latency_seconds
+    return provenance
+
+
+def dry_run_unit_classification_record(
+    packet: dict[str, Any],
+    *,
+    provider: ProviderName,
+    model: str,
+) -> dict[str, Any]:
+    record = {
+        "run_id": packet["run_id"],
+        "document_id": packet["document_id"],
+        "task_name": packet["task_name"],
+        "provider": provider,
+        "model": model,
+        "poc_status": "dry_run_prompt_prepared",
+        "errors": [],
+        "task_support_status": "insufficient_evidence",
+        "needs_human_review": True,
+        "review_reasons": ["Dry run only; no unit classification was generated."],
+        "legacy_alignment": {},
+        "provenance": unit_classification_provenance(
+            packet,
+            provider=provider,
+            model=model,
+            latency_seconds=None,
+        ),
+    }
+    record["unit_grounding_audit"] = build_unit_grounding_audit(record, packet)
+    return record
+
+
+def error_unit_classification_record(
+    packet: dict[str, Any],
+    *,
+    provider: ProviderName,
+    model: str,
+    error: str,
+) -> dict[str, Any]:
+    record = dry_run_unit_classification_record(packet, provider=provider, model=model)
+    record["poc_status"] = "error"
+    record["errors"] = [error]
+    record["review_reasons"] = [
+        "Unit classification failed; inspect raw response before retry."
+    ]
+    return record
+
+
+def build_unit_grounding_audit(
+    record: dict[str, Any],
+    packet: dict[str, Any],
+) -> dict[str, Any]:
+    unit_text_by_id = {unit.paragraph_id: unit.text for unit in packet["units"]}
+    cited_unit_ids = collect_cited_unit_ids(record)
+    unknown_unit_ids = sorted(
+        unit_id for unit_id in cited_unit_ids if unit_id not in unit_text_by_id
+    )
+    unsupported_evidence_texts: list[dict[str, Any]] = []
+    for value in iter_nested_values(record):
+        if not isinstance(value, dict):
+            continue
+        evidence_text = clean_text(str(value.get("evidence_text") or ""))
+        if not evidence_text:
+            continue
+        entry_unit_ids = [
+            str(unit_id)
+            for unit_id in value.get("cited_unit_ids", [])
+            if unit_id is not None
+        ]
+        cited_text = " ".join(
+            unit_text_by_id.get(unit_id, "") for unit_id in entry_unit_ids
+        )
+        if normalize_label(evidence_text) not in normalize_label(cited_text):
+            unsupported_evidence_texts.append(
+                {
+                    "task_name": str(record.get("task_name", "")),
+                    "evidence_text": evidence_text,
+                    "cited_unit_ids": entry_unit_ids,
+                }
+            )
+    missing_required_citations = False
+    for value in iter_nested_values(record):
+        if not isinstance(value, dict):
+            continue
+        support_status = normalize_label(str(value.get("support_status", "")))
+        if support_status in {"supported", "conflicting", "partial"}:
+            missing_required_citations = missing_required_citations or not bool(
+                value.get("cited_unit_ids")
+            )
+    return {
+        "known_unit_count": len(unit_text_by_id),
+        "cited_unit_ids": sorted(cited_unit_ids),
+        "unknown_unit_ids": unknown_unit_ids,
+        "unsupported_evidence_texts": unsupported_evidence_texts,
+        "missing_required_citations": missing_required_citations,
+        "passes_basic_grounding": (
+            not unknown_unit_ids
+            and not unsupported_evidence_texts
+            and not missing_required_citations
+        ),
+    }
+
+
 def build_semantic_paragraph_chat_request(
     packet: dict[str, Any],
     *,
@@ -4507,6 +5256,23 @@ def collect_cited_span_ids(value: Any) -> set[str]:
         for item in value:
             span_ids.update(collect_cited_span_ids(item))
         return span_ids
+    return set()
+
+
+def collect_cited_unit_ids(value: Any) -> set[str]:
+    if isinstance(value, dict):
+        unit_ids: set[str] = set()
+        for key, nested in value.items():
+            if key == "cited_unit_ids" and isinstance(nested, list):
+                unit_ids.update(str(item) for item in nested if item is not None)
+            else:
+                unit_ids.update(collect_cited_unit_ids(nested))
+        return unit_ids
+    if isinstance(value, list):
+        unit_ids: set[str] = set()
+        for item in value:
+            unit_ids.update(collect_cited_unit_ids(item))
+        return unit_ids
     return set()
 
 
@@ -5802,6 +6568,114 @@ def build_micro_extraction_summary(
     }
 
 
+def build_unit_classification_summary(
+    *,
+    run_id: str,
+    dry_run: bool,
+    selected_tasks: list[str],
+    provider_models: list[tuple[ProviderName, str]],
+    cohort_path: Path,
+    database_path: Path,
+    semantic_index_path: Path | None,
+    records_path: Path,
+    raw_responses_path: Path,
+    prompt_previews_path: Path,
+    selected: list[StudyCandidate],
+    records: list[dict[str, Any]],
+    started_at: datetime,
+    completed_at: datetime,
+    max_units: int,
+) -> dict[str, Any]:
+    provider_task_metrics: dict[str, dict[str, Any]] = {}
+    for provider, model in provider_models:
+        for task_name in selected_tasks:
+            label = f"{task_name}:{provider}:{model}"
+            subset = [
+                record
+                for record in records
+                if record.get("provider") == provider
+                and record.get("model") == model
+                and record.get("task_name") == task_name
+            ]
+            grounding_records = [
+                record
+                for record in subset
+                if isinstance(record.get("unit_grounding_audit"), dict)
+            ]
+            passing = [
+                record
+                for record in grounding_records
+                if record["unit_grounding_audit"].get("passes_basic_grounding") is True
+            ]
+            provider_task_metrics[label] = {
+                "record_count": len(subset),
+                "grounding_pass_count": len(passing),
+                "grounding_pass_rate": (
+                    round(len(passing) / len(grounding_records), 4)
+                    if grounding_records
+                    else None
+                ),
+                "unsupported_evidence_count": sum(
+                    len(
+                        record.get("unit_grounding_audit", {}).get(
+                            "unsupported_evidence_texts",
+                            [],
+                        )
+                    )
+                    for record in grounding_records
+                ),
+                "missing_required_citation_count": sum(
+                    bool(
+                        record.get("unit_grounding_audit", {}).get(
+                            "missing_required_citations"
+                        )
+                    )
+                    for record in grounding_records
+                ),
+                "records_with_errors": sum(bool(record.get("errors")) for record in subset),
+                "needs_human_review_count": sum(
+                    bool(record.get("needs_human_review")) for record in subset
+                ),
+                "mean_latency_seconds": mean_latency_seconds(subset),
+            }
+    return {
+        "run_id": run_id,
+        "source": "llm_study_reclassification_poc",
+        "method": "compare_models_on_unit_index_task_classification",
+        "prompt_version": f"{PROMPT_VERSION}_unit_classification",
+        "dry_run": dry_run,
+        "tasks": selected_tasks,
+        "provider_models": [
+            {"provider": provider, "model": model} for provider, model in provider_models
+        ],
+        "started_at": started_at.isoformat(),
+        "completed_at": completed_at.isoformat(),
+        "cohort_path": str(cohort_path),
+        "database_path": str(database_path),
+        "semantic_index_path": str(semantic_index_path) if semantic_index_path else None,
+        "records_path": str(records_path),
+        "raw_responses_path": str(raw_responses_path),
+        "prompt_previews_path": str(prompt_previews_path),
+        "selected_count": len(selected),
+        "record_count": len(records),
+        "records_with_errors": sum(bool(record.get("errors")) for record in records),
+        "status_counts": dict(Counter(str(record.get("poc_status")) for record in records)),
+        "provider_task_metrics": provider_task_metrics,
+        "retrieval_policy": {
+            "max_units": max_units,
+            "method": "semantic labels when provided plus deterministic keyword scoring",
+        },
+        "notes": [
+            "Unit classification records use selected literal document units, "
+            "not narrative synthesis.",
+            "Semantic labels are retrieval hints only and remain candidate metadata.",
+            "Outputs are candidate evidence only, not reviewed knowledge.",
+            "This command does not validate identity, download full text, mutate SQLite, "
+            "or update review workflow state.",
+        ],
+    }
+
+
 def build_semantic_paragraph_index_summary(
     *,
     run_id: str,
@@ -6196,6 +7070,26 @@ def print_micro_extraction_summary(
     table.add_row("records", str(summary["record_count"]))
     table.add_row("records_with_errors", str(summary["records_with_errors"]))
     for label, metrics in summary["provider_field_metrics"].items():
+        table.add_row(
+            f"grounding_pass_rate:{label}",
+            str(metrics["grounding_pass_rate"]),
+        )
+    console.print(table)
+    console.print({"records": str(records_path), "raw_responses": str(raw_responses_path)})
+
+
+def print_unit_classification_summary(
+    summary: dict[str, Any],
+    records_path: Path,
+    raw_responses_path: Path,
+) -> None:
+    table = Table(title="LLM document-unit classification")
+    table.add_column("Metric")
+    table.add_column("Value", justify="right")
+    table.add_row("selected", str(summary["selected_count"]))
+    table.add_row("records", str(summary["record_count"]))
+    table.add_row("records_with_errors", str(summary["records_with_errors"]))
+    for label, metrics in summary["provider_task_metrics"].items():
         table.add_row(
             f"grounding_pass_rate:{label}",
             str(metrics["grounding_pass_rate"]),
