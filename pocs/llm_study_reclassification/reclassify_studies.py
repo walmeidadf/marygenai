@@ -46,6 +46,7 @@ DEFAULT_TASK_RUN_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "task_runs"
 DEFAULT_SUMMARY_PACKET_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "evidence_summary_packets"
 DEFAULT_SUMMARY_RUN_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "evidence_summary_runs"
 DEFAULT_MODEL_COMPARISON_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "model_comparison"
+DEFAULT_MICRO_EXTRACTION_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "micro_extraction"
 DEFAULT_MODEL = "llama-3.3-70b-versatile"
 DEFAULT_PROVIDER = "groq"
 DEFAULT_PROVIDER_MODELS = {
@@ -62,6 +63,11 @@ COMPARISON_TASKS = (
     "intervention_exposure",
     "condition_organ_system_extraction",
     "study_design_verification",
+)
+MICRO_EXTRACTION_FIELDS = (
+    "cannabinoid_role",
+    "target_condition",
+    "study_design",
 )
 FULL_TEXT_ARTIFACT_PRIORITY = {
     "pmc_nxml": 0,
@@ -1269,6 +1275,176 @@ def compare_model_batch(
         console.print("No model API calls were made.")
 
 
+@app.command("compare-micro-extraction-batch")
+def compare_micro_extraction_batch(
+    cohort_path: Annotated[
+        Path,
+        typer.Option("--cohort-path", help="Identity-confirmed English triage cohort JSONL."),
+    ] = DEFAULT_COHORT_PATH,
+    database_path: Annotated[
+        Path | None,
+        typer.Option("--database-path", help="SQLite database path."),
+    ] = None,
+    output_dir: Annotated[
+        Path | None,
+        typer.Option("--output-dir", help="Micro-extraction output directory."),
+    ] = None,
+    raw_output_dir: Annotated[
+        Path | None,
+        typer.Option("--raw-output-dir", help="Raw model response output directory."),
+    ] = None,
+    field: Annotated[
+        str,
+        typer.Option("--field", help="Micro field name or 'all'."),
+    ] = "all",
+    document_id: Annotated[
+        list[str] | None,
+        typer.Option("--document-id", help="Document id to include; repeat for fixed samples."),
+    ] = None,
+    limit: Annotated[
+        int | None,
+        typer.Option("--limit", min=1, help="Maximum candidates when document ids are omitted."),
+    ] = None,
+    provider: Annotated[
+        str,
+        typer.Option(
+            "--provider",
+            help="Provider name or comma-separated providers: groq, openai, anthropic.",
+        ),
+    ] = DEFAULT_PROVIDER,
+    model: Annotated[
+        str | None,
+        typer.Option("--model", help="Model name when exactly one provider is selected."),
+    ] = None,
+    model_overrides: Annotated[
+        str | None,
+        typer.Option(
+            "--model-overrides",
+            help="Comma-separated provider:model overrides for multi-provider comparisons.",
+        ),
+    ] = None,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Prepare prompts without calling model APIs."),
+    ] = False,
+    sleep_seconds: Annotated[
+        float,
+        typer.Option("--sleep-seconds", min=0.0, help="Delay between model calls."),
+    ] = 15.0,
+    max_spans: Annotated[
+        int,
+        typer.Option("--max-spans", min=3, max=24, help="Maximum extractive spans per field."),
+    ] = 10,
+) -> None:
+    """Compare providers on atomic field extraction instead of narrative synthesis."""
+    selected_fields = resolve_micro_extraction_fields(field)
+    provider_models = resolve_provider_models(
+        provider,
+        model=model,
+        model_overrides=model_overrides,
+    )
+    load_dotenv()
+    settings = get_settings()
+    resolved_database_path = database_path or sqlite_database_path(settings.data_dir)
+    resolved_output_dir = output_dir or settings.data_dir / DEFAULT_MICRO_EXTRACTION_SUBDIR
+    resolved_raw_output_dir = raw_output_dir or settings.data_dir / DEFAULT_RAW_SUBDIR
+    resolved_output_dir.mkdir(parents=True, exist_ok=True)
+    resolved_raw_output_dir.mkdir(parents=True, exist_ok=True)
+    run_started_at = datetime.now(UTC)
+    run_id = run_started_at.strftime("%Y%m%dT%H%M%SZ_llm_study_micro_extraction")
+    field_slug = "all" if len(selected_fields) > 1 else selected_fields[0]
+    records_path = resolved_output_dir / f"{run_id}_{field_slug}_records.jsonl"
+    summary_path = resolved_output_dir / f"{run_id}_{field_slug}_summary.json"
+    raw_responses_path = (
+        resolved_raw_output_dir / f"{run_id}_{field_slug}_micro_extraction_raw_responses.jsonl"
+    )
+    prompt_previews_path = (
+        resolved_raw_output_dir / f"{run_id}_{field_slug}_micro_extraction_prompt_previews.jsonl"
+    )
+
+    candidates = load_candidates_for_poc(
+        cohort_path=cohort_path,
+        database_path=resolved_database_path,
+    )
+    selected = select_micro_extraction_candidates(
+        candidates,
+        document_ids=document_id or [],
+        limit=limit,
+    )
+
+    records: list[dict[str, Any]] = []
+    raw_responses: list[dict[str, Any]] = []
+    prompt_previews: list[dict[str, Any]] = []
+    for candidate in selected:
+        evidence_plan = build_evidence_plan(
+            candidate,
+            max_source_chars=MAX_SOURCE_CHARS,
+            direct_full_text_char_limit=DIRECT_FULL_TEXT_CHAR_LIMIT,
+            large_full_text_char_limit=LARGE_FULL_TEXT_CHAR_LIMIT,
+        )
+        for field_name in selected_fields:
+            packet = build_micro_extraction_packet(
+                candidate,
+                evidence_plan=evidence_plan,
+                field_name=field_name,
+                run_id=run_id,
+                max_spans=max_spans,
+            )
+            prompt_previews.append(micro_extraction_packet_preview(packet))
+            for provider_name, model_name in provider_models:
+                if dry_run:
+                    record = dry_run_micro_extraction_record(
+                        packet,
+                        provider=provider_name,
+                        model=model_name,
+                    )
+                    records.append(record)
+                    append_jsonl(records_path, [record])
+                    continue
+                api_key = resolve_provider_api_key(provider_name)
+                if not api_key:
+                    record = error_micro_extraction_record(
+                        packet,
+                        provider=provider_name,
+                        model=model_name,
+                        error=f"{api_key_env_var(provider_name)} is not set.",
+                    )
+                    records.append(record)
+                    append_jsonl(records_path, [record])
+                    continue
+                record, raw_response = run_micro_extraction_packet_with_provider(
+                    packet,
+                    provider=provider_name,
+                    model=model_name,
+                    api_key=api_key,
+                )
+                records.append(record)
+                raw_responses.append(raw_response)
+                append_jsonl(records_path, [record])
+                append_jsonl(raw_responses_path, [raw_response])
+                if sleep_seconds:
+                    time.sleep(sleep_seconds)
+    append_jsonl(prompt_previews_path, prompt_previews)
+
+    summary = build_micro_extraction_summary(
+        run_id=run_id,
+        dry_run=dry_run,
+        selected_fields=selected_fields,
+        provider_models=provider_models,
+        cohort_path=cohort_path,
+        database_path=resolved_database_path,
+        records_path=records_path,
+        raw_responses_path=raw_responses_path,
+        prompt_previews_path=prompt_previews_path,
+        selected=selected,
+        records=records,
+        started_at=run_started_at,
+        completed_at=datetime.now(UTC),
+    )
+    write_json(summary_path, summary)
+    print_micro_extraction_summary(summary, records_path, raw_responses_path)
+
+
 def build_run_paths(*, output_dir: Path, raw_output_dir: Path, run_id: str) -> RunPaths:
     output_dir.mkdir(parents=True, exist_ok=True)
     raw_output_dir.mkdir(parents=True, exist_ok=True)
@@ -1430,6 +1606,248 @@ def dry_run_summary_comparison_record(
         "review_reason_count": 1,
     }
     return record
+
+
+def resolve_micro_extraction_fields(field: str) -> list[str]:
+    if field == "all":
+        return list(MICRO_EXTRACTION_FIELDS)
+    if field not in MICRO_EXTRACTION_FIELDS:
+        raise typer.BadParameter(
+            "field must be 'all' or one of: " + ", ".join(MICRO_EXTRACTION_FIELDS)
+        )
+    return [field]
+
+
+def select_micro_extraction_candidates(
+    candidates: list[StudyCandidate],
+    *,
+    document_ids: list[str],
+    limit: int | None,
+) -> list[StudyCandidate]:
+    if document_ids:
+        requested = set(document_ids)
+        selected = [candidate for candidate in candidates if candidate.document_id in requested]
+        missing = sorted(requested.difference({candidate.document_id for candidate in selected}))
+        if missing:
+            raise typer.BadParameter("Unknown document ids: " + ", ".join(missing))
+        return selected
+    return select_stratified_candidates(candidates, processed_document_ids=set(), limit=limit)
+
+
+def micro_field_task_name(field_name: str) -> str:
+    return {
+        "cannabinoid_role": "intervention_exposure",
+        "target_condition": "condition_organ_system_extraction",
+        "study_design": "study_design_verification",
+    }[field_name]
+
+
+def build_micro_extraction_packet(
+    candidate: StudyCandidate,
+    *,
+    evidence_plan: EvidencePlan,
+    field_name: str,
+    run_id: str,
+    max_spans: int,
+) -> dict[str, Any]:
+    task_name = micro_field_task_name(field_name)
+    spans = select_task_evidence_spans(
+        candidate,
+        evidence_plan=evidence_plan,
+        task_name=task_name,
+        max_spans=max_spans,
+    )
+    legacy_guardrail = build_legacy_guardrail_text(candidate)
+    schema = micro_extraction_output_schema(field_name)
+    prompt = build_micro_extraction_prompt(
+        candidate=candidate,
+        field_name=field_name,
+        task_name=task_name,
+        schema=schema,
+        spans=spans,
+        legacy_context_text=legacy_guardrail,
+    )
+    source_artifacts = [candidate.selected_artifact] if candidate.selected_artifact else []
+    source_artifacts.extend(candidate.metadata_artifacts)
+    return {
+        "run_id": run_id,
+        "document_id": candidate.document_id,
+        "context_id": candidate.context_id,
+        "task_name": task_name,
+        "field_name": field_name,
+        "prompt_version": f"{PROMPT_VERSION}_micro_{field_name}",
+        "prompt": prompt,
+        "expected_output_schema": schema,
+        "selected_span_ids": [span.span_id for span in spans],
+        "selected_chunk_ids": sorted(
+            {span.chunk_id for span in spans if span.chunk_id is not None}
+        ),
+        "spans": spans,
+        "context_strategy": evidence_plan.context_strategy,
+        "evidence_source_used": evidence_plan.evidence_source_used,
+        "provenance": {
+            "source": "llm_study_reclassification_poc",
+            "method": "micro_field_extraction_packet",
+            "does_not_mutate_sqlite_review_state": True,
+            "review_boundary": "micro_extraction_candidate_not_reviewed_knowledge",
+            "retrieval_method": evidence_plan.retrieval_method,
+            "compression_method": "deterministic_extractive_spans_v0.1",
+            "source_artifact_ids": [
+                artifact.artifact_id for artifact in source_artifacts
+            ],
+            "source_artifact_paths": [
+                artifact.payload_path
+                for artifact in source_artifacts
+                if artifact.payload_path
+            ],
+            "legacy_context_id": candidate.context_id,
+        },
+    }
+
+
+def micro_extraction_output_schema(field_name: str) -> dict[str, Any]:
+    support_status_values = (
+        "supported | conflicting | partial | not_found | insufficient_evidence"
+    )
+    common = {
+        "document_id": "string",
+        "field_name": field_name,
+        "candidate": {
+            "candidate_value": "string | boolean | null",
+            "support_status": support_status_values,
+            "explicit_or_inferred": "explicit | inferred | unclear",
+            "cited_span_ids": ["span_id"],
+            "evidence_text": "short verbatim substring from cited spans, or empty string",
+            "confidence": "high | medium | low",
+        },
+        "legacy_alignment": {
+            "alignment": "supports | conflicts | partial | not_in_legacy | insufficient_evidence",
+            "note": "string",
+            "cited_span_ids": ["span_id"],
+        },
+        "needs_human_review": "boolean",
+        "review_reasons": ["string"],
+    }
+    if field_name == "cannabinoid_role":
+        common["candidate"] = {
+            "role_of_cannabinoid": (
+                "intervention | exposure | condition_context | population_context | "
+                "background_only | not_found | unclear"
+            ),
+            "is_primary_study_target": "boolean | unclear",
+            "support_status": support_status_values,
+            "explicit_or_inferred": "explicit | inferred | unclear",
+            "cited_span_ids": ["span_id"],
+            "evidence_text": "short verbatim substring from cited spans, or empty string",
+            "confidence": "high | medium | low",
+        }
+    if field_name == "target_condition":
+        common["candidate"] = {
+            "condition_name": "string | null",
+            "condition_role": (
+                "primary_target | secondary_target | comorbidity | context | "
+                "outcome | not_found | unclear"
+            ),
+            "organ_system": "string | null",
+            "organ_system_support": "explicit | inferred | not_found | unclear",
+            "support_status": support_status_values,
+            "cited_span_ids": ["span_id"],
+            "evidence_text": "short verbatim substring from cited spans, or empty string",
+            "confidence": "high | medium | low",
+        }
+    if field_name == "study_design":
+        common["candidate"] = {
+            "study_design": "string | null",
+            "study_design_family": (
+                "evidence_synthesis | human_clinical | human_observational | animal | "
+                "laboratory | case_report | mixed | not_found | unclear"
+            ),
+            "support_status": support_status_values,
+            "cited_span_ids": ["span_id"],
+            "evidence_text": "short verbatim substring from cited spans, or empty string",
+            "confidence": "high | medium | low",
+        }
+    return common
+
+
+def build_micro_extraction_prompt(
+    *,
+    candidate: StudyCandidate,
+    field_name: str,
+    task_name: str,
+    schema: dict[str, Any],
+    spans: list[EvidenceSpan],
+    legacy_context_text: str,
+) -> str:
+    span_text = "\n\n".join(
+        "\n".join(
+            [
+                f"[span_id={span.span_id}]",
+                f"chunk_id: {span.chunk_id or ''}",
+                f"section: {span.section}",
+                f"text: {span.text}",
+            ]
+        )
+        for span in spans
+    )
+    return (
+        f"You are extracting one atomic field for a human-reviewed cannabinoid "
+        f"""evidence knowledge base.
+
+Task: {task_name}
+Atomic field: {field_name}
+
+Rules:
+- Do not provide medical advice, treatment recommendations, or clinical instructions.
+- Return only valid JSON matching the schema.
+- Use English only.
+- Use only the evidence spans below for source support.
+- Use the legacy English context only as a guardrail and comparison baseline.
+- Do not write a narrative synthesis.
+- Do not extract a value unless the cited spans support that exact field.
+- Evidence text must be a short verbatim substring from the cited spans.
+- If support_status is supported, conflicting, or partial, cited_span_ids must be non-empty.
+- If evidence is missing, set support_status to not_found or insufficient_evidence.
+- Mark needs_human_review true when source evidence and legacy context conflict.
+- For cannabinoid_role, distinguish intervention, exposure, condition_context,
+  population_context, background_only, not_found, and unclear.
+- For target_condition, do not treat a comorbidity or setting as the primary study target.
+- For study_design, prefer the span wording over legacy when they conflict, and preserve
+  the conflict for human review.
+
+Output JSON schema:
+{json.dumps(schema, indent=2)}
+
+Document metadata:
+document_id: {candidate.document_id}
+title: {candidate.title or ""}
+publication_year: {candidate.publication_year or ""}
+legacy_study_type: {candidate.legacy_study_type or ""}
+legacy_study_result: {candidate.legacy_study_result or ""}
+legacy_sample_size: {candidate.legacy_sample_size or ""}
+
+Legacy English context:
+{legacy_context_text}
+
+Evidence spans:
+{span_text}
+"""
+    )
+
+
+def micro_extraction_packet_preview(packet: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "run_id": packet["run_id"],
+        "document_id": packet["document_id"],
+        "task_name": packet["task_name"],
+        "field_name": packet["field_name"],
+        "prompt_chars": len(packet["prompt"]),
+        "selected_span_ids": packet["selected_span_ids"],
+        "selected_chunk_ids": packet["selected_chunk_ids"],
+        "context_strategy": packet["context_strategy"],
+        "evidence_source_used": packet["evidence_source_used"],
+        "prompt": packet["prompt"],
+    }
 
 
 def prompt_preview_record(prompt_package: PromptPackage) -> dict[str, Any]:
@@ -2729,6 +3147,233 @@ def run_summary_packet_with_groq(
     )
 
 
+def build_micro_extraction_chat_request(
+    packet: dict[str, Any],
+    *,
+    provider: ProviderName,
+    model: str,
+) -> dict[str, Any]:
+    system_content = (
+        "You extract one auditable scientific field as compact JSON only. "
+        "You never provide medical advice."
+    )
+    if provider == "anthropic":
+        return {
+            "model": model,
+            "system": system_content,
+            "messages": [{"role": "user", "content": packet["prompt"]}],
+            "temperature": 0,
+            "max_tokens": 900,
+        }
+    return {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_content},
+            {"role": "user", "content": packet["prompt"]},
+        ],
+        "temperature": 0,
+        "max_completion_tokens": 900,
+        "response_format": {"type": "json_object"},
+    }
+
+
+def run_micro_extraction_packet_with_provider(
+    packet: dict[str, Any],
+    *,
+    provider: ProviderName,
+    model: str,
+    api_key: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    request_payload = build_micro_extraction_chat_request(
+        packet,
+        provider=provider,
+        model=model,
+    )
+    raw_response: dict[str, Any] = {
+        "run_id": packet["run_id"],
+        "document_id": packet["document_id"],
+        "task_name": packet["task_name"],
+        "field_name": packet["field_name"],
+        "provider": provider,
+        "model": model,
+        "request": redacted_request_payload(request_payload),
+        "provenance": packet["provenance"],
+    }
+    started = time.monotonic()
+    try:
+        with httpx.Client(timeout=120) as client:
+            response, attempts = post_provider_with_retries(
+                client,
+                provider=provider,
+                request_payload=request_payload,
+                api_key=api_key,
+            )
+        raw_response["latency_seconds"] = round(time.monotonic() - started, 3)
+        raw_response["attempts"] = attempts
+        raw_response["status_code"] = response.status_code
+        raw_response["response_json"] = response.json()
+        response.raise_for_status()
+        content = response_content_text(raw_response["response_json"], provider=provider)
+        parsed = json.loads(content)
+        record = dict(parsed)
+        record.update(
+            {
+                "run_id": packet["run_id"],
+                "document_id": packet["document_id"],
+                "task_name": packet["task_name"],
+                "field_name": packet["field_name"],
+                "provider": provider,
+                "model": model,
+                "poc_status": "candidate_micro_extraction",
+                "errors": [],
+                "provenance": micro_extraction_provenance(
+                    packet,
+                    provider=provider,
+                    model=model,
+                    latency_seconds=raw_response["latency_seconds"],
+                ),
+            }
+        )
+        record["span_grounding_audit"] = build_micro_span_grounding_audit(record, packet)
+        record["comparison_audit"] = build_model_comparison_record_audit(
+            record,
+            raw_response=raw_response,
+        )
+        return record, raw_response
+    except Exception as exc:
+        record = error_micro_extraction_record(
+            packet,
+            provider=provider,
+            model=model,
+            error=str(exc),
+        )
+        raw_response["latency_seconds"] = round(time.monotonic() - started, 3)
+        raw_response["error"] = str(exc)
+        return record, raw_response
+
+
+def micro_extraction_provenance(
+    packet: dict[str, Any],
+    *,
+    provider: ProviderName,
+    model: str,
+    latency_seconds: float | None,
+) -> dict[str, Any]:
+    provenance = {
+        **packet["provenance"],
+        "provider": provider,
+        "model": model,
+        "prompt_version": packet["prompt_version"],
+        "selected_span_ids": packet["selected_span_ids"],
+        "selected_chunk_ids": packet["selected_chunk_ids"],
+        "context_strategy": packet["context_strategy"],
+        "evidence_source_used": packet["evidence_source_used"],
+        "input_prompt_chars": len(packet["prompt"]),
+        "rough_input_token_estimate": rough_token_count(packet["prompt"]),
+    }
+    if latency_seconds is not None:
+        provenance["latency_seconds"] = latency_seconds
+    return provenance
+
+
+def dry_run_micro_extraction_record(
+    packet: dict[str, Any],
+    *,
+    provider: ProviderName,
+    model: str,
+) -> dict[str, Any]:
+    record = {
+        "run_id": packet["run_id"],
+        "document_id": packet["document_id"],
+        "task_name": packet["task_name"],
+        "field_name": packet["field_name"],
+        "provider": provider,
+        "model": model,
+        "poc_status": "dry_run_prompt_prepared",
+        "errors": [],
+        "needs_human_review": True,
+        "review_reasons": ["Dry run only; no micro extraction was generated."],
+        "candidate": {},
+        "legacy_alignment": {},
+        "provenance": micro_extraction_provenance(
+            packet,
+            provider=provider,
+            model=model,
+            latency_seconds=None,
+        ),
+    }
+    record["span_grounding_audit"] = build_micro_span_grounding_audit(record, packet)
+    return record
+
+
+def error_micro_extraction_record(
+    packet: dict[str, Any],
+    *,
+    provider: ProviderName,
+    model: str,
+    error: str,
+) -> dict[str, Any]:
+    record = dry_run_micro_extraction_record(packet, provider=provider, model=model)
+    record["poc_status"] = "error"
+    record["errors"] = [error]
+    record["review_reasons"] = ["Micro extraction failed; inspect raw response before retry."]
+    return record
+
+
+def build_micro_span_grounding_audit(
+    record: dict[str, Any],
+    packet: dict[str, Any],
+) -> dict[str, Any]:
+    span_text_by_id = {span.span_id: span.text for span in packet["spans"]}
+    cited_span_ids = collect_cited_span_ids(record)
+    unknown_span_ids = sorted(
+        span_id for span_id in cited_span_ids if span_id not in span_text_by_id
+    )
+    unsupported_evidence_texts: list[dict[str, Any]] = []
+    for value in iter_nested_values(record):
+        if not isinstance(value, dict):
+            continue
+        evidence_text = clean_text(str(value.get("evidence_text") or ""))
+        if not evidence_text:
+            continue
+        entry_span_ids = [
+            str(span_id)
+            for span_id in value.get("cited_span_ids", [])
+            if span_id is not None
+        ]
+        cited_text = " ".join(span_text_by_id.get(span_id, "") for span_id in entry_span_ids)
+        if normalize_label(evidence_text) not in normalize_label(cited_text):
+            unsupported_evidence_texts.append(
+                {
+                    "field_name": str(record.get("field_name", "")),
+                    "candidate_value": value.get("candidate_value")
+                    or value.get("role_of_cannabinoid")
+                    or value.get("condition_name")
+                    or value.get("study_design"),
+                    "evidence_text": evidence_text,
+                    "cited_span_ids": entry_span_ids,
+                }
+            )
+    candidate = record.get("candidate")
+    missing_required_citations = False
+    if isinstance(candidate, dict):
+        support_status = normalize_label(str(candidate.get("support_status", "")))
+        if support_status in {"supported", "conflicting", "partial"}:
+            missing_required_citations = not bool(candidate.get("cited_span_ids"))
+    return {
+        "known_span_count": len(span_text_by_id),
+        "cited_span_ids": sorted(cited_span_ids),
+        "unknown_span_ids": unknown_span_ids,
+        "unsupported_evidence_texts": unsupported_evidence_texts,
+        "missing_required_citations": missing_required_citations,
+        "passes_basic_grounding": (
+            not unknown_span_ids
+            and not unsupported_evidence_texts
+            and not missing_required_citations
+        ),
+    }
+
+
 def build_span_grounding_audit(
     record: dict[str, Any],
     packet: EvidenceSummaryPacketRecord,
@@ -3929,7 +4574,12 @@ def build_model_comparison_summary(
                 else None
             ),
             "unsupported_evidence_count": sum(
-                len(record.get("span_grounding_audit", {}).get("unsupported_evidence_texts", []))
+                len(
+                    record.get("span_grounding_audit", {}).get(
+                        "unsupported_evidence_texts",
+                        [],
+                    )
+                )
                 for record in grounding_records
             ),
             "cited_span_count": sum(
@@ -3976,6 +4626,105 @@ def build_model_comparison_summary(
             "This command does not validate identity, download full text, mutate SQLite, "
             "or update review workflow state.",
             preliminary_model_comparison_note(provider_model_grounding, dry_run=dry_run),
+        ],
+    }
+
+
+def build_micro_extraction_summary(
+    *,
+    run_id: str,
+    dry_run: bool,
+    selected_fields: list[str],
+    provider_models: list[tuple[ProviderName, str]],
+    cohort_path: Path,
+    database_path: Path,
+    records_path: Path,
+    raw_responses_path: Path,
+    prompt_previews_path: Path,
+    selected: list[StudyCandidate],
+    records: list[dict[str, Any]],
+    started_at: datetime,
+    completed_at: datetime,
+) -> dict[str, Any]:
+    provider_field_metrics: dict[str, dict[str, Any]] = {}
+    for provider, model in provider_models:
+        for field_name in selected_fields:
+            label = f"{field_name}:{provider}:{model}"
+            subset = [
+                record
+                for record in records
+                if record.get("provider") == provider
+                and record.get("model") == model
+                and record.get("field_name") == field_name
+            ]
+            grounding_records = [
+                record
+                for record in subset
+                if isinstance(record.get("span_grounding_audit"), dict)
+            ]
+            passing = [
+                record
+                for record in grounding_records
+                if record["span_grounding_audit"].get("passes_basic_grounding") is True
+            ]
+            provider_field_metrics[label] = {
+                "record_count": len(subset),
+                "grounding_pass_count": len(passing),
+                "grounding_pass_rate": (
+                    round(len(passing) / len(grounding_records), 4)
+                    if grounding_records
+                    else None
+                ),
+                "unsupported_evidence_count": sum(
+                    len(
+                        record.get("span_grounding_audit", {}).get(
+                            "unsupported_evidence_texts",
+                            [],
+                        )
+                    )
+                    for record in grounding_records
+                ),
+                "missing_required_citation_count": sum(
+                    bool(
+                        record.get("span_grounding_audit", {}).get(
+                            "missing_required_citations"
+                        )
+                    )
+                    for record in grounding_records
+                ),
+                "records_with_errors": sum(bool(record.get("errors")) for record in subset),
+                "needs_human_review_count": sum(
+                    bool(record.get("needs_human_review")) for record in subset
+                ),
+                "mean_latency_seconds": mean_latency_seconds(subset),
+            }
+    return {
+        "run_id": run_id,
+        "source": "llm_study_reclassification_poc",
+        "method": "compare_models_on_atomic_micro_extraction",
+        "prompt_version": f"{PROMPT_VERSION}_micro",
+        "dry_run": dry_run,
+        "fields": selected_fields,
+        "provider_models": [
+            {"provider": provider, "model": model} for provider, model in provider_models
+        ],
+        "started_at": started_at.isoformat(),
+        "completed_at": completed_at.isoformat(),
+        "cohort_path": str(cohort_path),
+        "database_path": str(database_path),
+        "records_path": str(records_path),
+        "raw_responses_path": str(raw_responses_path),
+        "prompt_previews_path": str(prompt_previews_path),
+        "selected_count": len(selected),
+        "record_count": len(records),
+        "records_with_errors": sum(bool(record.get("errors")) for record in records),
+        "status_counts": dict(Counter(str(record.get("poc_status")) for record in records)),
+        "provider_field_metrics": provider_field_metrics,
+        "notes": [
+            "Micro extraction records avoid narrative synthesis and classify one field at a time.",
+            "Outputs are candidate evidence only, not reviewed knowledge.",
+            "This command does not validate identity, download full text, mutate SQLite, "
+            "or update review workflow state.",
         ],
     }
 
@@ -4239,6 +4988,26 @@ def print_model_comparison_summary(
     table.add_row("records", str(summary["record_count"]))
     table.add_row("records_with_errors", str(summary["records_with_errors"]))
     for label, metrics in summary["provider_model_grounding"].items():
+        table.add_row(
+            f"grounding_pass_rate:{label}",
+            str(metrics["grounding_pass_rate"]),
+        )
+    console.print(table)
+    console.print({"records": str(records_path), "raw_responses": str(raw_responses_path)})
+
+
+def print_micro_extraction_summary(
+    summary: dict[str, Any],
+    records_path: Path,
+    raw_responses_path: Path,
+) -> None:
+    table = Table(title="LLM study micro extraction")
+    table.add_column("Metric")
+    table.add_column("Value", justify="right")
+    table.add_row("selected", str(summary["selected_count"]))
+    table.add_row("records", str(summary["record_count"]))
+    table.add_row("records_with_errors", str(summary["records_with_errors"]))
+    for label, metrics in summary["provider_field_metrics"].items():
         table.add_row(
             f"grounding_pass_rate:{label}",
             str(metrics["grounding_pass_rate"]),

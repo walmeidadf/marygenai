@@ -6,6 +6,8 @@ from pocs.llm_study_reclassification.reclassify_studies import (
     build_candidates,
     build_evidence_plan,
     build_evidence_summary_packet_record,
+    build_micro_extraction_packet,
+    build_micro_span_grounding_audit,
     build_prompt_package,
     build_span_grounding_audit,
     build_task_packet_record,
@@ -17,6 +19,7 @@ from pocs.llm_study_reclassification.reclassify_studies import (
     result_direction_matches,
     select_best_full_text_artifact,
     select_evidence_chunks,
+    select_micro_extraction_candidates,
     select_stratified_candidates,
     select_task_evidence_spans,
 )
@@ -625,3 +628,117 @@ def test_model_comparison_dry_run_preserves_packet_provenance(tmp_path: Path) ->
     assert record["provenance"]["selected_span_ids"] == packet.selected_span_ids
     assert record["provenance"]["legacy_context_id"] == "legacy_english_context:1"
     assert record["span_grounding_audit"]["passes_basic_grounding"] is True
+
+
+def test_micro_extraction_packet_is_atomic_and_preserves_spans(tmp_path: Path) -> None:
+    xml_path = tmp_path / "article.nxml"
+    xml_path.write_text(
+        """
+        <article><body>
+          <sec><title>Methods</title>
+            <p>Participants received oral cannabidiol or placebo for pain.</p>
+          </sec>
+        </body></article>
+        """,
+        encoding="utf-8",
+    )
+    candidate = build_candidates(
+        [
+            {
+                "document_id": "publication:pmid:1",
+                "context_id": "legacy_english_context:1",
+                "title": "Cannabidiol and pain",
+                "type_of_study": "Clinical Trial",
+                "study_result": "Positive",
+            }
+        ],
+        artifacts_by_document_id={
+            "publication:pmid:1": [
+                make_artifact(
+                    "pmc_nxml",
+                    document_id="publication:pmid:1",
+                    payload_path=str(xml_path),
+                )
+            ]
+        },
+        abstracts_by_document_id={},
+    )[0]
+    evidence_plan = build_evidence_plan(
+        candidate,
+        max_source_chars=5_000,
+        direct_full_text_char_limit=50,
+        large_full_text_char_limit=80_000,
+    )
+
+    packet = build_micro_extraction_packet(
+        candidate,
+        evidence_plan=evidence_plan,
+        field_name="cannabinoid_role",
+        run_id="test-run",
+        max_spans=4,
+    )
+
+    assert packet["field_name"] == "cannabinoid_role"
+    assert packet["task_name"] == "intervention_exposure"
+    assert packet["selected_span_ids"]
+    assert "Do not write a narrative synthesis" in packet["prompt"]
+    assert "role_of_cannabinoid" in packet["prompt"]
+    assert packet["provenance"]["legacy_context_id"] == "legacy_english_context:1"
+
+
+def test_micro_span_grounding_requires_citations_for_supported_values() -> None:
+    packet = {
+        "spans": [],
+        "field_name": "cannabinoid_role",
+    }
+    record = {
+        "field_name": "cannabinoid_role",
+        "candidate": {
+            "role_of_cannabinoid": "intervention",
+            "support_status": "supported",
+            "cited_span_ids": [],
+            "evidence_text": "",
+        },
+    }
+
+    audit = build_micro_span_grounding_audit(record, packet)
+
+    assert audit["passes_basic_grounding"] is False
+    assert audit["missing_required_citations"] is True
+
+
+def test_select_micro_extraction_candidates_uses_fixed_document_ids() -> None:
+    candidates = [
+        build_candidates(
+            [
+                {
+                    "document_id": "publication:pmid:1",
+                    "context_id": "legacy_english_context:1",
+                    "title": "One",
+                    "type_of_study": "Clinical Trial",
+                }
+            ],
+            artifacts_by_document_id={},
+            abstracts_by_document_id={},
+        )[0],
+        build_candidates(
+            [
+                {
+                    "document_id": "publication:pmid:2",
+                    "context_id": "legacy_english_context:2",
+                    "title": "Two",
+                    "type_of_study": "Clinical Trial",
+                }
+            ],
+            artifacts_by_document_id={},
+            abstracts_by_document_id={},
+        )[0],
+    ]
+
+    selected = select_micro_extraction_candidates(
+        candidates,
+        document_ids=["publication:pmid:2"],
+        limit=None,
+    )
+
+    assert [candidate.document_id for candidate in selected] == ["publication:pmid:2"]
