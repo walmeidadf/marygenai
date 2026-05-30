@@ -81,17 +81,20 @@ uv run python pocs/llm_study_reclassification/reclassify_studies.py compare-mode
 uv run python pocs/llm_study_reclassification/reclassify_studies.py compare-model-batch --task condition_organ_system_extraction --limit 5 --provider groq,openai --dry-run
 ```
 
-`compare-model-batch` supports `groq`, `openai`, and `anthropic` through direct
-HTTP calls with keys loaded from the environment or `.env`:
+The model comparison commands support `groq`, `openai`, `anthropic`, and
+`cerebras` through direct HTTP calls with keys loaded from the environment or
+`.env`:
 
 - `GROQ_API_KEY`
 - `OPENAI_API_KEY`
 - `ANTHROPIC_API_KEY`
+- `CEREBRAS_API_KEY`
 
 The default models are `llama-3.3-70b-versatile` for Groq, `gpt-4.1` for
-OpenAI, and `claude-3-5-sonnet-latest` for Anthropic. Use `--model` when running
-one provider, or `--model-overrides openai:gpt-4.1-mini,groq:MODEL_NAME` for a
-multi-provider run.
+OpenAI, `claude-3-5-sonnet-latest` for Anthropic, and `gpt-oss-120b` for
+Cerebras. Use `--model` when running one provider, or
+`--model-overrides openai:gpt-4.1-mini,cerebras:MODEL_NAME` for a multi-provider
+run.
 
 The comparison command currently accepts these high-judgment extraction tasks:
 
@@ -109,6 +112,18 @@ version, selected span ids, selected chunk ids, source artifact ids/paths,
 legacy context id, rough prompt size, latency when available, and local grounding
 audit metrics. Previous non-dry-run records are skipped by
 document/task/provider/model unless `--retry-errors` is used.
+
+Prepare a semantic paragraph index from literal cleaned article paragraphs:
+
+```bash
+uv run python pocs/llm_study_reclassification/reclassify_studies.py compare-semantic-paragraph-index --provider openai --document-id publication:url:05c015f9550941da --window-paragraphs 10 --overlap-paragraphs 2 --max-windows-per-document 3
+```
+
+This command does not paraphrase the article. It removes obvious boilerplate,
+assigns short paragraph ids such as `p0001`, classifies paragraph windows with
+overlap, audits paragraph ids and labels, then writes a merged candidate index
+under `data/normalized/llm_study_reclassification/semantic_paragraph_index/`.
+The labels are candidate retrieval metadata only, not reviewed knowledge.
 
 ```bash
 uv run python pocs/llm_study_reclassification/reclassify_studies.py run --dry-run --limit 5

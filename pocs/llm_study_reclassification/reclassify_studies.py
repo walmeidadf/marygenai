@@ -32,7 +32,7 @@ from marygenai.persistence.sqlite import sqlite_database_path
 from marygenai.schemas import InputArtifact, OutputArtifact, RunManifest
 from marygenai.settings import get_settings
 
-ProviderName = Literal["groq", "openai", "anthropic"]
+ProviderName = Literal["groq", "openai", "anthropic", "cerebras"]
 
 DEFAULT_COHORT_PATH = Path(
     "data/normalized/legacy_identity_validation/"
@@ -47,17 +47,20 @@ DEFAULT_SUMMARY_PACKET_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "evidence_summary_packet
 DEFAULT_SUMMARY_RUN_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "evidence_summary_runs"
 DEFAULT_MODEL_COMPARISON_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "model_comparison"
 DEFAULT_MICRO_EXTRACTION_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "micro_extraction"
+DEFAULT_SEMANTIC_PARAGRAPH_INDEX_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "semantic_paragraph_index"
 DEFAULT_MODEL = "llama-3.3-70b-versatile"
 DEFAULT_PROVIDER = "groq"
 DEFAULT_PROVIDER_MODELS = {
     "groq": DEFAULT_MODEL,
     "openai": "gpt-4.1",
     "anthropic": "claude-3-5-sonnet-latest",
+    "cerebras": "gpt-oss-120b",
 }
 PROMPT_VERSION = "llm_study_reclassification_v0.1"
 GROQ_CHAT_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions"
 OPENAI_CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions"
 ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages"
+CEREBRAS_CHAT_COMPLETIONS_URL = "https://api.cerebras.ai/v1/chat/completions"
 ANTHROPIC_VERSION = "2023-06-01"
 COMPARISON_TASKS = (
     "intervention_exposure",
@@ -68,6 +71,18 @@ MICRO_EXTRACTION_FIELDS = (
     "cannabinoid_role",
     "target_condition",
     "study_design",
+)
+SEMANTIC_PARAGRAPH_LABELS = (
+    "study_design",
+    "population_model",
+    "intervention_or_exposure",
+    "condition_or_target",
+    "comparator_control",
+    "dose_route_duration",
+    "outcomes_results",
+    "safety_adverse_events",
+    "background",
+    "not_relevant",
 )
 FULL_TEXT_ARTIFACT_PRIORITY = {
     "pmc_nxml": 0,
@@ -96,6 +111,7 @@ LARGE_FULL_TEXT_CHAR_LIMIT = 80_000
 CHUNK_MAX_CHARS = 1_800
 CHUNK_OVERLAP_CHARS = 180
 SUMMARY_MAX_OUTPUT_TOKENS = 2400
+SEMANTIC_PARAGRAPH_MAX_OUTPUT_TOKENS = 3200
 EVIDENCE_TOPICS = {
     "study_design": (
         "randomized",
@@ -267,6 +283,31 @@ class EvidenceChunk(BaseModel):
     char_end: int | None = None
     score: float = 0.0
     matched_topics: list[str] = Field(default_factory=list)
+
+
+class EvidenceParagraph(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    paragraph_id: str
+    document_id: str
+    ordinal: int
+    section: str
+    text: str
+    artifact_id: str | None = None
+    artifact_path: str | None = None
+    char_start: int | None = None
+    char_end: int | None = None
+    source_kind: Literal["full_text", "abstract_metadata", "legacy_context"]
+
+
+class ParagraphWindow(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    window_id: str
+    document_id: str
+    ordinal: int
+    paragraph_ids: list[str]
+    paragraphs: list[EvidenceParagraph]
 
 
 class EvidencePlan(BaseModel):
@@ -1445,6 +1486,193 @@ def compare_micro_extraction_batch(
     print_micro_extraction_summary(summary, records_path, raw_responses_path)
 
 
+@app.command("compare-semantic-paragraph-index")
+def compare_semantic_paragraph_index(
+    cohort_path: Annotated[
+        Path,
+        typer.Option("--cohort-path", help="Identity-confirmed English triage cohort JSONL."),
+    ] = DEFAULT_COHORT_PATH,
+    database_path: Annotated[
+        Path | None,
+        typer.Option("--database-path", help="SQLite database path."),
+    ] = None,
+    output_dir: Annotated[
+        Path | None,
+        typer.Option("--output-dir", help="Semantic paragraph index output directory."),
+    ] = None,
+    raw_output_dir: Annotated[
+        Path | None,
+        typer.Option("--raw-output-dir", help="Raw model response output directory."),
+    ] = None,
+    document_id: Annotated[
+        list[str] | None,
+        typer.Option("--document-id", help="Document id to include; repeat for fixed samples."),
+    ] = None,
+    limit: Annotated[
+        int | None,
+        typer.Option("--limit", min=1, help="Maximum candidates when document ids are omitted."),
+    ] = None,
+    provider: Annotated[
+        str,
+        typer.Option(
+            "--provider",
+            help="Provider name or comma-separated providers: groq, openai, anthropic.",
+        ),
+    ] = "openai",
+    model: Annotated[
+        str | None,
+        typer.Option("--model", help="Model name when exactly one provider is selected."),
+    ] = None,
+    model_overrides: Annotated[
+        str | None,
+        typer.Option(
+            "--model-overrides",
+            help="Comma-separated provider:model overrides for multi-provider comparisons.",
+        ),
+    ] = None,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Prepare paragraph windows without calling model APIs."),
+    ] = False,
+    window_paragraphs: Annotated[
+        int,
+        typer.Option("--window-paragraphs", min=3, help="Paragraphs per model window."),
+    ] = 12,
+    overlap_paragraphs: Annotated[
+        int,
+        typer.Option("--overlap-paragraphs", min=0, help="Overlapping paragraphs per window."),
+    ] = 3,
+    max_windows_per_document: Annotated[
+        int | None,
+        typer.Option("--max-windows-per-document", min=1, help="Cap windows per document."),
+    ] = 4,
+    sleep_seconds: Annotated[
+        float,
+        typer.Option("--sleep-seconds", min=0.0, help="Delay between model calls."),
+    ] = 3.0,
+) -> None:
+    """Build a candidate semantic paragraph index from literal cleaned paragraphs."""
+    provider_models = resolve_provider_models(
+        provider,
+        model=model,
+        model_overrides=model_overrides,
+    )
+    if overlap_paragraphs >= window_paragraphs:
+        raise typer.BadParameter("--overlap-paragraphs must be smaller than --window-paragraphs.")
+    load_dotenv()
+    settings = get_settings()
+    resolved_database_path = database_path or sqlite_database_path(settings.data_dir)
+    resolved_output_dir = output_dir or settings.data_dir / DEFAULT_SEMANTIC_PARAGRAPH_INDEX_SUBDIR
+    resolved_raw_output_dir = raw_output_dir or settings.data_dir / DEFAULT_RAW_SUBDIR
+    resolved_output_dir.mkdir(parents=True, exist_ok=True)
+    resolved_raw_output_dir.mkdir(parents=True, exist_ok=True)
+    run_started_at = datetime.now(UTC)
+    run_id = run_started_at.strftime("%Y%m%dT%H%M%SZ_semantic_paragraph_index")
+    records_path = resolved_output_dir / f"{run_id}_window_records.jsonl"
+    merged_index_path = resolved_output_dir / f"{run_id}_merged_index.jsonl"
+    summary_path = resolved_output_dir / f"{run_id}_summary.json"
+    raw_responses_path = (
+        resolved_raw_output_dir / f"{run_id}_semantic_paragraph_index_raw_responses.jsonl"
+    )
+    window_previews_path = (
+        resolved_raw_output_dir / f"{run_id}_semantic_paragraph_index_window_previews.jsonl"
+    )
+
+    candidates = load_candidates_for_poc(
+        cohort_path=cohort_path,
+        database_path=resolved_database_path,
+    )
+    selected = select_micro_extraction_candidates(
+        candidates,
+        document_ids=document_id or [],
+        limit=limit,
+    )
+
+    window_records: list[dict[str, Any]] = []
+    raw_responses: list[dict[str, Any]] = []
+    window_previews: list[dict[str, Any]] = []
+    paragraph_index_inputs: dict[str, list[EvidenceParagraph]] = {}
+    for candidate in selected:
+        paragraphs = load_candidate_paragraphs(candidate)
+        paragraph_index_inputs[candidate.document_id] = paragraphs
+        windows = build_paragraph_windows(
+            candidate.document_id,
+            paragraphs,
+            window_paragraphs=window_paragraphs,
+            overlap_paragraphs=overlap_paragraphs,
+            max_windows=max_windows_per_document,
+        )
+        for window in windows:
+            packet = build_semantic_paragraph_window_packet(
+                candidate,
+                window=window,
+                run_id=run_id,
+            )
+            window_previews.append(semantic_paragraph_window_preview(packet))
+            for provider_name, model_name in provider_models:
+                if dry_run:
+                    record = dry_run_semantic_paragraph_record(
+                        packet,
+                        provider=provider_name,
+                        model=model_name,
+                    )
+                    window_records.append(record)
+                    append_jsonl(records_path, [record])
+                    continue
+                api_key = resolve_provider_api_key(provider_name)
+                if not api_key:
+                    record = error_semantic_paragraph_record(
+                        packet,
+                        provider=provider_name,
+                        model=model_name,
+                        error=f"{api_key_env_var(provider_name)} is not set.",
+                    )
+                    window_records.append(record)
+                    append_jsonl(records_path, [record])
+                    continue
+                record, raw_response = run_semantic_paragraph_window_with_provider(
+                    packet,
+                    provider=provider_name,
+                    model=model_name,
+                    api_key=api_key,
+                )
+                window_records.append(record)
+                raw_responses.append(raw_response)
+                append_jsonl(records_path, [record])
+                append_jsonl(raw_responses_path, [raw_response])
+                if sleep_seconds:
+                    time.sleep(sleep_seconds)
+    append_jsonl(window_previews_path, window_previews)
+
+    merged_records = build_merged_semantic_paragraph_indexes(
+        window_records,
+        paragraph_index_inputs=paragraph_index_inputs,
+    )
+    append_jsonl(merged_index_path, merged_records)
+    summary = build_semantic_paragraph_index_summary(
+        run_id=run_id,
+        dry_run=dry_run,
+        provider_models=provider_models,
+        cohort_path=cohort_path,
+        database_path=resolved_database_path,
+        records_path=records_path,
+        merged_index_path=merged_index_path,
+        raw_responses_path=raw_responses_path,
+        window_previews_path=window_previews_path,
+        selected=selected,
+        paragraphs_by_document=paragraph_index_inputs,
+        window_records=window_records,
+        merged_records=merged_records,
+        started_at=run_started_at,
+        completed_at=datetime.now(UTC),
+        window_paragraphs=window_paragraphs,
+        overlap_paragraphs=overlap_paragraphs,
+        max_windows_per_document=max_windows_per_document,
+    )
+    write_json(summary_path, summary)
+    print_semantic_paragraph_index_summary(summary, records_path, merged_index_path)
+
+
 def build_run_paths(*, output_dir: Path, raw_output_dir: Path, run_id: str) -> RunPaths:
     output_dir.mkdir(parents=True, exist_ok=True)
     raw_output_dir.mkdir(parents=True, exist_ok=True)
@@ -1846,6 +2074,389 @@ def micro_extraction_packet_preview(packet: dict[str, Any]) -> dict[str, Any]:
         "selected_chunk_ids": packet["selected_chunk_ids"],
         "context_strategy": packet["context_strategy"],
         "evidence_source_used": packet["evidence_source_used"],
+        "prompt": packet["prompt"],
+    }
+
+
+def load_candidate_paragraphs(candidate: StudyCandidate) -> list[EvidenceParagraph]:
+    paragraphs = load_source_paragraphs(candidate)
+    if paragraphs:
+        return paragraphs
+    fallback_texts: list[tuple[str, str]] = []
+    if candidate.publication_abstract:
+        fallback_texts.append(("abstract_metadata", candidate.publication_abstract))
+    legacy_text = build_legacy_guardrail_text(candidate)
+    if legacy_text:
+        fallback_texts.append(("legacy_context", legacy_text))
+    paragraphs = []
+    for section, text in fallback_texts:
+        for sentence in split_sentences(text):
+            if len(sentence) < 30:
+                continue
+            paragraphs.append(
+                EvidenceParagraph(
+                    paragraph_id=f"p{len(paragraphs) + 1:04d}",
+                    document_id=candidate.document_id,
+                    ordinal=len(paragraphs) + 1,
+                    section=section,
+                    text=truncate_text(sentence, 1_200),
+                    source_kind=(
+                        "abstract_metadata"
+                        if section == "abstract_metadata"
+                        else "legacy_context"
+                    ),
+                )
+            )
+    return paragraphs
+
+
+def load_source_paragraphs(candidate: StudyCandidate) -> list[EvidenceParagraph]:
+    artifact = candidate.selected_artifact
+    if not artifact or not artifact.payload_path:
+        return []
+    path = Path(artifact.payload_path)
+    if not path.is_absolute():
+        path = Path.cwd() / path
+    if not path.exists():
+        return []
+    raw = path.read_bytes()
+    if artifact.artifact_type in {"pmc_nxml", "europe_pmc_full_text_xml"}:
+        return extract_xml_paragraphs(raw, artifact=artifact)
+    if artifact.artifact_type == "pmc_html":
+        return extract_html_paragraphs(raw, artifact=artifact)
+    return []
+
+
+def extract_xml_paragraphs(raw: bytes, *, artifact: ArtifactReference) -> list[EvidenceParagraph]:
+    parser = etree.XMLParser(recover=True, resolve_entities=False, no_network=True)
+    root = etree.fromstring(raw, parser=parser)
+    if root is None:
+        return paragraphs_from_plain_text(
+            decode_raw_text(raw),
+            artifact=artifact,
+            section="unparsed_full_text",
+        )
+    if etree.QName(root).localname.lower() == "html":
+        return extract_html_paragraphs(raw, artifact=artifact)
+    for xpath in (".//*[local-name()='ref-list']", ".//*[local-name()='back']"):
+        for element in root.xpath(xpath):
+            parent = element.getparent()
+            if parent is not None:
+                parent.remove(element)
+
+    paragraphs: list[EvidenceParagraph] = []
+    for element in root.xpath(".//*[local-name()='abstract']//*[local-name()='p']"):
+        append_paragraph_from_element(
+            paragraphs,
+            element,
+            artifact=artifact,
+            section="abstract",
+        )
+    for index, section_element in enumerate(root.xpath(".//*[local-name()='sec']")):
+        section = section_title(section_element) or f"section_{index + 1}"
+        for paragraph_element in section_element.xpath(".//*[local-name()='p']"):
+            append_paragraph_from_element(
+                paragraphs,
+                paragraph_element,
+                artifact=artifact,
+                section=section,
+            )
+    if not paragraphs:
+        return paragraphs_from_plain_text(
+            extract_xml_text(raw),
+            artifact=artifact,
+            section="full_text",
+        )
+    return deduplicate_paragraphs(paragraphs)
+
+
+def extract_html_paragraphs(raw: bytes, *, artifact: ArtifactReference) -> list[EvidenceParagraph]:
+    document = html.fromstring(raw)
+    for element in document.xpath("//script|//style|//nav|//footer|//aside"):
+        parent = element.getparent()
+        if parent is not None:
+            parent.remove(element)
+    paragraphs: list[EvidenceParagraph] = []
+    for element in document.xpath("//p"):
+        append_paragraph_from_element(
+            paragraphs,
+            element,
+            artifact=artifact,
+            section=nearest_html_section(element),
+        )
+    if not paragraphs:
+        return paragraphs_from_plain_text(
+            document.text_content(),
+            artifact=artifact,
+            section="html_full_text",
+        )
+    return deduplicate_paragraphs(paragraphs)
+
+
+def append_paragraph_from_element(
+    paragraphs: list[EvidenceParagraph],
+    element: etree._Element,
+    *,
+    artifact: ArtifactReference,
+    section: str,
+) -> None:
+    text = clean_text(" ".join(element.itertext()))
+    if len(text) < 30 or is_boilerplate_paragraph(text):
+        return
+    paragraphs.append(
+        EvidenceParagraph(
+            paragraph_id=f"p{len(paragraphs) + 1:04d}",
+            document_id=artifact.document_id,
+            ordinal=len(paragraphs) + 1,
+            section=section,
+            text=truncate_text(text, 1_500),
+            artifact_id=artifact.artifact_id,
+            artifact_path=artifact.payload_path,
+            source_kind="full_text",
+        )
+    )
+
+
+def paragraphs_from_plain_text(
+    text: str,
+    *,
+    artifact: ArtifactReference,
+    section: str,
+) -> list[EvidenceParagraph]:
+    paragraphs: list[EvidenceParagraph] = []
+    parts = [part.strip() for part in re.split(r"\n\s*\n", text) if part.strip()]
+    if len(parts) <= 1:
+        parts = split_sentences(text)
+    for part in parts:
+        normalized = clean_text(part)
+        if len(normalized) < 30 or is_boilerplate_paragraph(normalized):
+            continue
+        paragraphs.append(
+            EvidenceParagraph(
+                paragraph_id=f"p{len(paragraphs) + 1:04d}",
+                document_id=artifact.document_id,
+                ordinal=len(paragraphs) + 1,
+                section=section,
+                text=truncate_text(normalized, 1_500),
+                artifact_id=artifact.artifact_id,
+                artifact_path=artifact.payload_path,
+                source_kind="full_text",
+            )
+        )
+    return deduplicate_paragraphs(paragraphs)
+
+
+def nearest_html_section(element: etree._Element) -> str:
+    current = element
+    while current is not None:
+        previous = current.getprevious()
+        while previous is not None:
+            if previous.tag is not None and str(previous.tag).lower() in {
+                "h1",
+                "h2",
+                "h3",
+                "h4",
+                "h5",
+                "h6",
+            }:
+                heading = clean_text(previous.text_content())
+                if heading:
+                    return heading
+            previous = previous.getprevious()
+        current = current.getparent()
+    return "html_full_text"
+
+
+def is_boilerplate_paragraph(text: str) -> bool:
+    normalized = normalize_label(text)
+    boilerplate_prefixes = (
+        "an official website of the united states government",
+        "official websites use gov",
+        "secure gov websites use https",
+        "a lock locked padlock icon",
+        "correspondence to",
+        "correspondence may be sent",
+        "address correspondence",
+        "received ",
+        "accepted ",
+        "issue date ",
+        "authors contributed equally",
+    )
+    return any(normalized.startswith(prefix) for prefix in boilerplate_prefixes)
+
+
+def deduplicate_paragraphs(paragraphs: list[EvidenceParagraph]) -> list[EvidenceParagraph]:
+    seen: set[str] = set()
+    deduplicated: list[EvidenceParagraph] = []
+    for paragraph in paragraphs:
+        normalized = normalize_label(paragraph.text)
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        deduplicated.append(
+            paragraph.model_copy(
+                update={
+                    "paragraph_id": f"p{len(deduplicated) + 1:04d}",
+                    "ordinal": len(deduplicated) + 1,
+                }
+            )
+        )
+    return deduplicated
+
+
+def build_paragraph_windows(
+    document_id: str,
+    paragraphs: list[EvidenceParagraph],
+    *,
+    window_paragraphs: int,
+    overlap_paragraphs: int,
+    max_windows: int | None,
+) -> list[ParagraphWindow]:
+    if not paragraphs:
+        return []
+    step = max(1, window_paragraphs - overlap_paragraphs)
+    windows: list[ParagraphWindow] = []
+    for start in range(0, len(paragraphs), step):
+        selected = paragraphs[start : start + window_paragraphs]
+        if not selected:
+            continue
+        windows.append(
+            ParagraphWindow(
+                window_id=f"{document_id}:window:{len(windows) + 1:04d}",
+                document_id=document_id,
+                ordinal=len(windows) + 1,
+                paragraph_ids=[paragraph.paragraph_id for paragraph in selected],
+                paragraphs=selected,
+            )
+        )
+        if start + window_paragraphs >= len(paragraphs):
+            break
+        if max_windows is not None and len(windows) >= max_windows:
+            break
+    return windows
+
+
+def build_semantic_paragraph_window_packet(
+    candidate: StudyCandidate,
+    *,
+    window: ParagraphWindow,
+    run_id: str,
+) -> dict[str, Any]:
+    schema = semantic_paragraph_output_schema()
+    prompt = build_semantic_paragraph_prompt(
+        candidate=candidate,
+        window=window,
+        schema=schema,
+        legacy_context_text=build_legacy_guardrail_text(candidate),
+    )
+    return {
+        "run_id": run_id,
+        "document_id": candidate.document_id,
+        "context_id": candidate.context_id,
+        "window_id": window.window_id,
+        "window_ordinal": window.ordinal,
+        "prompt_version": f"{PROMPT_VERSION}_semantic_paragraph_index",
+        "prompt": prompt,
+        "expected_output_schema": schema,
+        "paragraph_ids": window.paragraph_ids,
+        "paragraphs": window.paragraphs,
+        "provenance": {
+            "source": "llm_study_reclassification_poc",
+            "method": "semantic_paragraph_window_classification",
+            "does_not_mutate_sqlite_review_state": True,
+            "review_boundary": "semantic_paragraph_labels_are_candidate_index_metadata",
+            "legacy_context_id": candidate.context_id,
+        },
+    }
+
+
+def semantic_paragraph_output_schema() -> dict[str, Any]:
+    return {
+        "document_id": "string",
+        "window_id": "string",
+        "paragraph_annotations": [
+            {
+                "paragraph_id": "string",
+                "labels": list(SEMANTIC_PARAGRAPH_LABELS),
+                "question_relevance": {
+                    "cannabinoid_role": "high | medium | low | none",
+                    "target_condition": "high | medium | low | none",
+                    "study_design": "high | medium | low | none",
+                },
+                "evidence_terms": ["short verbatim terms from this paragraph"],
+                "needs_human_review_hint": "boolean",
+            }
+        ],
+        "window_notes": ["string"],
+    }
+
+
+def build_semantic_paragraph_prompt(
+    *,
+    candidate: StudyCandidate,
+    window: ParagraphWindow,
+    schema: dict[str, Any],
+    legacy_context_text: str,
+) -> str:
+    paragraph_text = "\n\n".join(
+        "\n".join(
+            [
+                f"[paragraph_id={paragraph.paragraph_id}]",
+                f"section: {paragraph.section}",
+                f"text: {paragraph.text}",
+            ]
+        )
+        for paragraph in window.paragraphs
+    )
+    return (
+        f"You are creating candidate paragraph-level index metadata for a "
+        f"""human-reviewed cannabinoid evidence knowledge base.
+
+Rules:
+- Do not provide medical advice, recommendations, or clinical instructions.
+- Return only valid JSON matching the schema.
+- Use English only.
+- Classify each paragraph_id in the window exactly once.
+- Do not paraphrase or rewrite the article.
+- Labels are candidate retrieval metadata, not reviewed truth.
+- Use only these labels: {", ".join(SEMANTIC_PARAGRAPH_LABELS)}.
+- Use not_relevant only when no more specific label applies.
+- evidence_terms must be short verbatim substrings from the same paragraph.
+- evidence_terms must not use ellipses, approximations, or combined non-contiguous text.
+- Use the legacy English context only as a guardrail for relevance; do not copy
+  legacy claims into paragraph labels unless the paragraph itself supports them.
+
+Output JSON schema:
+{json.dumps(schema, indent=2)}
+
+Document metadata:
+document_id: {candidate.document_id}
+title: {candidate.title or ""}
+publication_year: {candidate.publication_year or ""}
+legacy_study_type: {candidate.legacy_study_type or ""}
+legacy_study_result: {candidate.legacy_study_result or ""}
+legacy_sample_size: {candidate.legacy_sample_size or ""}
+
+Legacy English context:
+{legacy_context_text}
+
+Paragraph window:
+window_id: {window.window_id}
+paragraph_count: {len(window.paragraphs)}
+
+Paragraphs:
+{paragraph_text}
+"""
+    )
+
+
+def semantic_paragraph_window_preview(packet: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "run_id": packet["run_id"],
+        "document_id": packet["document_id"],
+        "window_id": packet["window_id"],
+        "prompt_chars": len(packet["prompt"]),
+        "paragraph_ids": packet["paragraph_ids"],
         "prompt": packet["prompt"],
     }
 
@@ -3014,6 +3625,7 @@ def api_key_env_var(provider: ProviderName) -> str:
         "groq": "GROQ_API_KEY",
         "openai": "OPENAI_API_KEY",
         "anthropic": "ANTHROPIC_API_KEY",
+        "cerebras": "CEREBRAS_API_KEY",
     }[provider]
 
 
@@ -3371,6 +3983,335 @@ def build_micro_span_grounding_audit(
             and not unsupported_evidence_texts
             and not missing_required_citations
         ),
+    }
+
+
+def build_semantic_paragraph_chat_request(
+    packet: dict[str, Any],
+    *,
+    provider: ProviderName,
+    model: str,
+) -> dict[str, Any]:
+    system_content = (
+        "You classify literal article paragraphs as compact JSON index metadata. "
+        "You never provide medical advice."
+    )
+    if provider == "anthropic":
+        return {
+            "model": model,
+            "system": system_content,
+            "messages": [{"role": "user", "content": packet["prompt"]}],
+            "temperature": 0,
+            "max_tokens": SEMANTIC_PARAGRAPH_MAX_OUTPUT_TOKENS,
+        }
+    return {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_content},
+            {"role": "user", "content": packet["prompt"]},
+        ],
+        "temperature": 0,
+        "max_completion_tokens": SEMANTIC_PARAGRAPH_MAX_OUTPUT_TOKENS,
+        "response_format": {"type": "json_object"},
+    }
+
+
+def run_semantic_paragraph_window_with_provider(
+    packet: dict[str, Any],
+    *,
+    provider: ProviderName,
+    model: str,
+    api_key: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    request_payload = build_semantic_paragraph_chat_request(
+        packet,
+        provider=provider,
+        model=model,
+    )
+    raw_response: dict[str, Any] = {
+        "run_id": packet["run_id"],
+        "document_id": packet["document_id"],
+        "window_id": packet["window_id"],
+        "provider": provider,
+        "model": model,
+        "request": redacted_request_payload(request_payload),
+        "provenance": packet["provenance"],
+    }
+    started = time.monotonic()
+    try:
+        with httpx.Client(timeout=120) as client:
+            response, attempts = post_provider_with_retries(
+                client,
+                provider=provider,
+                request_payload=request_payload,
+                api_key=api_key,
+            )
+        raw_response["latency_seconds"] = round(time.monotonic() - started, 3)
+        raw_response["attempts"] = attempts
+        raw_response["status_code"] = response.status_code
+        raw_response["response_json"] = response.json()
+        response.raise_for_status()
+        content = response_content_text(raw_response["response_json"], provider=provider)
+        parsed = json.loads(content)
+        record = dict(parsed)
+        record.update(
+            {
+                "run_id": packet["run_id"],
+                "document_id": packet["document_id"],
+                "window_id": packet["window_id"],
+                "poc_status": "candidate_semantic_paragraph_index",
+                "provider": provider,
+                "model": model,
+                "errors": [],
+                "provenance": semantic_paragraph_provenance(
+                    packet,
+                    provider=provider,
+                    model=model,
+                    latency_seconds=raw_response["latency_seconds"],
+                ),
+            }
+        )
+        record["paragraph_index_audit"] = build_paragraph_index_audit(record, packet)
+        return record, raw_response
+    except Exception as exc:
+        record = error_semantic_paragraph_record(
+            packet,
+            provider=provider,
+            model=model,
+            error=str(exc),
+        )
+        raw_response["latency_seconds"] = round(time.monotonic() - started, 3)
+        raw_response["error"] = str(exc)
+        return record, raw_response
+
+
+def semantic_paragraph_provenance(
+    packet: dict[str, Any],
+    *,
+    provider: ProviderName,
+    model: str,
+    latency_seconds: float | None,
+) -> dict[str, Any]:
+    provenance = {
+        **packet["provenance"],
+        "provider": provider,
+        "model": model,
+        "prompt_version": packet["prompt_version"],
+        "paragraph_ids": packet["paragraph_ids"],
+        "input_prompt_chars": len(packet["prompt"]),
+        "rough_input_token_estimate": rough_token_count(packet["prompt"]),
+    }
+    if latency_seconds is not None:
+        provenance["latency_seconds"] = latency_seconds
+    return provenance
+
+
+def dry_run_semantic_paragraph_record(
+    packet: dict[str, Any],
+    *,
+    provider: ProviderName,
+    model: str,
+) -> dict[str, Any]:
+    record = {
+        "run_id": packet["run_id"],
+        "document_id": packet["document_id"],
+        "window_id": packet["window_id"],
+        "paragraph_annotations": [],
+        "window_notes": ["Dry run only; no semantic paragraph labels were generated."],
+        "poc_status": "dry_run_prompt_prepared",
+        "provider": provider,
+        "model": model,
+        "errors": [],
+        "provenance": semantic_paragraph_provenance(
+            packet,
+            provider=provider,
+            model=model,
+            latency_seconds=None,
+        ),
+    }
+    record["paragraph_index_audit"] = build_paragraph_index_audit(record, packet)
+    return record
+
+
+def error_semantic_paragraph_record(
+    packet: dict[str, Any],
+    *,
+    provider: ProviderName,
+    model: str,
+    error: str,
+) -> dict[str, Any]:
+    record = dry_run_semantic_paragraph_record(packet, provider=provider, model=model)
+    record["poc_status"] = "error"
+    record["errors"] = [error]
+    record["window_notes"] = ["Semantic paragraph classification failed; inspect raw response."]
+    return record
+
+
+def build_paragraph_index_audit(
+    record: dict[str, Any],
+    packet: dict[str, Any],
+) -> dict[str, Any]:
+    known_ids = set(packet["paragraph_ids"])
+    annotations = record.get("paragraph_annotations", [])
+    observed_ids: list[str] = []
+    invalid_labels: list[dict[str, Any]] = []
+    evidence_term_issues: list[dict[str, Any]] = []
+    text_by_id = {paragraph.paragraph_id: paragraph.text for paragraph in packet["paragraphs"]}
+    if isinstance(annotations, list):
+        for annotation in annotations:
+            if not isinstance(annotation, dict):
+                continue
+            paragraph_id = str(annotation.get("paragraph_id", ""))
+            observed_ids.append(paragraph_id)
+            labels = annotation.get("labels", [])
+            if isinstance(labels, list):
+                for label in labels:
+                    if str(label) not in SEMANTIC_PARAGRAPH_LABELS:
+                        invalid_labels.append(
+                            {"paragraph_id": paragraph_id, "label": str(label)}
+                        )
+            terms = annotation.get("evidence_terms", [])
+            if isinstance(terms, list):
+                paragraph_text = normalize_label(text_by_id.get(paragraph_id, ""))
+                for term in terms:
+                    normalized_term = normalize_label(str(term))
+                    if normalized_term and normalized_term not in paragraph_text:
+                        evidence_term_issues.append(
+                            {"paragraph_id": paragraph_id, "evidence_term": str(term)}
+                        )
+    observed_set = set(observed_ids)
+    passes_structure_audit = (
+        not known_ids.difference(observed_set)
+        and not observed_set.difference(known_ids)
+        and not invalid_labels
+    )
+    return {
+        "known_paragraph_count": len(known_ids),
+        "annotation_count": len(observed_ids),
+        "missing_paragraph_ids": sorted(known_ids.difference(observed_set)),
+        "unknown_paragraph_ids": sorted(observed_set.difference(known_ids)),
+        "duplicate_paragraph_ids": sorted(
+            paragraph_id
+            for paragraph_id, count in Counter(observed_ids).items()
+            if count > 1
+        ),
+        "invalid_labels": invalid_labels,
+        "evidence_term_issues": evidence_term_issues,
+        "passes_structure_audit": passes_structure_audit,
+        "passes_evidence_term_audit": not evidence_term_issues,
+        "passes_basic_audit": passes_structure_audit,
+    }
+
+
+def build_merged_semantic_paragraph_indexes(
+    window_records: list[dict[str, Any]],
+    *,
+    paragraph_index_inputs: dict[str, list[EvidenceParagraph]],
+) -> list[dict[str, Any]]:
+    merged: list[dict[str, Any]] = []
+    records_by_key: dict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
+    for record in window_records:
+        if record.get("poc_status") == "dry_run_prompt_prepared":
+            continue
+        key = (
+            str(record.get("document_id")),
+            str(record.get("provider")),
+            str(record.get("model")),
+        )
+        records_by_key[key].append(record)
+    for (document_id, provider, model), records in records_by_key.items():
+        paragraphs = paragraph_index_inputs.get(document_id, [])
+        paragraph_text_by_id = {paragraph.paragraph_id: paragraph for paragraph in paragraphs}
+        annotations_by_paragraph: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        for record in records:
+            annotations = record.get("paragraph_annotations", [])
+            if not isinstance(annotations, list):
+                continue
+            for annotation in annotations:
+                if isinstance(annotation, dict) and annotation.get("paragraph_id"):
+                    annotations_by_paragraph[str(annotation["paragraph_id"])].append(annotation)
+        merged_annotations = []
+        for paragraph_id, paragraph in paragraph_text_by_id.items():
+            annotations = annotations_by_paragraph.get(paragraph_id, [])
+            merged_annotations.append(
+                merge_paragraph_annotations(
+                    paragraph,
+                    annotations=annotations,
+                )
+            )
+        merged.append(
+            {
+                "document_id": document_id,
+                "provider": provider,
+                "model": model,
+                "paragraph_count": len(paragraphs),
+                "annotated_paragraph_count": sum(
+                    bool(annotation["label_votes"]) for annotation in merged_annotations
+                ),
+                "merged_annotations": merged_annotations,
+                "label_counts": dict(
+                    Counter(
+                        label
+                        for annotation in merged_annotations
+                        for label in annotation["labels"]
+                    ).most_common()
+                ),
+                "provenance": {
+                    "source": "llm_study_reclassification_poc",
+                    "method": "merge_semantic_paragraph_window_votes",
+                    "review_boundary": "semantic_paragraph_labels_are_candidate_index_metadata",
+                },
+            }
+        )
+    return merged
+
+
+def merge_paragraph_annotations(
+    paragraph: EvidenceParagraph,
+    *,
+    annotations: list[dict[str, Any]],
+) -> dict[str, Any]:
+    label_counter: Counter[str] = Counter()
+    relevance: dict[str, Counter[str]] = defaultdict(Counter)
+    evidence_terms: set[str] = set()
+    review_hint_votes = 0
+    for annotation in annotations:
+        labels = annotation.get("labels", [])
+        if isinstance(labels, list):
+            label_counter.update(
+                str(label)
+                for label in labels
+                if str(label) in SEMANTIC_PARAGRAPH_LABELS
+            )
+        relevance_map = annotation.get("question_relevance", {})
+        if isinstance(relevance_map, dict):
+            for question, value in relevance_map.items():
+                relevance[str(question)][str(value)] += 1
+        terms = annotation.get("evidence_terms", [])
+        if isinstance(terms, list):
+            for term in terms:
+                term_text = clean_text(str(term))
+                if term_text:
+                    evidence_terms.add(term_text)
+        if annotation.get("needs_human_review_hint") is True:
+            review_hint_votes += 1
+    labels = [
+        label
+        for label, _count in label_counter.most_common()
+        if label != "not_relevant" or len(label_counter) == 1
+    ]
+    return {
+        "paragraph_id": paragraph.paragraph_id,
+        "section": paragraph.section,
+        "ordinal": paragraph.ordinal,
+        "text": paragraph.text,
+        "labels": labels,
+        "label_votes": dict(label_counter.most_common()),
+        "question_relevance_votes": {
+            question: dict(counter.most_common()) for question, counter in relevance.items()
+        },
+        "evidence_terms": sorted(evidence_terms),
+        "needs_human_review_hint_votes": review_hint_votes,
     }
 
 
@@ -4112,6 +5053,7 @@ def provider_url(provider: ProviderName) -> str:
         "groq": GROQ_CHAT_COMPLETIONS_URL,
         "openai": OPENAI_CHAT_COMPLETIONS_URL,
         "anthropic": ANTHROPIC_MESSAGES_URL,
+        "cerebras": CEREBRAS_CHAT_COMPLETIONS_URL,
     }[provider]
 
 
@@ -4729,6 +5671,111 @@ def build_micro_extraction_summary(
     }
 
 
+def build_semantic_paragraph_index_summary(
+    *,
+    run_id: str,
+    dry_run: bool,
+    provider_models: list[tuple[ProviderName, str]],
+    cohort_path: Path,
+    database_path: Path,
+    records_path: Path,
+    merged_index_path: Path,
+    raw_responses_path: Path,
+    window_previews_path: Path,
+    selected: list[StudyCandidate],
+    paragraphs_by_document: dict[str, list[EvidenceParagraph]],
+    window_records: list[dict[str, Any]],
+    merged_records: list[dict[str, Any]],
+    started_at: datetime,
+    completed_at: datetime,
+    window_paragraphs: int,
+    overlap_paragraphs: int,
+    max_windows_per_document: int | None,
+) -> dict[str, Any]:
+    provider_model_metrics: dict[str, dict[str, Any]] = {}
+    for provider, model in provider_models:
+        label = f"{provider}:{model}"
+        subset = [
+            record
+            for record in window_records
+            if record.get("provider") == provider and record.get("model") == model
+        ]
+        audited = [
+            record
+            for record in subset
+            if isinstance(record.get("paragraph_index_audit"), dict)
+        ]
+        passing = [
+            record
+            for record in audited
+            if record["paragraph_index_audit"].get("passes_basic_audit") is True
+        ]
+        provider_model_metrics[label] = {
+            "window_record_count": len(subset),
+            "records_with_errors": sum(bool(record.get("errors")) for record in subset),
+            "audit_pass_count": len(passing),
+            "audit_pass_rate": round(len(passing) / len(audited), 4) if audited else None,
+            "missing_paragraph_id_count": sum(
+                len(record.get("paragraph_index_audit", {}).get("missing_paragraph_ids", []))
+                for record in audited
+            ),
+            "unknown_paragraph_id_count": sum(
+                len(record.get("paragraph_index_audit", {}).get("unknown_paragraph_ids", []))
+                for record in audited
+            ),
+            "invalid_label_count": sum(
+                len(record.get("paragraph_index_audit", {}).get("invalid_labels", []))
+                for record in audited
+            ),
+            "evidence_term_issue_count": sum(
+                len(record.get("paragraph_index_audit", {}).get("evidence_term_issues", []))
+                for record in audited
+            ),
+            "mean_latency_seconds": mean_latency_seconds(subset),
+        }
+    return {
+        "run_id": run_id,
+        "source": "llm_study_reclassification_poc",
+        "method": "compare_models_on_semantic_paragraph_index",
+        "prompt_version": f"{PROMPT_VERSION}_semantic_paragraph_index",
+        "dry_run": dry_run,
+        "provider_models": [
+            {"provider": provider, "model": model} for provider, model in provider_models
+        ],
+        "started_at": started_at.isoformat(),
+        "completed_at": completed_at.isoformat(),
+        "cohort_path": str(cohort_path),
+        "database_path": str(database_path),
+        "records_path": str(records_path),
+        "merged_index_path": str(merged_index_path),
+        "raw_responses_path": str(raw_responses_path),
+        "window_previews_path": str(window_previews_path),
+        "selected_count": len(selected),
+        "paragraph_counts": {
+            document_id: len(paragraphs)
+            for document_id, paragraphs in paragraphs_by_document.items()
+        },
+        "window_record_count": len(window_records),
+        "merged_record_count": len(merged_records),
+        "records_with_errors": sum(bool(record.get("errors")) for record in window_records),
+        "status_counts": dict(
+            Counter(str(record.get("poc_status")) for record in window_records)
+        ),
+        "provider_model_metrics": provider_model_metrics,
+        "window_policy": {
+            "window_paragraphs": window_paragraphs,
+            "overlap_paragraphs": overlap_paragraphs,
+            "max_windows_per_document": max_windows_per_document,
+        },
+        "notes": [
+            "Semantic paragraph labels are candidate retrieval metadata, not reviewed truth.",
+            "Paragraph text is literal cleaned source text, not paraphrased synthesis.",
+            "This command does not validate identity, download full text, mutate SQLite, "
+            "or update review workflow state.",
+        ],
+    }
+
+
 def mean_latency_seconds(records: list[dict[str, Any]]) -> float | None:
     latencies = [
         float(record["provenance"]["latency_seconds"])
@@ -5014,6 +6061,23 @@ def print_micro_extraction_summary(
         )
     console.print(table)
     console.print({"records": str(records_path), "raw_responses": str(raw_responses_path)})
+
+
+def print_semantic_paragraph_index_summary(
+    summary: dict[str, Any],
+    records_path: Path,
+    merged_index_path: Path,
+) -> None:
+    table = Table(title="LLM semantic paragraph index")
+    table.add_column("Metric")
+    table.add_column("Value", justify="right")
+    table.add_row("selected", str(summary["selected_count"]))
+    table.add_row("window_records", str(summary["window_record_count"]))
+    table.add_row("records_with_errors", str(summary["records_with_errors"]))
+    for label, metrics in summary["provider_model_metrics"].items():
+        table.add_row(f"audit_pass_rate:{label}", str(metrics["audit_pass_rate"]))
+    console.print(table)
+    console.print({"records": str(records_path), "merged_index": str(merged_index_path)})
 
 
 if __name__ == "__main__":

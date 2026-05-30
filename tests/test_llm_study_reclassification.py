@@ -6,13 +6,17 @@ from pocs.llm_study_reclassification.reclassify_studies import (
     build_candidates,
     build_evidence_plan,
     build_evidence_summary_packet_record,
+    build_merged_semantic_paragraph_indexes,
     build_micro_extraction_packet,
     build_micro_span_grounding_audit,
+    build_paragraph_index_audit,
+    build_paragraph_windows,
     build_prompt_package,
     build_span_grounding_audit,
     build_task_packet_record,
     dry_run_summary_comparison_record,
     evidence_summary_output_schema,
+    extract_xml_paragraphs,
     load_artifacts_by_document_id,
     normalize_label,
     resolve_provider_models,
@@ -569,6 +573,16 @@ def test_resolve_provider_models_allows_provider_overrides() -> None:
     ]
 
 
+def test_resolve_provider_models_includes_cerebras_default() -> None:
+    provider_models = resolve_provider_models(
+        "cerebras",
+        model=None,
+        model_overrides=None,
+    )
+
+    assert provider_models == [("cerebras", "gpt-oss-120b")]
+
+
 def test_model_comparison_dry_run_preserves_packet_provenance(tmp_path: Path) -> None:
     xml_path = tmp_path / "article.nxml"
     xml_path.write_text(
@@ -742,3 +756,143 @@ def test_select_micro_extraction_candidates_uses_fixed_document_ids() -> None:
     )
 
     assert [candidate.document_id for candidate in selected] == ["publication:pmid:2"]
+
+
+def test_extract_xml_paragraphs_preserves_literal_clean_text() -> None:
+    raw = b"""
+    <article><body>
+      <sec><title>Methods</title>
+        <p> Participants   received <italic>oral cannabidiol</italic> or placebo. </p>
+        <p>Short.</p>
+      </sec>
+      <sec><title>Results</title>
+        <p>Cannabidiol reduced pain scores in the treatment arm.</p>
+      </sec>
+    </body></article>
+    """
+    artifact = make_artifact("pmc_nxml")
+
+    paragraphs = extract_xml_paragraphs(raw, artifact=artifact)
+
+    assert [paragraph.section for paragraph in paragraphs] == ["Methods", "Results"]
+    assert paragraphs[0].text == "Participants received oral cannabidiol or placebo."
+    assert paragraphs[0].paragraph_id == "p0001"
+    assert paragraphs[1].text == "Cannabidiol reduced pain scores in the treatment arm."
+
+
+def test_extract_xml_paragraphs_skips_obvious_boilerplate() -> None:
+    raw = b"""
+    <article><body>
+      <sec><title>Body</title>
+        <p>An official website of the United States government</p>
+        <p>Participants received oral cannabidiol or placebo.</p>
+      </sec>
+    </body></article>
+    """
+    artifact = make_artifact("pmc_nxml")
+
+    paragraphs = extract_xml_paragraphs(raw, artifact=artifact)
+
+    assert len(paragraphs) == 1
+    assert paragraphs[0].text == "Participants received oral cannabidiol or placebo."
+
+
+def test_build_paragraph_windows_uses_overlap() -> None:
+    artifact = make_artifact("pmc_nxml")
+    paragraphs = extract_xml_paragraphs(
+        b"""
+        <article><body><sec><title>Body</title>
+          <p>Paragraph one has enough words for indexing.</p>
+          <p>Paragraph two has enough words for indexing.</p>
+          <p>Paragraph three has enough words for indexing.</p>
+          <p>Paragraph four has enough words for indexing.</p>
+          <p>Paragraph five has enough words for indexing.</p>
+        </sec></body></article>
+        """,
+        artifact=artifact,
+    )
+
+    windows = build_paragraph_windows(
+        "publication:pmid:1",
+        paragraphs,
+        window_paragraphs=3,
+        overlap_paragraphs=1,
+        max_windows=None,
+    )
+
+    assert [window.paragraph_ids for window in windows] == [
+        [paragraphs[0].paragraph_id, paragraphs[1].paragraph_id, paragraphs[2].paragraph_id],
+        [paragraphs[2].paragraph_id, paragraphs[3].paragraph_id, paragraphs[4].paragraph_id],
+    ]
+
+
+def test_paragraph_index_audit_flags_unknown_ids_and_invalid_labels() -> None:
+    artifact = make_artifact("pmc_nxml")
+    paragraphs = extract_xml_paragraphs(
+        b"""
+        <article><body><sec><title>Methods</title>
+          <p>Participants received oral cannabidiol or placebo.</p>
+        </sec></body></article>
+        """,
+        artifact=artifact,
+    )
+    window = build_paragraph_windows(
+        "publication:pmid:1",
+        paragraphs,
+        window_paragraphs=3,
+        overlap_paragraphs=0,
+        max_windows=None,
+    )[0]
+    packet = {"paragraph_ids": window.paragraph_ids, "paragraphs": window.paragraphs}
+    record = {
+        "paragraph_annotations": [
+            {
+                "paragraph_id": "unknown",
+                "labels": ["bad_label"],
+                "evidence_terms": ["not in paragraph"],
+            }
+        ]
+    }
+
+    audit = build_paragraph_index_audit(record, packet)
+
+    assert audit["passes_basic_audit"] is False
+    assert audit["unknown_paragraph_ids"] == ["unknown"]
+    assert audit["invalid_labels"][0]["label"] == "bad_label"
+
+
+def test_merge_semantic_paragraph_indexes_deduplicates_votes() -> None:
+    artifact = make_artifact("pmc_nxml")
+    paragraphs = extract_xml_paragraphs(
+        b"""
+        <article><body><sec><title>Methods</title>
+          <p>Participants received oral cannabidiol or placebo.</p>
+        </sec></body></article>
+        """,
+        artifact=artifact,
+    )
+    record = {
+        "document_id": "publication:pmid:1",
+        "provider": "openai",
+        "model": "gpt-4.1",
+        "paragraph_annotations": [
+            {
+                "paragraph_id": paragraphs[0].paragraph_id,
+                "labels": ["intervention_or_exposure"],
+                "question_relevance": {"cannabinoid_role": "high"},
+                "evidence_terms": ["oral cannabidiol"],
+                "needs_human_review_hint": False,
+            }
+        ],
+        "poc_status": "candidate_semantic_paragraph_index",
+    }
+
+    merged = build_merged_semantic_paragraph_indexes(
+        [record],
+        paragraph_index_inputs={"publication:pmid:1": paragraphs},
+    )
+
+    assert merged[0]["annotated_paragraph_count"] == 1
+    annotation = merged[0]["merged_annotations"][0]
+    assert annotation["labels"] == ["intervention_or_exposure"]
+    assert annotation["label_votes"] == {"intervention_or_exposure": 1}
