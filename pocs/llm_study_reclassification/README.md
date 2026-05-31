@@ -127,6 +127,9 @@ under `data/normalized/llm_study_reclassification/semantic_paragraph_index/`.
 Tables and figure captions are mapped only as text units for future enrichment;
 the POC does not interpret images, plots, or graphical content visually. The
 labels are candidate retrieval metadata only, not reviewed knowledge.
+Run summaries include preparation throughput metrics by provider/model: prompt
+characters, rough input tokens, output size when a model was called, latency,
+records with errors, and paragraph-label audit pass rates.
 
 Window size is intentionally empirical. Current runs should monitor audit pass
 rate, evidence-term support, downstream extraction quality against the legacy
@@ -150,6 +153,10 @@ short verbatim evidence text. Outputs are written under
 previews and raw responses are written under
 `data/raw/llm_study_reclassification/`. These records remain candidate evidence
 for human review and do not update reviewed knowledge.
+Run summaries include classification throughput metrics by task/provider/model:
+prompt characters, rough input tokens, output size when available, latency,
+grounding pass rates, unsupported evidence counts, records with errors, and
+`needs_human_review` counts.
 
 Current local findings from the 4-document OpenAI POC:
 

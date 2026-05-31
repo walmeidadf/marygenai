@@ -4727,6 +4727,7 @@ def run_unit_classification_packet_with_provider(
                     provider=provider,
                     model=model,
                     latency_seconds=raw_response["latency_seconds"],
+                    output_text=content,
                 ),
             }
         )
@@ -4750,6 +4751,7 @@ def unit_classification_provenance(
     provider: ProviderName,
     model: str,
     latency_seconds: float | None,
+    output_text: str | None = None,
 ) -> dict[str, Any]:
     provenance = {
         **packet["provenance"],
@@ -4762,6 +4764,9 @@ def unit_classification_provenance(
     }
     if latency_seconds is not None:
         provenance["latency_seconds"] = latency_seconds
+    if output_text is not None:
+        provenance["output_chars"] = len(output_text)
+        provenance["rough_output_token_estimate"] = rough_token_count(output_text)
     return provenance
 
 
@@ -4947,6 +4952,7 @@ def run_semantic_paragraph_window_with_provider(
                     provider=provider,
                     model=model,
                     latency_seconds=raw_response["latency_seconds"],
+                    output_text=content,
                 ),
             }
         )
@@ -4970,6 +4976,7 @@ def semantic_paragraph_provenance(
     provider: ProviderName,
     model: str,
     latency_seconds: float | None,
+    output_text: str | None = None,
 ) -> dict[str, Any]:
     provenance = {
         **packet["provenance"],
@@ -4982,6 +4989,9 @@ def semantic_paragraph_provenance(
     }
     if latency_seconds is not None:
         provenance["latency_seconds"] = latency_seconds
+    if output_text is not None:
+        provenance["output_chars"] = len(output_text)
+        provenance["rough_output_token_estimate"] = rough_token_count(output_text)
     return provenance
 
 
@@ -6637,6 +6647,7 @@ def build_unit_classification_summary(
                     bool(record.get("needs_human_review")) for record in subset
                 ),
                 "mean_latency_seconds": mean_latency_seconds(subset),
+                "throughput": throughput_metrics(subset),
             }
     return {
         "run_id": run_id,
@@ -6660,6 +6671,7 @@ def build_unit_classification_summary(
         "record_count": len(records),
         "records_with_errors": sum(bool(record.get("errors")) for record in records),
         "status_counts": dict(Counter(str(record.get("poc_status")) for record in records)),
+        "throughput": throughput_metrics(records),
         "provider_task_metrics": provider_task_metrics,
         "retrieval_policy": {
             "max_units": max_units,
@@ -6737,6 +6749,7 @@ def build_semantic_paragraph_index_summary(
                 for record in audited
             ),
             "mean_latency_seconds": mean_latency_seconds(subset),
+            "throughput": throughput_metrics(subset),
         }
     return {
         "run_id": run_id,
@@ -6772,6 +6785,7 @@ def build_semantic_paragraph_index_summary(
         "status_counts": dict(
             Counter(str(record.get("poc_status")) for record in window_records)
         ),
+        "throughput": throughput_metrics(window_records),
         "provider_model_metrics": provider_model_metrics,
         "window_policy": {
             "window_paragraphs": window_paragraphs,
@@ -6801,6 +6815,62 @@ def mean_latency_seconds(records: list[dict[str, Any]]) -> float | None:
     if not latencies:
         return None
     return round(sum(latencies) / len(latencies), 3)
+
+
+def throughput_metrics(records: list[dict[str, Any]]) -> dict[str, Any]:
+    """Summarize prompt/output size and latency from record provenance."""
+    provenances = [
+        record["provenance"]
+        for record in records
+        if isinstance(record.get("provenance"), dict)
+    ]
+    prompt_chars = [
+        int(provenance["input_prompt_chars"])
+        for provenance in provenances
+        if provenance.get("input_prompt_chars") is not None
+    ]
+    input_tokens = [
+        int(provenance["rough_input_token_estimate"])
+        for provenance in provenances
+        if provenance.get("rough_input_token_estimate") is not None
+    ]
+    output_chars = [
+        int(provenance["output_chars"])
+        for provenance in provenances
+        if provenance.get("output_chars") is not None
+    ]
+    output_tokens = [
+        int(provenance["rough_output_token_estimate"])
+        for provenance in provenances
+        if provenance.get("rough_output_token_estimate") is not None
+    ]
+    latencies = [
+        float(provenance["latency_seconds"])
+        for provenance in provenances
+        if provenance.get("latency_seconds") is not None
+    ]
+    return {
+        "record_count": len(records),
+        "prompt_record_count": len(prompt_chars),
+        "total_prompt_chars": sum(prompt_chars),
+        "mean_prompt_chars": rounded_mean(prompt_chars),
+        "total_rough_input_tokens": sum(input_tokens),
+        "mean_rough_input_tokens": rounded_mean(input_tokens),
+        "output_record_count": len(output_chars),
+        "total_output_chars": sum(output_chars),
+        "mean_output_chars": rounded_mean(output_chars),
+        "total_rough_output_tokens": sum(output_tokens),
+        "mean_rough_output_tokens": rounded_mean(output_tokens),
+        "latency_record_count": len(latencies),
+        "total_latency_seconds": round(sum(latencies), 3),
+        "mean_latency_seconds": rounded_mean(latencies),
+    }
+
+
+def rounded_mean(values: list[int] | list[float]) -> float | None:
+    if not values:
+        return None
+    return round(sum(values) / len(values), 3)
 
 
 def preliminary_model_comparison_note(

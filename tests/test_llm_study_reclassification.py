@@ -29,6 +29,7 @@ from pocs.llm_study_reclassification.reclassify_studies import (
     select_stratified_candidates,
     select_task_evidence_spans,
     select_units_for_classification_task,
+    throughput_metrics,
 )
 
 
@@ -900,6 +901,38 @@ def test_unit_grounding_audit_flags_unknown_ids_and_unsupported_text() -> None:
     assert audit["passes_basic_grounding"] is False
     assert audit["unknown_unit_ids"] == ["unknown"]
     assert audit["unsupported_evidence_texts"][0]["evidence_text"] == "unsupported phrase"
+
+
+def test_throughput_metrics_summarizes_prompt_output_and_latency() -> None:
+    records = [
+        {
+            "provenance": {
+                "input_prompt_chars": 400,
+                "rough_input_token_estimate": 100,
+                "output_chars": 80,
+                "rough_output_token_estimate": 20,
+                "latency_seconds": 1.25,
+            }
+        },
+        {
+            "provenance": {
+                "input_prompt_chars": 800,
+                "rough_input_token_estimate": 200,
+                "latency_seconds": 2.75,
+            }
+        },
+    ]
+
+    metrics = throughput_metrics(records)
+
+    assert metrics["record_count"] == 2
+    assert metrics["total_prompt_chars"] == 1200
+    assert metrics["mean_prompt_chars"] == 600
+    assert metrics["total_rough_input_tokens"] == 300
+    assert metrics["output_record_count"] == 1
+    assert metrics["total_output_chars"] == 80
+    assert metrics["total_latency_seconds"] == 4.0
+    assert metrics["mean_latency_seconds"] == 2.0
 
 
 def test_build_paragraph_windows_uses_overlap() -> None:
