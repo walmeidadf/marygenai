@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="MaryGenAI is a project for scientific data sources, ontology design, and human-reviewed curation of cannabinoid therapy evidence."
+      content="MaryGenAI is an open research and engineering lab for reproducible, human-reviewed cannabinoid evidence curation."
     />
     <title>MaryGenAI | Cannabinoid Evidence Curation</title>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -55,8 +55,12 @@
 
       .field-row {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-columns: minmax(7rem, 0.8fr) minmax(0, 1.2fr);
         gap: 0.75rem;
+      }
+
+      .field-row dd {
+        overflow-wrap: anywhere;
       }
     </style>
   </head>
@@ -75,12 +79,7 @@
         aria-label="Primary navigation"
       >
         <a href="#top" class="flex items-center gap-3" aria-label="MaryGenAI home">
-          <span
-            class="flex h-10 w-10 items-center justify-center rounded-md bg-clinical-700 text-sm font-semibold text-white"
-            aria-hidden="true"
-          >
-            MG
-          </span>
+          <img src="assets/marygenai-logo.svg" alt="" class="h-11 w-11" aria-hidden="true" />
           <span>
             <span class="block text-base font-semibold text-slate-950">MaryGenAI</span>
             <span class="block text-xs font-medium uppercase text-clinical-600">
@@ -98,6 +97,16 @@
           </a>
           <a href="#research" class="hover:text-clinical-700" data-i18n="navResearch">
             Research
+          </a>
+          <a href="#brazil" class="hover:text-clinical-700" data-i18n="navBrazil">
+            Brazil
+          </a>
+          <a
+            href="https://github.com/walmeidadf/marygenai"
+            class="hover:text-clinical-700"
+            data-i18n="navGithub"
+          >
+            GitHub
           </a>
         </div>
 
@@ -133,8 +142,13 @@
               class="mb-5 inline-flex rounded-md border border-clinical-100 bg-white px-3 py-1 text-sm font-semibold text-clinical-700 shadow-sm"
               data-i18n="heroEyebrow"
             >
-              Scientific infrastructure for cannabinoid evidence
+              AI-assisted evidence infrastructure for cannabinoid science
             </p>
+            <img
+              src="assets/marygenai-logo.svg"
+              alt="MaryGenAI logo"
+              class="mb-6 h-20 w-20 sm:h-24 sm:w-24"
+            />
             <h1
               class="max-w-4xl text-4xl font-semibold leading-tight text-slate-950 sm:text-5xl lg:text-6xl"
               data-i18n="heroTitle"
@@ -142,9 +156,25 @@
               MaryGenAI
             </h1>
             <p class="mt-6 max-w-2xl text-lg leading-8 text-slate-600" data-i18n="heroDescription">
-              Project for scientific data sources, ontology design, and human-reviewed curation of
-              cannabinoid therapy evidence.
+              Public research and engineering lab building a reproducible, AI-assisted, human-reviewed
+              cannabinoid evidence knowledge base.
             </p>
+            <div class="mt-8 flex flex-wrap gap-3">
+              <a
+                href="https://github.com/walmeidadf/marygenai"
+                class="inline-flex items-center rounded-md bg-clinical-700 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-clinical-600 focus:outline-none focus:ring-2 focus:ring-clinical-600 focus:ring-offset-2"
+                data-i18n="heroGithubCta"
+              >
+                View project on GitHub
+              </a>
+              <a
+                href="#brazil"
+                class="inline-flex items-center rounded-md border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-clinical-100 hover:text-clinical-700 focus:outline-none focus:ring-2 focus:ring-clinical-600 focus:ring-offset-2"
+                data-i18n="heroScholarCta"
+              >
+                Why Brazil matters
+              </a>
+            </div>
             <div class="mt-8 flex flex-wrap gap-3" aria-label="Project capabilities">
               <span
                 class="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm"
@@ -163,6 +193,12 @@
                 data-i18n="heroChipThree"
               >
                 Human review
+              </span>
+              <span
+                class="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm"
+                data-i18n="heroChipFour"
+              >
+                AI-assisted extraction
               </span>
             </div>
           </div>
@@ -337,28 +373,91 @@
           <div class="flex flex-col justify-between gap-6 md:flex-row md:items-end">
             <div class="max-w-3xl">
               <p class="text-sm font-semibold uppercase text-clinical-600" data-i18n="researchEyebrow">
-                Latest Research
+                Open Research Software
               </p>
               <h2
                 class="mt-3 text-3xl font-semibold text-slate-950 sm:text-4xl"
                 data-i18n="researchTitle"
               >
-                Semantic Scholar API mockup.
+                AI can help find evidence, but humans decide what becomes knowledge.
               </h2>
               <p class="mt-5 text-base leading-8 text-slate-600" data-i18n="researchDescription">
-                This interface sketch shows how MaryGenAI could distinguish publication type from study
-                design while preserving source identifiers and ontology-ready fields.
+                MaryGenAI uses AI development and extraction workflows to accelerate evidence discovery,
+                classification, and normalization. Every candidate claim still needs provenance,
+                confidence, evidence text, and human review before it can become reviewed knowledge.
               </p>
             </div>
-            <span
-              class="w-fit rounded-md border border-signal/30 bg-[#fffaf0] px-4 py-2 text-sm font-semibold text-[#7b5b1e]"
-              data-i18n="mockBadge"
+            <a
+              href="https://github.com/walmeidadf/marygenai"
+              class="w-fit rounded-md border border-signal/30 bg-[#fffaf0] px-4 py-2 text-sm font-semibold text-[#7b5b1e] transition hover:border-signal hover:bg-white"
+              data-i18n="githubBadge"
             >
-              Mock API response
-            </span>
+              GitHub repository
+            </a>
           </div>
 
           <div class="mt-10 grid gap-5 lg:grid-cols-3" id="research-list" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section id="brazil" class="border-y border-slate-200 bg-slate-50 py-20">
+        <div class="mx-auto max-w-7xl px-5 sm:px-6 lg:px-8">
+          <div class="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
+            <div>
+              <p class="text-sm font-semibold uppercase text-clinical-600" data-i18n="brazilEyebrow">
+                Brazil And Global Use
+              </p>
+              <h2 class="mt-3 text-3xl font-semibold text-slate-950 sm:text-4xl" data-i18n="brazilTitle">
+                Built for Brazilian documentation needs, useful anywhere evidence must be reviewed.
+              </h2>
+              <p class="mt-5 text-base leading-8 text-slate-600" data-i18n="brazilDescription">
+                Brazil's 2026 cannabis medicinal rules put new emphasis on research, patient
+                associations, quality control, traceability, and evidence-based regulation. MaryGenAI
+                aims to support that documentation layer with physicians, associations, and reviewers
+                in Brazil while keeping the data model reusable for any region.
+              </p>
+              <a
+                href="https://www.gov.br/anvisa/pt-br/assuntos/noticias-anvisa/2026/anvisa-publica-regras-para-producao-de-cannabis-medicinal"
+                class="mt-6 inline-flex w-fit rounded-md border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-clinical-100 hover:text-clinical-700 focus:outline-none focus:ring-2 focus:ring-clinical-600 focus:ring-offset-2"
+                data-i18n="brazilAnvisaLink"
+              >
+                Read the Anvisa 2026 update
+              </a>
+            </div>
+
+            <div class="grid gap-5 md:grid-cols-2">
+              <article class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                <p class="text-sm font-bold text-clinical-700">BR</p>
+                <h3 class="mt-3 text-base font-semibold text-slate-950" data-i18n="brazilCardOneTitle">
+                  Local collaboration
+                </h3>
+                <p class="mt-3 text-sm leading-6 text-slate-600" data-i18n="brazilCardOneText">
+                  The project is shaped by Brazilian clinical and association contexts, with a focus on
+                  documentation that can be inspected and corrected by people.
+                </p>
+              </article>
+              <article class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                <p class="text-sm font-bold text-clinical-700">AI</p>
+                <h3 class="mt-3 text-base font-semibold text-slate-950" data-i18n="brazilCardTwoTitle">
+                  Assisted, not automatic
+                </h3>
+                <p class="mt-3 text-sm leading-6 text-slate-600" data-i18n="brazilCardTwoText">
+                  AI-generated classifications and extracted fields remain candidates until reviewers
+                  accept, correct, or reject them with provenance.
+                </p>
+              </article>
+              <article class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm md:col-span-2">
+                <p class="text-sm font-bold text-clinical-700">Global</p>
+                <h3 class="mt-3 text-base font-semibold text-slate-950" data-i18n="brazilCardThreeTitle">
+                  Portable evidence model
+                </h3>
+                <p class="mt-3 text-sm leading-6 text-slate-600" data-i18n="brazilCardThreeText">
+                  Publications, trials, source records, ontology links, and review decisions are modeled
+                  separately so the workflow can adapt to other countries and source ecosystems.
+                </p>
+              </article>
+            </div>
+          </div>
         </div>
       </section>
     </main>
@@ -366,14 +465,20 @@
     <footer class="border-t border-slate-200 bg-slate-950 py-10 text-white">
       <div class="mx-auto flex max-w-7xl flex-col gap-4 px-5 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
         <div>
-          <p class="text-base font-semibold">MaryGenAI</p>
+          <div class="flex items-center gap-3">
+            <img src="assets/marygenai-logo.svg" alt="" class="h-10 w-10" aria-hidden="true" />
+            <p class="text-base font-semibold">MaryGenAI</p>
+          </div>
           <p class="mt-1 text-sm text-slate-300" data-i18n="footerText">
             Evidence infrastructure for cannabinoid science.
           </p>
         </div>
-        <p class="text-sm text-slate-400" data-i18n="footerDisclaimer">
-          Research metadata only. Not medical advice.
-        </p>
+        <div class="flex flex-col gap-2 text-sm text-slate-400 md:items-end">
+          <a href="https://github.com/walmeidadf/marygenai" class="text-slate-200 hover:text-white" data-i18n="footerGithub">
+            View on GitHub
+          </a>
+          <p data-i18n="footerDisclaimer">Research metadata only. Not medical advice.</p>
+        </div>
       </div>
     </footer>
 
@@ -384,13 +489,18 @@
           navGraph: "Knowledge Graph",
           navPipeline: "Pipeline",
           navResearch: "Research",
-          heroEyebrow: "Scientific infrastructure for cannabinoid evidence",
+          navBrazil: "Brazil",
+          navGithub: "GitHub",
+          heroEyebrow: "AI-assisted evidence infrastructure for cannabinoid science",
           heroTitle: "MaryGenAI",
           heroDescription:
-            "Project for scientific data sources, ontology design, and human-reviewed curation of cannabinoid therapy evidence.",
+            "Public research and engineering lab building a reproducible, AI-assisted, human-reviewed cannabinoid evidence knowledge base.",
+          heroGithubCta: "View project on GitHub",
+          heroScholarCta: "Why Brazil matters",
           heroChipOne: "Source evaluation",
           heroChipTwo: "Ontology design",
           heroChipThree: "Human review",
+          heroChipFour: "AI-assisted extraction",
           previewTitle: "Evidence Record",
           previewSubtitle: "Field-level provenance snapshot",
           previewFieldOne: "Publication Type",
@@ -419,31 +529,50 @@
           pipelineStepFourTitle: "Human Review",
           pipelineStepFourText:
             "Reviewers verify field values, corrections, notes, timestamps, and ontology version.",
-          researchEyebrow: "Latest Research",
-          researchTitle: "Semantic Scholar API mockup.",
+          researchEyebrow: "Open Research Software",
+          researchTitle: "AI can help find evidence, but humans decide what becomes knowledge.",
           researchDescription:
-            "This interface sketch shows how MaryGenAI could distinguish publication type from study design while preserving source identifiers and ontology-ready fields.",
-          mockBadge: "Mock API response",
+            "MaryGenAI uses AI development and extraction workflows to accelerate evidence discovery, classification, and normalization. Every candidate claim still needs provenance, confidence, evidence text, and human review before it can become reviewed knowledge.",
+          githubBadge: "GitHub repository",
+          brazilEyebrow: "Brazil And Global Use",
+          brazilTitle: "Built for Brazilian documentation needs, useful anywhere evidence must be reviewed.",
+          brazilDescription:
+            "Brazil's 2026 cannabis medicinal rules put new emphasis on research, patient associations, quality control, traceability, and evidence-based regulation. MaryGenAI aims to support that documentation layer with physicians, associations, and reviewers in Brazil while keeping the data model reusable for any region.",
+          brazilAnvisaLink: "Read the Anvisa 2026 update",
+          brazilCardOneTitle: "Local collaboration",
+          brazilCardOneText:
+            "The project is shaped by Brazilian clinical and association contexts, with a focus on documentation that can be inspected and corrected by people.",
+          brazilCardTwoTitle: "Assisted, not automatic",
+          brazilCardTwoText:
+            "AI-generated classifications and extracted fields remain candidates until reviewers accept, correct, or reject them with provenance.",
+          brazilCardThreeTitle: "Portable evidence model",
+          brazilCardThreeText:
+            "Publications, trials, source records, ontology links, and review decisions are modeled separately so the workflow can adapt to other countries and source ecosystems.",
           footerText: "Evidence infrastructure for cannabinoid science.",
+          footerGithub: "View on GitHub",
           footerDisclaimer: "Research metadata only. Not medical advice.",
-          publicationType: "Publication Type",
-          studyDesign: "Study Design",
-          compounds: "Compounds",
-          source: "Source",
-          review: "Review"
+          submissionArea: "Submission Area",
+          projectEvidence: "Project Evidence",
+          repositoryPath: "Repository Path",
+          status: "Status"
         },
         pt: {
           skipLink: "Ir para o conteúdo",
           navGraph: "Grafo de Conhecimento",
           navPipeline: "Pipeline",
           navResearch: "Pesquisa",
-          heroEyebrow: "Infraestrutura científica para evidências sobre canabinoides",
+          navBrazil: "Brasil",
+          navGithub: "GitHub",
+          heroEyebrow: "Infraestrutura de evidência com apoio de IA para ciência canabinoide",
           heroTitle: "MaryGenAI",
           heroDescription:
-            "Projeto para fontes de dados científicas, desenho de ontologia e curadoria com revisão humana de evidências sobre terapia canabinoide.",
+            "Laboratório público de pesquisa e engenharia construindo uma base de conhecimento reprodutível, assistida por IA e revisada por humanos sobre evidências canabinoides.",
+          heroGithubCta: "Ver projeto no GitHub",
+          heroScholarCta: "Por que o Brasil importa",
           heroChipOne: "Avaliação de fontes",
           heroChipTwo: "Desenho de ontologia",
           heroChipThree: "Revisão humana",
+          heroChipFour: "Extração assistida por IA",
           previewTitle: "Registro de Evidência",
           previewSubtitle: "Retrato de proveniência por campo",
           previewFieldOne: "Tipo de Publicação",
@@ -472,48 +601,95 @@
           pipelineStepFourTitle: "Revisão Humana",
           pipelineStepFourText:
             "Revisores verificam valores, correções, notas, datas e versão da ontologia.",
-          researchEyebrow: "Pesquisa Recente",
-          researchTitle: "Mockup da API Semantic Scholar.",
+          researchEyebrow: "Software Aberto de Pesquisa",
+          researchTitle: "A IA pode ajudar a encontrar evidências, mas humanos decidem o que vira conhecimento.",
           researchDescription:
-            "Este esboço de interface mostra como o MaryGenAI pode separar tipo de publicação de desenho do estudo preservando identificadores de fonte e campos prontos para ontologia.",
-          mockBadge: "Resposta simulada da API",
+            "MaryGenAI usa fluxos de desenvolvimento e extração com IA para acelerar descoberta, classificação e normalização de evidências. Cada alegação candidata ainda precisa de proveniência, confiança, trecho de evidência e revisão humana antes de virar conhecimento revisado.",
+          githubBadge: "Repositório no GitHub",
+          brazilEyebrow: "Brasil E Uso Global",
+          brazilTitle: "Construído para necessidades brasileiras de documentação, útil onde evidências precisem ser revisadas.",
+          brazilDescription:
+            "As regras brasileiras de 2026 para cannabis medicinal aumentam a ênfase em pesquisa, associações de pacientes, controle de qualidade, rastreabilidade e regulação baseada em evidências. MaryGenAI busca apoiar essa camada documental junto a médicos, associações e revisores no Brasil, mantendo o modelo de dados reutilizável em qualquer região.",
+          brazilAnvisaLink: "Ler atualização da Anvisa de 2026",
+          brazilCardOneTitle: "Colaboração local",
+          brazilCardOneText:
+            "O projeto é moldado por contextos clínicos e associativos brasileiros, com foco em documentação que possa ser inspecionada e corrigida por pessoas.",
+          brazilCardTwoTitle: "Assistido, não automático",
+          brazilCardTwoText:
+            "Classificações e campos extraídos por IA continuam sendo candidatos até que revisores aceitem, corrijam ou rejeitem com proveniência.",
+          brazilCardThreeTitle: "Modelo de evidência portátil",
+          brazilCardThreeText:
+            "Publicações, ensaios, registros-fonte, vínculos de ontologia e decisões de revisão são modelados separadamente para que o fluxo se adapte a outros países e ecossistemas de fontes.",
           footerText: "Infraestrutura de evidências para ciência canabinoide.",
+          footerGithub: "Ver no GitHub",
           footerDisclaimer: "Apenas metadados de pesquisa. Não é orientação médica.",
-          publicationType: "Tipo de Publicação",
-          studyDesign: "Desenho do Estudo",
-          compounds: "Compostos",
-          source: "Fonte",
-          review: "Revisão"
+          submissionArea: "Área da Submissão",
+          projectEvidence: "Evidência do Projeto",
+          repositoryPath: "Caminho do Repositório",
+          status: "Status"
         }
       };
 
       const researchItems = [
         {
-          title: "Cannabidiol for treatment-resistant epilepsy: evidence synthesis",
-          year: "2024",
-          publicationType: "Systematic Review",
-          studyDesign: "Evidence Synthesis",
-          compounds: "CBD",
-          source: "Semantic Scholar · mock-001",
-          review: "Needs field review"
+          title: {
+            en: "AI-assisted discovery",
+            pt: "Descoberta assistida por IA"
+          },
+          year: "01",
+          submissionArea: {
+            en: "Candidate evidence",
+            pt: "Evidência candidata"
+          },
+          projectEvidence: {
+            en: "Models and heuristics can classify studies and extract candidate fields.",
+            pt: "Modelos e heurísticas podem classificar estudos e extrair campos candidatos."
+          },
+          repositoryPath: "docs/architecture.md",
+          status: {
+            en: "Never accepted without review",
+            pt: "Nunca aceito sem revisão"
+          }
         },
         {
-          title: "Cannabinoid receptor signaling in inflammatory pain models",
-          year: "2023",
-          publicationType: "Journal Article",
-          studyDesign: "Preclinical Animal Study",
-          compounds: "THC, CB2 agonist",
-          source: "Semantic Scholar · mock-002",
-          review: "Ontology mapped"
+          title: {
+            en: "Human-reviewed workflow",
+            pt: "Fluxo revisado por humanos"
+          },
+          year: "02",
+          submissionArea: {
+            en: "Research data provenance",
+            pt: "Proveniência de dados de pesquisa"
+          },
+          projectEvidence: {
+            en: "Field-level review state, ontology versioning, and auditable manifests.",
+            pt: "Estado de revisão por campo, versionamento de ontologia e manifestos auditáveis."
+          },
+          repositoryPath: "docs/review_status_guide.md",
+          status: {
+            en: "MVP review surface active",
+            pt: "Superfície de revisão MVP ativa"
+          }
         },
         {
-          title: "Oral CBD and clobazam pharmacokinetic interaction in epilepsy",
-          year: "2022",
-          publicationType: "Clinical Trial Article",
-          studyDesign: "Phase 2 Double-Blind Trial",
-          compounds: "CBD",
-          source: "Semantic Scholar · mock-003",
-          review: "Human verified"
+          title: {
+            en: "Open repository",
+            pt: "Repositório aberto"
+          },
+          year: "03",
+          submissionArea: {
+            en: "Research software",
+            pt: "Software de pesquisa"
+          },
+          projectEvidence: {
+            en: "Source code, documentation, tests, and reproducible CLI workflows are available on GitHub.",
+            pt: "Código-fonte, documentação, testes e fluxos CLI reprodutíveis estão disponíveis no GitHub."
+          },
+          repositoryPath: "github.com/walmeidadf/marygenai",
+          status: {
+            en: "Public and inspectable",
+            pt: "Público e inspecionável"
+          }
         }
       ];
 
@@ -529,29 +705,25 @@
               <article class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
                 <div class="flex items-center justify-between gap-4">
                   <span class="rounded-md bg-clinical-50 px-3 py-1 text-xs font-semibold text-clinical-700">${item.year}</span>
-                  <span class="text-xs font-semibold uppercase text-slate-400">API</span>
+                  <span class="text-xs font-semibold uppercase text-slate-400">OSS</span>
                 </div>
-                <h3 class="mt-5 text-lg font-semibold leading-7 text-slate-950">${item.title}</h3>
+                <h3 class="mt-5 text-lg font-semibold leading-7 text-slate-950">${item.title[language]}</h3>
                 <dl class="mt-5 space-y-3 text-sm">
                   <div class="field-row">
-                    <dt class="text-slate-500">${labels.publicationType}</dt>
-                    <dd class="font-semibold text-slate-900">${item.publicationType}</dd>
+                    <dt class="text-slate-500">${labels.submissionArea}</dt>
+                    <dd class="font-semibold text-slate-900">${item.submissionArea[language]}</dd>
                   </div>
                   <div class="field-row">
-                    <dt class="text-slate-500">${labels.studyDesign}</dt>
-                    <dd class="font-semibold text-slate-900">${item.studyDesign}</dd>
+                    <dt class="text-slate-500">${labels.projectEvidence}</dt>
+                    <dd class="font-semibold text-slate-900">${item.projectEvidence[language]}</dd>
                   </div>
                   <div class="field-row">
-                    <dt class="text-slate-500">${labels.compounds}</dt>
-                    <dd class="font-semibold text-slate-900">${item.compounds}</dd>
+                    <dt class="text-slate-500">${labels.repositoryPath}</dt>
+                    <dd class="font-semibold text-slate-900">${item.repositoryPath}</dd>
                   </div>
                   <div>
-                    <dt class="text-slate-500">${labels.source}</dt>
-                    <dd class="mt-1 font-medium text-slate-700">${item.source}</dd>
-                  </div>
-                  <div>
-                    <dt class="text-slate-500">${labels.review}</dt>
-                    <dd class="mt-1 font-semibold text-clinical-700">${item.review}</dd>
+                    <dt class="text-slate-500">${labels.status}</dt>
+                    <dd class="mt-1 font-semibold text-clinical-700">${item.status[language]}</dd>
                   </div>
                 </dl>
               </article>

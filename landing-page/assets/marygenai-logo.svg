@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">MaryGenAI molecule graph logo</title>
+  <desc id="desc">A clean molecule-inspired knowledge graph mark with hexagonal rings and data nodes.</desc>
+  <defs>
+    <linearGradient id="nodeGlow" x1="52" x2="206" y1="48" y2="210" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38f2a6"/>
+      <stop offset=".55" stop-color="#4bd7ff"/>
+      <stop offset="1" stop-color="#7c5cff"/>
+    </linearGradient>
+    <linearGradient id="frame" x1="35" x2="221" y1="30" y2="226" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#13241f"/>
+      <stop offset="1" stop-color="#0d1021"/>
+    </linearGradient>
+    <filter id="softSignal" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur"/>
+      <feColorMatrix
+        in="blur"
+        result="glow"
+        type="matrix"
+        values="0 0 0 0 0.22 0 0 0 0 0.95 0 0 0 0 0.65 0 0 0 0.45 0"
+      />
+      <feMerge>
+        <feMergeNode in="glow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="256" height="256" rx="48" fill="url(#frame)"/>
+  <path
+    d="M51 130 82 76h62l31 54-31 54H82L51 130Z"
+    fill="none"
+    stroke="#e9fff6"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="10"
+    opacity=".96"
+  />
+  <path
+    d="M113 130 144 76h62l31 54-31 54h-62l-31-54Z"
+    fill="none"
+    stroke="#e9fff6"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="10"
+    opacity=".96"
+  />
+  <path
+    d="M82 184 113 130m31 54-31-54m62 0h-62m31-54-31 54"
+    fill="none"
+    stroke="#7c8f95"
+    stroke-linecap="round"
+    stroke-width="6"
+    opacity=".8"
+  />
+
+  <g filter="url(#softSignal)">
+    <circle cx="51" cy="130" r="13" fill="#38f2a6"/>
+    <circle cx="82" cy="76" r="11" fill="#38f2a6"/>
+    <circle cx="144" cy="76" r="11" fill="#4bd7ff"/>
+    <circle cx="175" cy="130" r="13" fill="#7c5cff"/>
+    <circle cx="144" cy="184" r="11" fill="#4bd7ff"/>
+    <circle cx="82" cy="184" r="11" fill="#38f2a6"/>
+    <circle cx="206" cy="76" r="11" fill="#7c5cff"/>
+    <circle cx="237" cy="130" r="13" fill="#7c5cff"/>
+    <circle cx="206" cy="184" r="11" fill="#4bd7ff"/>
+  </g>
+
+  <path
+    d="M73 205c17 15 41 23 67 21 28-2 52-16 67-38"
+    fill="none"
+    stroke="url(#nodeGlow)"
+    stroke-linecap="round"
+    stroke-width="8"
+    opacity=".9"
+  />
+  <path
+    d="M62 54c15-16 38-25 64-24 27 1 51 13 67 33"
+    fill="none"
+    stroke="url(#nodeGlow)"
+    stroke-linecap="round"
+    stroke-width="8"
+    opacity=".55"
+  />
+</svg>
