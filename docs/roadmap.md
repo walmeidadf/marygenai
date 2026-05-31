@@ -258,6 +258,46 @@ discovery, enrichment, and review workflows first.
 - Add optional skip/resume behavior to the monthly backfill helper after the raw
   payload layout is in place.
 
+## LLM Evidence Classification Track
+
+Status: active POC branch as of 2026-05-31.
+
+The LLM study-reclassification work remains audit-only. It must not mutate
+SQLite review state, reviewed knowledge, identity decisions, or public snapshots.
+Outputs are candidate evidence for human review.
+
+Current preferred pipeline branch:
+
+1. Convert already available source artifacts into literal cleaned document
+   units: paragraphs, abstract text, tables, and figure captions.
+2. Assign stable `unit_id`s and candidate semantic labels for retrieval.
+3. Select units per downstream task family.
+4. Classify task families with a robust model using cited `unit_id`s and
+   contiguous verbatim `evidence_text`.
+5. Compare outputs against the legacy English context as a guardrail, preserving
+   conflicts for human review.
+
+The first 4-document OpenAI run suggests this is more promising than free-form
+narrative synthesis for the next classification pipeline iteration. It improved
+auditability and surfaced likely legacy/source mismatches, especially where the
+selected article text did not support cannabinoid claims present in the legacy
+context.
+
+Next LLM POC steps:
+
+- expand the same document-unit preparation and task-family classification to a
+  larger stratified sample;
+- record preparation and classification metrics separately: prompt chars, rough
+  token estimates, latency, provider/model, grounding pass rate, unsupported
+  evidence counts, errors, and human-review flags;
+- evaluate deterministic label/keyword retrieval before adding a retrieval
+  store;
+- test ChromaDB as the first local vector/hybrid retrieval POC only if larger
+  runs show deterministic unit selection failure modes;
+- keep Qdrant as a later service candidate if retrieval storage becomes useful;
+- keep Groq and Cerebras as candidates for narrower later-stage tasks after
+  robust models prepare or select relevant evidence context.
+
 ## Recent POCs
 
 ### POC 6: Small Full-Text And PDF Sample
