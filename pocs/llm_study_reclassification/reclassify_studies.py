@@ -118,6 +118,7 @@ CHUNK_MAX_CHARS = 1_800
 CHUNK_OVERLAP_CHARS = 180
 SUMMARY_MAX_OUTPUT_TOKENS = 2400
 SEMANTIC_PARAGRAPH_MAX_OUTPUT_TOKENS = 3200
+UNIT_EVIDENCE_TEXT_MAX_CHARS = 220
 EVIDENCE_TOPICS = {
     "study_design": (
         "randomized",
@@ -2476,8 +2477,12 @@ def unit_classification_output_schema(task_name: str) -> dict[str, Any]:
     evidence_entry = {
         "support_status": "supported | conflicting | partial | not_found | insufficient_evidence",
         "explicit_or_inferred": "explicit | inferred | unclear",
-        "cited_unit_ids": ["unit id"],
-        "evidence_text": "short verbatim substring from cited units, or empty string",
+        "cited_unit_ids": ["one unit id for evidence_text support"],
+        "evidence_text": (
+            "single short verbatim substring from one cited unit, max "
+            f"{UNIT_EVIDENCE_TEXT_MAX_CHARS} characters, or empty string"
+        ),
+        "evidence_note": "optional synthesis or explanation; not a source quote",
         "confidence": "high | medium | low",
     }
     if task_name == "condition_classification":
@@ -2568,9 +2573,14 @@ Rules:
 - Use the legacy English context only as a guardrail and comparison baseline.
 - Treat candidate_index_labels as retrieval hints, not truth.
 - Do not extract a field unless cited document units support that exact field.
-- Evidence text must be a short verbatim substring from the cited units.
-- Evidence text must be one contiguous substring from one cited unit; do not combine
-  separate passages, use ellipses, or summarize multiple units in one evidence_text.
+- evidence_text is a quote field, not a summary field.
+- Every non-empty evidence_text must be one short contiguous substring from exactly
+  one cited unit.
+- evidence_text must be {UNIT_EVIDENCE_TEXT_MAX_CHARS} characters or fewer.
+- evidence_text must not contain ellipses, bracketed omissions, or joined clauses
+  from multiple places.
+- If you need to explain or synthesize across units, put that explanation in
+  evidence_note, not evidence_text.
 - If support_status is supported, conflicting, or partial, cited_unit_ids must be non-empty.
 - If evidence is missing, use not_found or insufficient_evidence.
 - Mark needs_human_review true when source evidence and legacy context conflict.
@@ -4825,6 +4835,7 @@ def build_unit_grounding_audit(
         unit_id for unit_id in cited_unit_ids if unit_id not in unit_text_by_id
     )
     unsupported_evidence_texts: list[dict[str, Any]] = []
+    evidence_text_policy_violations: list[dict[str, Any]] = []
     for value in iter_nested_values(record):
         if not isinstance(value, dict):
             continue
@@ -4836,10 +4847,28 @@ def build_unit_grounding_audit(
             for unit_id in value.get("cited_unit_ids", [])
             if unit_id is not None
         ]
-        cited_text = " ".join(
-            unit_text_by_id.get(unit_id, "") for unit_id in entry_unit_ids
+        policy_violations = unit_evidence_text_policy_violations(
+            evidence_text,
+            cited_unit_ids=entry_unit_ids,
         )
-        if normalize_label(evidence_text) not in normalize_label(cited_text):
+        if policy_violations:
+            evidence_text_policy_violations.append(
+                {
+                    "task_name": str(record.get("task_name", "")),
+                    "evidence_text": evidence_text,
+                    "cited_unit_ids": entry_unit_ids,
+                    "violations": policy_violations,
+                }
+            )
+        cited_texts = [
+            unit_text_by_id[unit_id]
+            for unit_id in entry_unit_ids
+            if unit_id in unit_text_by_id
+        ]
+        if not any(
+            normalize_label(evidence_text) in normalize_label(cited_text)
+            for cited_text in cited_texts
+        ):
             unsupported_evidence_texts.append(
                 {
                     "task_name": str(record.get("task_name", "")),
@@ -4861,13 +4890,38 @@ def build_unit_grounding_audit(
         "cited_unit_ids": sorted(cited_unit_ids),
         "unknown_unit_ids": unknown_unit_ids,
         "unsupported_evidence_texts": unsupported_evidence_texts,
+        "evidence_text_policy_violations": evidence_text_policy_violations,
         "missing_required_citations": missing_required_citations,
+        "grounding_repair_needed": (
+            bool(unknown_unit_ids)
+            or bool(unsupported_evidence_texts)
+            or bool(evidence_text_policy_violations)
+            or missing_required_citations
+        ),
         "passes_basic_grounding": (
             not unknown_unit_ids
             and not unsupported_evidence_texts
+            and not evidence_text_policy_violations
             and not missing_required_citations
         ),
     }
+
+
+def unit_evidence_text_policy_violations(
+    evidence_text: str,
+    *,
+    cited_unit_ids: list[str],
+) -> list[str]:
+    violations: list[str] = []
+    if len(evidence_text) > UNIT_EVIDENCE_TEXT_MAX_CHARS:
+        violations.append("evidence_text_too_long")
+    if "..." in evidence_text or "…" in evidence_text:
+        violations.append("evidence_text_contains_ellipsis")
+    if "[...]" in evidence_text or "(...)" in evidence_text:
+        violations.append("evidence_text_contains_omission_marker")
+    if len(cited_unit_ids) != 1:
+        violations.append("evidence_text_requires_exactly_one_cited_unit")
+    return violations
 
 
 def build_semantic_paragraph_chat_request(
@@ -6634,10 +6688,27 @@ def build_unit_classification_summary(
                     )
                     for record in grounding_records
                 ),
+                "evidence_text_policy_violation_count": sum(
+                    len(
+                        record.get("unit_grounding_audit", {}).get(
+                            "evidence_text_policy_violations",
+                            [],
+                        )
+                    )
+                    for record in grounding_records
+                ),
                 "missing_required_citation_count": sum(
                     bool(
                         record.get("unit_grounding_audit", {}).get(
                             "missing_required_citations"
+                        )
+                    )
+                    for record in grounding_records
+                ),
+                "grounding_repair_needed_count": sum(
+                    bool(
+                        record.get("unit_grounding_audit", {}).get(
+                            "grounding_repair_needed"
                         )
                     )
                     for record in grounding_records

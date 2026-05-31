@@ -157,6 +157,10 @@ Run summaries include classification throughput metrics by task/provider/model:
 prompt characters, rough input tokens, output size when available, latency,
 grounding pass rates, unsupported evidence counts, records with errors, and
 `needs_human_review` counts.
+The current strict evidence contract treats `evidence_text` as a quote field:
+one short contiguous substring from exactly one cited unit, without ellipses or
+joined passages. Any synthesis belongs in `evidence_note`. The local audit marks
+`grounding_repair_needed` when a record needs a focused repair/adjudication pass.
 
 Current local findings from the 4-document OpenAI POC:
 
@@ -170,6 +174,22 @@ Current local findings from the 4-document OpenAI POC:
 - The next run should use a larger stratified sample and record preparation,
   classification, latency, rough token, and optional embedding metrics before
   deciding whether to add ChromaDB or Qdrant-style hybrid retrieval.
+
+Current local findings from the 30-document legacy-guided OpenAI POC:
+
+- Semantic document-unit preparation stayed stable on the larger stratified
+  sample: 70 windows, no API errors, and a basic paragraph-label audit pass rate
+  of 1.0.
+- The baseline unit classifier produced 90 records with no API errors, but 10
+  unsupported evidence snippets. Most failures were evidence stitching, where
+  the model joined separate source passages with ellipses.
+- The stricter evidence contract reduced unsupported evidence snippets from 10
+  to 4 on the same sample and same semantic index, but still produced 10 records
+  marked `grounding_repair_needed` under the stricter local policy. Remaining
+  failures are mostly long quote fields or residual ellipsis/omission behavior.
+- Prompt changes help, but a focused repair/adjudication pass over only failed
+  records is now the next comparison point before adding agentic retrieval or a
+  vector/hybrid retrieval store.
 
 ```bash
 uv run python pocs/llm_study_reclassification/reclassify_studies.py run --dry-run --limit 5

@@ -14,6 +14,7 @@ from pocs.llm_study_reclassification.reclassify_studies import (
     build_prompt_package,
     build_span_grounding_audit,
     build_task_packet_record,
+    build_unit_classification_packet,
     build_unit_grounding_audit,
     dry_run_summary_comparison_record,
     evidence_summary_output_schema,
@@ -876,6 +877,43 @@ def test_select_units_for_classification_task_uses_semantic_labels() -> None:
     assert [unit.paragraph_id for unit in selected] == [paragraphs[0].paragraph_id]
 
 
+def test_unit_classification_prompt_separates_quote_from_note() -> None:
+    artifact = make_artifact("pmc_nxml")
+    paragraphs = extract_xml_paragraphs(
+        b"""
+        <article><body><sec><title>Methods</title>
+          <p>Participants received oral cannabidiol or placebo for pain.</p>
+        </sec></body></article>
+        """,
+        artifact=artifact,
+    )
+    candidate = build_candidates(
+        [
+            {
+                "document_id": "publication:pmid:1",
+                "context_id": "legacy_english_context:1",
+                "title": "Cannabidiol trial",
+                "type_of_study": "Clinical Trial",
+            }
+        ],
+        artifacts_by_document_id={},
+        abstracts_by_document_id={},
+    )[0]
+
+    packet = build_unit_classification_packet(
+        candidate,
+        task_name="cannabinoid_classification",
+        units=paragraphs,
+        labels_by_unit={},
+        run_id="test-run",
+        semantic_index_path=None,
+    )
+
+    assert "evidence_text is a quote field, not a summary field" in packet["prompt"]
+    assert "evidence_note, not evidence_text" in packet["prompt"]
+    assert "220 characters or fewer" in packet["prompt"]
+
+
 def test_unit_grounding_audit_flags_unknown_ids_and_unsupported_text() -> None:
     artifact = make_artifact("pmc_nxml")
     paragraphs = extract_xml_paragraphs(
@@ -901,6 +939,40 @@ def test_unit_grounding_audit_flags_unknown_ids_and_unsupported_text() -> None:
     assert audit["passes_basic_grounding"] is False
     assert audit["unknown_unit_ids"] == ["unknown"]
     assert audit["unsupported_evidence_texts"][0]["evidence_text"] == "unsupported phrase"
+    assert audit["grounding_repair_needed"] is True
+
+
+def test_unit_grounding_audit_flags_stitched_evidence_text() -> None:
+    artifact = make_artifact("pmc_nxml")
+    paragraphs = extract_xml_paragraphs(
+        b"""
+        <article><body><sec><title>Methods</title>
+          <p>Participants received oral cannabidiol or placebo for pain.</p>
+          <p>Cannabidiol reduced pain scores after four weeks.</p>
+        </sec></body></article>
+        """,
+        artifact=artifact,
+    )
+    packet = {"units": paragraphs}
+    record = {
+        "task_name": "cannabinoid_classification",
+        "cannabinoid_classification": {
+            "support_status": "supported",
+            "cited_unit_ids": [paragraphs[0].paragraph_id, paragraphs[1].paragraph_id],
+            "evidence_text": (
+                "Participants received oral cannabidiol or placebo for pain. ... "
+                "Cannabidiol reduced pain scores after four weeks."
+            ),
+        },
+    }
+
+    audit = build_unit_grounding_audit(record, packet)
+
+    assert audit["passes_basic_grounding"] is False
+    assert audit["grounding_repair_needed"] is True
+    violations = audit["evidence_text_policy_violations"][0]["violations"]
+    assert "evidence_text_contains_ellipsis" in violations
+    assert "evidence_text_requires_exactly_one_cited_unit" in violations
 
 
 def test_throughput_metrics_summarizes_prompt_output_and_latency() -> None:
