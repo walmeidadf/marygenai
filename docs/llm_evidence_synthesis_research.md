@@ -118,6 +118,87 @@ too heavy before the extraction contract is more stable.
 
 Priority: defer.
 
+### P6: Semantic Document Units Before Task Classification
+
+The most promising recent POC path is not free-form synthesis. It is a two-stage
+audit pipeline:
+
+1. Convert source artifacts into literal cleaned document units: paragraphs,
+   abstract text, tables, and figure captions.
+2. Classify those units with short stable ids and candidate semantic labels.
+3. Retrieve task-specific units for downstream classification.
+4. Ask a robust model to classify one task family at a time, citing `unit_id`s
+   and short verbatim evidence text.
+
+This keeps the article text visible to the model without asking it to rewrite or
+summarize the article. It also preserves reviewability because downstream
+outputs cite the same unit ids that a human can inspect. The labels are retrieval
+hints only, not truth.
+
+In the 4-document OpenAI test set, the unit-classification stage produced 12
+records across `condition_classification`, `cannabinoid_classification`, and
+`study_classification` with no API errors. The first full run showed that the
+model sometimes built `evidence_text` from multiple passages joined by ellipses,
+which failed literal grounding. After the prompt required each `evidence_text`
+to be one contiguous substring from one cited unit, grounding pass rate reached
+1.0 for all three task families in the small sample.
+
+Qualitative findings:
+
+- The pipeline correctly surfaced likely legacy/source mismatches where selected
+  article units did not mention cannabinoids despite cannabinoid claims in the
+  legacy context.
+- Study classification needed explicit guidance that randomized, controlled,
+  double-blind, and open-label intervention trials are `human_clinical`, not
+  `human_observational`.
+- Legacy alignment needed an explicit rule: when the note says source units and
+  legacy context describe different studies, populations, interventions, or
+  conditions, `legacy_alignment.alignment` must be `conflicts`.
+- The approach looks more useful than narrative synthesis for this stage because
+  it narrows context while keeping original text and audit ids intact.
+
+Priority: expand the same test to a larger, stratified document sample before
+building a heavier retrieval store.
+
+### P7: Hybrid Retrieval Store For Document Units
+
+A vector or hybrid retrieval layer may help once the document-unit approach is
+stable. The first local POC should prefer ChromaDB because it is lightweight for
+experimentation; Qdrant remains a better candidate if the workflow needs a more
+durable service with hybrid search and operational controls.
+
+The store should contain only candidate preparation artifacts, not reviewed
+knowledge. Each indexed unit should preserve `document_id`, `unit_id`,
+`unit_type`, section, source artifact id/path, prompt version, candidate labels,
+and literal text hash. Retrieval should be evaluated against deterministic
+keyword/label selection before becoming part of the default classification path.
+
+Embeddings can use an open model in this phase. The goal is not maximal semantic
+recall yet; it is to estimate whether hybrid retrieval improves task-specific
+unit selection enough to justify added complexity.
+
+Priority: test after a larger document-unit classification run establishes
+failure modes of deterministic unit selection.
+
+### P8: Cost And Throughput Instrumentation
+
+The next expansion should measure preparation and classification costs
+separately:
+
+- document-unit preparation count, prompt chars, rough token estimates, latency,
+  and model/provider;
+- unit-classification prompt chars, output size, latency, grounding pass rate,
+  unsupported evidence count, and human-review flags;
+- optional embedding count, embedding dimensions, embedding model, estimated
+  embedding cost, and retrieval latency;
+- task-level counts by provider/model and task family.
+
+This does not need exact billing integration initially. Rough token/input-char
+counts plus provider/model latency are enough to estimate scaling behavior and
+compare robust-model preparation against cheaper narrow-task models later.
+
+Priority: add before running a larger sample so the larger run is informative.
+
 ## Recommended POC Sequence
 
 1. Keep `prepare-evidence-index` as the retrieval baseline.
@@ -130,7 +211,13 @@ Priority: defer.
 5. Run `compare-model-batch` for `intervention_exposure`,
    `condition_organ_system_extraction`, and `study_design_verification` on the
    same summary packets.
-6. Only then test a high-tier model on final adjudication.
+6. Use semantic document units as the current preferred branch for the next
+   experiment: expand to a larger stratified sample, run preparation and
+   task-family classification, and compare against legacy guardrails.
+7. Add cost/throughput instrumentation before the larger run.
+8. Test ChromaDB or Qdrant-style hybrid retrieval only after deterministic
+   unit selection failure modes are visible.
+9. Only then test a high-tier model on final adjudication.
 
 ## Evaluation Criteria
 

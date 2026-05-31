@@ -151,6 +151,19 @@ previews and raw responses are written under
 `data/raw/llm_study_reclassification/`. These records remain candidate evidence
 for human review and do not update reviewed knowledge.
 
+Current local findings from the 4-document OpenAI POC:
+
+- Semantic document units plus task-family classification looked more useful
+  than narrative synthesis for the next pipeline branch.
+- Requiring each `evidence_text` to be one contiguous verbatim substring from one
+  cited unit eliminated grounding failures caused by ellipsis-joined evidence in
+  the small test.
+- The classifier surfaced likely legacy/source mismatches when selected article
+  units did not support cannabinoid claims from the legacy context.
+- The next run should use a larger stratified sample and record preparation,
+  classification, latency, rough token, and optional embedding metrics before
+  deciding whether to add ChromaDB or Qdrant-style hybrid retrieval.
+
 ```bash
 uv run python pocs/llm_study_reclassification/reclassify_studies.py run --dry-run --limit 5
 ```

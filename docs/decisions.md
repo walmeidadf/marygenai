@@ -487,6 +487,30 @@ auditability for human review. High-tier models should be considered for
 adjudication and hard conflict resolution after the task and evidence packet
 shape are stable, not as a substitute for a well-scoped extraction task.
 
+## 2026-05-31: Prefer Semantic Document Units Over Narrative Synthesis For The Next LLM Classification POC
+
+The current LLM reclassification POC should advance through semantic document
+units rather than free-form article synthesis. Source artifacts are converted
+into literal cleaned units with stable ids, including paragraphs, abstract text,
+tables, and figure captions. These units can be labeled as candidate retrieval
+metadata, then selected per downstream task family:
+`condition_classification`, `cannabinoid_classification`, and
+`study_classification`.
+
+The 4-document OpenAI test showed that this structure is promising for
+auditability and for detecting legacy/source mismatches. It also exposed two
+prompt requirements that should remain in the contract: `evidence_text` must be
+one contiguous verbatim substring from cited units, and legacy alignment must be
+`conflicts` when source units and legacy context describe different studies,
+conditions, interventions, or populations.
+
+The next experiment should expand the same pipeline to a larger stratified
+sample, add cost/throughput metrics for preparation and classification, and only
+then test whether a local hybrid retrieval store such as ChromaDB, or later a
+Qdrant-style service, improves unit selection. Groq and Cerebras remain better
+candidates for narrower later-stage tasks after robust models have prepared or
+selected the relevant evidence context.
+
 ## 2026-05-20: Persist Access Artifacts As Candidate Evidence
 
 The first operational access enrichment command now selects prioritized PubMed
