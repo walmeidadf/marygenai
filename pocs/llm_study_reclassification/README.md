@@ -258,6 +258,20 @@ Current local findings from the 30-document legacy-guided OpenAI POC:
   5,648 prompt tokens, 389 completion tokens, and 3.7 seconds of model latency
   per repaired record. Combined with the original run, the 15-document segmented
   experiment used 93,778 prompt tokens and 7,354 completion tokens.
+- A broader 30-document segmented run, balanced as 10 clinical intervention, 10
+  preclinical/mechanistic, and 10 evidence-synthesis records, produced no API or
+  parsing errors. Initial grounding pass rate was 0.9; the three failed records
+  were repaired successfully by the segmented repair pass, leaving 30/30 final
+  records passing local grounding and no remaining `grounding_repair_needed`
+  records. The combined classification plus repair run used 137,636 OpenAI
+  prompt tokens and 11,386 completion tokens.
+- In the broader run, 16/30 final records still had `needs_human_review=true`.
+  This mostly reflected insufficient or mismatched source units rather than
+  unsupported quoted evidence: 6/10 evidence-synthesis records, 4/10 clinical
+  intervention records, and 4/10 preclinical/mechanistic records were
+  `not_found` after source-unit inspection. This is useful behavior for the POC:
+  the pipeline is surfacing likely legacy/source mismatches and weak source
+  extraction cases instead of forcing claims from the legacy context.
 
 ```bash
 uv run python pocs/llm_study_reclassification/reclassify_studies.py run --dry-run --limit 5

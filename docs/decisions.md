@@ -543,6 +543,16 @@ more agentic retrieval loop; the cheaper next test is to expand the segmented
 sample and compare final post-repair grounding, review burden, and token cost by
 pipeline.
 
+A broader balanced 30-document run produced no API/parsing errors and reached
+30/30 local grounding after repairing three records. The main quality signal
+shifted from quote grounding to source sufficiency: 16/30 final records still
+needed human review, often because selected source units did not contain
+scientific article content, did not match the legacy context, or did not support
+the legacy study-type claim. This supports continuing with a larger segmented
+sample, but the next analysis should separate true model behavior from upstream
+source/unit extraction quality before adding vector retrieval or agentic
+retrieval tools.
+
 ## 2026-05-20: Persist Access Artifacts As Candidate Evidence
 
 The first operational access enrichment command now selects prioritized PubMed
