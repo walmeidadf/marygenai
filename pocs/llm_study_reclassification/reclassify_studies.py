@@ -51,6 +51,7 @@ DEFAULT_SEMANTIC_PARAGRAPH_INDEX_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "semantic_para
 DEFAULT_UNIT_CLASSIFICATION_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "unit_classification"
 DEFAULT_UNIT_REPAIR_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "unit_classification_repair"
 DEFAULT_SEGMENTED_UNIT_PIPELINE_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "segmented_unit_pipeline"
+DEFAULT_SEGMENTED_UNIT_REPAIR_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "segmented_unit_pipeline_repair"
 DEFAULT_MODEL = "llama-3.3-70b-versatile"
 DEFAULT_PROVIDER = "groq"
 DEFAULT_PROVIDER_MODELS = {
@@ -2087,6 +2088,164 @@ def repair_unit_classification_batch(
     print_unit_repair_summary(summary, repaired_records_path)
 
 
+@app.command("repair-segmented-unit-pipeline-batch")
+def repair_segmented_unit_pipeline_batch(
+    records_path: Annotated[
+        list[Path],
+        typer.Option("--records-path", help="Segmented unit pipeline records JSONL to repair."),
+    ],
+    cohort_path: Annotated[
+        Path,
+        typer.Option("--cohort-path", help="Identity-confirmed English triage cohort JSONL."),
+    ] = DEFAULT_COHORT_PATH,
+    database_path: Annotated[
+        Path | None,
+        typer.Option("--database-path", help="SQLite database path."),
+    ] = None,
+    output_dir: Annotated[
+        Path | None,
+        typer.Option("--output-dir", help="Segmented repair output directory."),
+    ] = None,
+    raw_output_dir: Annotated[
+        Path | None,
+        typer.Option("--raw-output-dir", help="Raw segmented repair output directory."),
+    ] = None,
+    semantic_index_path: Annotated[
+        Path | None,
+        typer.Option("--semantic-index-path", help="Merged semantic index used by the run."),
+    ] = None,
+    provider: Annotated[
+        str,
+        typer.Option("--provider", help="Single provider name."),
+    ] = "openai",
+    model: Annotated[
+        str | None,
+        typer.Option("--model", help="Model name for repair."),
+    ] = None,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Prepare repair prompts without calling model APIs."),
+    ] = False,
+    max_units: Annotated[
+        int,
+        typer.Option("--max-units", min=4, max=40, help="Maximum document units per record."),
+    ] = 18,
+    limit: Annotated[
+        int | None,
+        typer.Option("--limit", min=1, help="Maximum repair-needed records to process."),
+    ] = None,
+    sleep_seconds: Annotated[
+        float,
+        typer.Option("--sleep-seconds", min=0.0, help="Delay between model calls."),
+    ] = 1.0,
+) -> None:
+    """Repair segmented unit pipeline records that failed local grounding policy."""
+    provider_models = resolve_provider_models(provider, model=model, model_overrides=None)
+    if len(provider_models) != 1:
+        raise typer.BadParameter("repair-segmented-unit-pipeline-batch accepts one provider.")
+    provider_name, model_name = provider_models[0]
+    load_dotenv()
+    settings = get_settings()
+    resolved_database_path = database_path or sqlite_database_path(settings.data_dir)
+    resolved_output_dir = output_dir or settings.data_dir / DEFAULT_SEGMENTED_UNIT_REPAIR_SUBDIR
+    resolved_raw_output_dir = raw_output_dir or settings.data_dir / DEFAULT_RAW_SUBDIR
+    resolved_output_dir.mkdir(parents=True, exist_ok=True)
+    resolved_raw_output_dir.mkdir(parents=True, exist_ok=True)
+    run_started_at = datetime.now(UTC)
+    run_id = run_started_at.strftime("%Y%m%dT%H%M%SZ_segmented_unit_pipeline_repair")
+    repaired_records_path = resolved_output_dir / f"{run_id}_records.jsonl"
+    summary_path = resolved_output_dir / f"{run_id}_summary.json"
+    raw_responses_path = (
+        resolved_raw_output_dir / f"{run_id}_segmented_unit_pipeline_repair_raw_responses.jsonl"
+    )
+    prompt_previews_path = (
+        resolved_raw_output_dir / f"{run_id}_segmented_unit_pipeline_repair_prompt_previews.jsonl"
+    )
+    source_records = load_repair_needed_unit_records(records_path)
+    if limit is not None:
+        source_records = source_records[:limit]
+    label_index = load_semantic_label_index(semantic_index_path) if semantic_index_path else {}
+    candidates = load_candidates_for_poc(
+        cohort_path=cohort_path,
+        database_path=resolved_database_path,
+    )
+    candidates_by_document_id = {candidate.document_id: candidate for candidate in candidates}
+    repaired_records: list[dict[str, Any]] = []
+    raw_responses: list[dict[str, Any]] = []
+    prompt_previews: list[dict[str, Any]] = []
+    for index, source_record in enumerate(source_records):
+        candidate = candidates_by_document_id.get(str(source_record.get("document_id")))
+        if candidate is None:
+            continue
+        pipeline_name = str(source_record.get("pipeline_name") or source_record.get("task_name"))
+        units = load_candidate_paragraphs(candidate)
+        labels_by_unit = label_index.get(candidate.document_id, {})
+        selected_units = select_units_for_segmented_pipeline(
+            units,
+            pipeline_name=pipeline_name,
+            labels_by_unit=labels_by_unit,
+            max_units=max_units,
+        )
+        packet = build_segmented_unit_repair_packet(
+            candidate,
+            source_record=source_record,
+            units=selected_units,
+            labels_by_unit=labels_by_unit,
+            run_id=run_id,
+            semantic_index_path=semantic_index_path,
+        )
+        prompt_previews.append(segmented_unit_repair_packet_preview(packet))
+        if dry_run:
+            record = dry_run_segmented_unit_repair_record(
+                packet,
+                provider=provider_name,
+                model=model_name,
+            )
+            repaired_records.append(record)
+            append_jsonl(repaired_records_path, [record])
+            continue
+        api_key = resolve_provider_api_key(provider_name)
+        if not api_key:
+            record = error_segmented_unit_repair_record(
+                packet,
+                provider=provider_name,
+                model=model_name,
+                error=f"{api_key_env_var(provider_name)} is not set.",
+            )
+            repaired_records.append(record)
+            append_jsonl(repaired_records_path, [record])
+            continue
+        record, raw_response = run_segmented_unit_repair_packet_with_provider(
+            packet,
+            provider=provider_name,
+            model=model_name,
+            api_key=api_key,
+        )
+        repaired_records.append(record)
+        raw_responses.append(raw_response)
+        append_jsonl(repaired_records_path, [record])
+        append_jsonl(raw_responses_path, [raw_response])
+        if sleep_seconds and index < len(source_records) - 1:
+            time.sleep(sleep_seconds)
+    append_jsonl(prompt_previews_path, prompt_previews)
+    summary = build_segmented_unit_repair_summary(
+        run_id=run_id,
+        dry_run=dry_run,
+        provider=provider_name,
+        model=model_name,
+        records_path=records_path,
+        repaired_records_path=repaired_records_path,
+        raw_responses_path=raw_responses_path,
+        prompt_previews_path=prompt_previews_path,
+        source_records=source_records,
+        repaired_records=repaired_records,
+        started_at=run_started_at,
+        completed_at=datetime.now(UTC),
+    )
+    write_json(summary_path, summary)
+    print_segmented_unit_repair_summary(summary, repaired_records_path)
+
+
 @app.command("compare-segmented-unit-pipeline-batch")
 def compare_segmented_unit_pipeline_batch(
     cohort_path: Annotated[
@@ -3549,6 +3708,137 @@ def unit_repair_packet_preview(packet: dict[str, Any]) -> dict[str, Any]:
         "run_id": packet["run_id"],
         "document_id": packet["document_id"],
         "task_name": packet["task_name"],
+        "prompt_version": packet["prompt_version"],
+        "prompt_chars": len(packet["prompt"]),
+        "selected_unit_ids": packet["selected_unit_ids"],
+        "prompt": packet["prompt"],
+    }
+
+
+def build_segmented_unit_repair_packet(
+    candidate: StudyCandidate,
+    *,
+    source_record: dict[str, Any],
+    units: list[EvidenceParagraph],
+    labels_by_unit: dict[str, list[str]],
+    run_id: str,
+    semantic_index_path: Path | None,
+) -> dict[str, Any]:
+    pipeline_name = str(source_record.get("pipeline_name") or source_record["task_name"])
+    schema = segmented_unit_pipeline_output_schema(pipeline_name)
+    prompt = build_segmented_unit_repair_prompt(
+        candidate=candidate,
+        source_record=source_record,
+        pipeline_name=pipeline_name,
+        schema=schema,
+        units=units,
+        labels_by_unit=labels_by_unit,
+    )
+    source_artifacts = [candidate.selected_artifact] if candidate.selected_artifact else []
+    source_artifacts.extend(candidate.metadata_artifacts)
+    return {
+        "run_id": run_id,
+        "document_id": candidate.document_id,
+        "context_id": candidate.context_id,
+        "task_name": pipeline_name,
+        "pipeline_name": pipeline_name,
+        "prompt_version": f"{PROMPT_VERSION}_segmented_repair_{pipeline_name}",
+        "prompt": prompt,
+        "expected_output_schema": schema,
+        "source_record": source_record,
+        "selected_unit_ids": [unit.paragraph_id for unit in units],
+        "units": units,
+        "provenance": {
+            "source": "llm_study_reclassification_poc",
+            "method": "segmented_unit_pipeline_grounding_repair",
+            "does_not_mutate_sqlite_review_state": True,
+            "review_boundary": "segmented_unit_repair_candidate_not_reviewed_knowledge",
+            "semantic_index_path": str(semantic_index_path) if semantic_index_path else None,
+            "source_artifact_ids": [
+                artifact.artifact_id for artifact in source_artifacts
+            ],
+            "source_artifact_paths": [
+                artifact.payload_path
+                for artifact in source_artifacts
+                if artifact.payload_path
+            ],
+            "legacy_context_id": candidate.context_id,
+            "source_record_run_id": source_record.get("run_id"),
+            "source_record_provider": source_record.get("provider"),
+            "source_record_model": source_record.get("model"),
+        },
+    }
+
+
+def build_segmented_unit_repair_prompt(
+    *,
+    candidate: StudyCandidate,
+    source_record: dict[str, Any],
+    pipeline_name: str,
+    schema: dict[str, Any],
+    units: list[EvidenceParagraph],
+    labels_by_unit: dict[str, list[str]],
+) -> str:
+    unit_text = "\n\n".join(
+        "\n".join(
+            [
+                f"[unit_id={unit.paragraph_id}]",
+                f"unit_type: {unit.unit_type}",
+                f"section: {unit.section}",
+                f"candidate_index_labels: {', '.join(labels_by_unit.get(unit.paragraph_id, []))}",
+                f"text: {unit.text}",
+            ]
+        )
+        for unit in units
+    )
+    repair_audit = source_record.get("unit_grounding_audit", {})
+    return f"""You repair one failed segmented JSON candidate for a human-reviewed
+cannabinoid evidence knowledge base. This is not a new extraction task.
+
+Pipeline: {pipeline_name}
+
+Rules:
+- Return only valid JSON matching the schema.
+- Use English only.
+- Do not provide medical advice, treatment recommendations, or clinical instructions.
+- Preserve supported segment fields when they are supported by the selected units.
+- Fix only grounding failures, overlong evidence_text, invalid citations, support_status,
+  needs_human_review, review_reasons, legacy_alignment, and evidence_note when needed.
+- Use the legacy English context only as a guardrail and comparison baseline.
+- Do not cite the legacy English context as a source unit.
+- If no short literal quote supports a supported/conflicting/partial field, downgrade that
+  field to insufficient_evidence or not_found.
+- evidence_text is a quote field, not a summary field.
+- Every non-empty evidence_text must be one contiguous substring from exactly one cited unit.
+- evidence_text must be {UNIT_EVIDENCE_TEXT_MAX_CHARS} characters or fewer.
+- evidence_text must not contain ellipses, bracketed omissions, or joined passages.
+- Put explanations in evidence_note, not evidence_text.
+- Keep source/legacy conflicts visible for human review.
+
+Output JSON schema:
+{json.dumps(schema, indent=2)}
+
+Document metadata:
+document_id: {candidate.document_id}
+title: {candidate.title or ""}
+legacy_study_type: {candidate.legacy_study_type or ""}
+
+Original failed segmented record:
+{json.dumps(source_record, indent=2, ensure_ascii=False)}
+
+Local grounding audit to repair:
+{json.dumps(repair_audit, indent=2, ensure_ascii=False)}
+
+Selected document units:
+{unit_text}
+"""
+
+
+def segmented_unit_repair_packet_preview(packet: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "run_id": packet["run_id"],
+        "document_id": packet["document_id"],
+        "pipeline_name": packet["pipeline_name"],
         "prompt_version": packet["prompt_version"],
         "prompt_chars": len(packet["prompt"]),
         "selected_unit_ids": packet["selected_unit_ids"],
@@ -5997,6 +6287,54 @@ def error_unit_repair_record(
     return record
 
 
+def run_segmented_unit_repair_packet_with_provider(
+    packet: dict[str, Any],
+    *,
+    provider: ProviderName,
+    model: str,
+    api_key: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    record, raw_response = run_unit_repair_packet_with_provider(
+        packet,
+        provider=provider,
+        model=model,
+        api_key=api_key,
+    )
+    record["pipeline_name"] = packet["pipeline_name"]
+    raw_response["pipeline_name"] = packet["pipeline_name"]
+    if record.get("poc_status") == "candidate_unit_classification_repair":
+        record["poc_status"] = "candidate_segmented_unit_pipeline_repair"
+    return record, raw_response
+
+
+def dry_run_segmented_unit_repair_record(
+    packet: dict[str, Any],
+    *,
+    provider: ProviderName,
+    model: str,
+) -> dict[str, Any]:
+    record = dry_run_unit_repair_record(packet, provider=provider, model=model)
+    record["pipeline_name"] = packet["pipeline_name"]
+    record["poc_status"] = "dry_run_segmented_repair_prompt_prepared"
+    return record
+
+
+def error_segmented_unit_repair_record(
+    packet: dict[str, Any],
+    *,
+    provider: ProviderName,
+    model: str,
+    error: str,
+) -> dict[str, Any]:
+    record = dry_run_segmented_unit_repair_record(packet, provider=provider, model=model)
+    record["poc_status"] = "error"
+    record["errors"] = [error]
+    record["review_reasons"] = [
+        "Segmented unit repair failed; inspect raw response before retry."
+    ]
+    return record
+
+
 def unit_classification_provenance(
     packet: dict[str, Any],
     *,
@@ -8141,6 +8479,49 @@ def build_unit_repair_summary(
     }
 
 
+def build_segmented_unit_repair_summary(
+    *,
+    run_id: str,
+    dry_run: bool,
+    provider: ProviderName,
+    model: str,
+    records_path: list[Path],
+    repaired_records_path: Path,
+    raw_responses_path: Path,
+    prompt_previews_path: Path,
+    source_records: list[dict[str, Any]],
+    repaired_records: list[dict[str, Any]],
+    started_at: datetime,
+    completed_at: datetime,
+) -> dict[str, Any]:
+    summary = build_unit_repair_summary(
+        run_id=run_id,
+        dry_run=dry_run,
+        provider=provider,
+        model=model,
+        records_path=records_path,
+        repaired_records_path=repaired_records_path,
+        raw_responses_path=raw_responses_path,
+        prompt_previews_path=prompt_previews_path,
+        source_records=source_records,
+        repaired_records=repaired_records,
+        started_at=started_at,
+        completed_at=completed_at,
+    )
+    summary["method"] = "repair_segmented_unit_pipeline_grounding_failures"
+    summary["prompt_version"] = f"{PROMPT_VERSION}_segmented_unit_repair"
+    summary["pipeline_counts"] = dict(
+        Counter(str(record.get("pipeline_name")) for record in repaired_records).most_common()
+    )
+    summary["notes"] = [
+        "Segmented unit repair records are candidate evidence for human review.",
+        "This command does not validate identity, mutate SQLite, or update reviewed knowledge.",
+        "The repair step is scoped to grounding and citation defects from prior "
+        "segmented unit pipeline records.",
+    ]
+    return summary
+
+
 def build_segmented_unit_pipeline_summary(
     *,
     run_id: str,
@@ -8747,6 +9128,27 @@ def print_segmented_unit_pipeline_summary(
         table.add_row(f"pipeline:{label}", str(count))
     console.print(table)
     console.print({"records": str(records_path)})
+
+
+def print_segmented_unit_repair_summary(
+    summary: dict[str, Any],
+    repaired_records_path: Path,
+) -> None:
+    table = Table(title="LLM segmented unit repair")
+    table.add_column("Metric")
+    table.add_column("Value", justify="right")
+    table.add_row("source_repair_needed", str(summary["source_repair_needed_count"]))
+    table.add_row("records", str(summary["record_count"]))
+    table.add_row("records_with_errors", str(summary["records_with_errors"]))
+    table.add_row("grounding_pass_rate", str(summary["grounding_pass_rate"]))
+    table.add_row(
+        "remaining_repair_needed",
+        str(summary["remaining_repair_needed_count"]),
+    )
+    for label, count in summary["pipeline_counts"].items():
+        table.add_row(f"pipeline:{label}", str(count))
+    console.print(table)
+    console.print({"records": str(repaired_records_path)})
 
 
 def print_semantic_paragraph_index_summary(

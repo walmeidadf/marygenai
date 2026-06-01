@@ -195,6 +195,16 @@ the routed segment. The legacy English context is used as a guardrail and
 alignment baseline, but not as a source unit for grounding. Source support must
 come from selected document units with literal `evidence_text` quotes.
 
+Repair only locally failed segmented-pipeline records:
+
+```bash
+uv run python pocs/llm_study_reclassification/reclassify_studies.py repair-segmented-unit-pipeline-batch --provider openai --records-path data/normalized/llm_study_reclassification/segmented_unit_pipeline/RUN_records.jsonl --semantic-index-path data/normalized/llm_study_reclassification/semantic_paragraph_index/RUN_merged_index.jsonl
+```
+
+This repair command is scoped to grounding and citation defects from segmented
+pipeline records. It does not re-run open-ended extraction and does not treat
+legacy context as source evidence.
+
 Current local findings from the 4-document OpenAI POC:
 
 - Semantic document units plus task-family classification looked more useful
@@ -241,6 +251,13 @@ Current local findings from the 30-document legacy-guided OpenAI POC:
   tokens, and 5.6 seconds of model latency per document. At the observed size,
   this is a low-cost enough experiment to expand after quote-length repair is
   tested, but the cost still depends on selected unit count and article length.
+- The first segmented repair run processed the four grounding failures from
+  that 15-document run and fixed 4/4 records, with zero API/parsing errors,
+  grounding pass rate 1.0, and no remaining `grounding_repair_needed` records.
+  It used 22,591 OpenAI prompt tokens and 1,557 completion tokens, averaging
+  5,648 prompt tokens, 389 completion tokens, and 3.7 seconds of model latency
+  per repaired record. Combined with the original run, the 15-document segmented
+  experiment used 93,778 prompt tokens and 7,354 completion tokens.
 
 ```bash
 uv run python pocs/llm_study_reclassification/reclassify_studies.py run --dry-run --limit 5

@@ -16,6 +16,7 @@ from pocs.llm_study_reclassification.reclassify_studies import (
     build_paragraph_windows,
     build_prompt_package,
     build_segmented_unit_pipeline_prompt,
+    build_segmented_unit_repair_packet,
     build_span_grounding_audit,
     build_task_packet_record,
     build_unit_classification_packet,
@@ -1054,6 +1055,58 @@ def test_segmented_pipeline_prompt_has_evidence_synthesis_guardrails() -> None:
     assert "Do not cite the legacy English context as a source unit" in prompt
     assert "one contiguous substring from exactly one cited unit" in prompt
     assert "source_unit_ids" in prompt
+
+
+def test_segmented_unit_repair_packet_uses_segment_schema() -> None:
+    artifact = make_artifact("pmc_nxml")
+    paragraphs = extract_xml_paragraphs(
+        b"""
+        <article><body><sec><title>Results</title>
+          <p>CBD reduced CB1 expression in irradiated rats.</p>
+        </sec></body></article>
+        """,
+        artifact=artifact,
+    )
+    candidate = build_candidates(
+        [
+            {
+                "document_id": "publication:pmid:1",
+                "context_id": "legacy_english_context:1",
+                "title": "Cannabidiol in rats",
+                "type_of_study": "Animal Study",
+            }
+        ],
+        artifacts_by_document_id={},
+        abstracts_by_document_id={},
+    )[0]
+    source_record = {
+        "run_id": "source-run",
+        "document_id": candidate.document_id,
+        "task_name": "preclinical_mechanistic",
+        "pipeline_name": "preclinical_mechanistic",
+        "provider": "openai",
+        "model": "gpt-4.1",
+        "unit_grounding_audit": {
+            "grounding_repair_needed": True,
+            "evidence_text_policy_violations": [
+                {"evidence_text": "CBD reduced CB1 expression in irradiated rats."}
+            ],
+        },
+    }
+
+    packet = build_segmented_unit_repair_packet(
+        candidate,
+        source_record=source_record,
+        units=paragraphs,
+        labels_by_unit={},
+        run_id="repair-run",
+        semantic_index_path=None,
+    )
+
+    assert packet["pipeline_name"] == "preclinical_mechanistic"
+    assert packet["prompt_version"].endswith("_segmented_repair_preclinical_mechanistic")
+    assert "preclinical_mechanistic" in packet["expected_output_schema"]
+    assert "Do not cite the legacy English context as a source unit" in packet["prompt"]
 
 
 def test_unit_classification_prompt_separates_quote_from_note() -> None:

@@ -534,6 +534,15 @@ This suggests improving quote-length discipline and repair/adjudication before
 increasing sample size or adopting ChromaDB/hybrid retrieval as part of the
 pipeline.
 
+The follow-up segmented repair pass fixed all four grounding failures from the
+15-document run without API or parsing errors. This supports a two-step
+classification shape for the next larger sample: first run one segment-specific
+contract per document, then run a narrow repair/adjudication command only for
+records that fail local grounding. The observed failures do not yet justify a
+more agentic retrieval loop; the cheaper next test is to expand the segmented
+sample and compare final post-repair grounding, review burden, and token cost by
+pipeline.
+
 ## 2026-05-20: Persist Access Artifacts As Candidate Evidence
 
 The first operational access enrichment command now selects prioritized PubMed
