@@ -168,6 +168,19 @@ This command also supports `--resume-records-path ... --retry-errors` so a
 checkpointed run can retry transient error records without reclassifying
 successful document/task/provider/model combinations.
 
+Repair only locally failed unit-classification records:
+
+```bash
+uv run python pocs/llm_study_reclassification/reclassify_studies.py repair-unit-classification-batch --provider openai --records-path data/normalized/llm_study_reclassification/unit_classification/RUN_records.jsonl --semantic-index-path data/normalized/llm_study_reclassification/semantic_paragraph_index/RUN_merged_index.jsonl
+```
+
+The repair command is a narrow adjudication step, not an open-ended agent. It
+loads only records marked `grounding_repair_needed`, selected document units,
+and the local audit failures. It may correct evidence text/citations, downgrade
+unsupported fields, and preserve legacy conflicts for human review. It writes
+candidate repair records under
+`data/normalized/llm_study_reclassification/unit_classification_repair/`.
+
 Current local findings from the 4-document OpenAI POC:
 
 - Semantic document units plus task-family classification looked more useful
@@ -196,6 +209,12 @@ Current local findings from the 30-document legacy-guided OpenAI POC:
 - Prompt changes help, but a focused repair/adjudication pass over only failed
   records is now the next comparison point before adding agentic retrieval or a
   vector/hybrid retrieval store.
+- The first narrow repair/adjudication pass fixed 60% of strict grounding
+  failures in both the 30-document balanced sample and the 40-document targeted
+  stress sample. Remaining failures cluster around condition/cannabinoid records
+  in synthetic/endocannabinoid, inflammation, animal, laboratory, and review
+  contexts; these likely need a more structured segment-specific contract rather
+  than a broader free-form agent.
 
 ```bash
 uv run python pocs/llm_study_reclassification/reclassify_studies.py run --dry-run --limit 5

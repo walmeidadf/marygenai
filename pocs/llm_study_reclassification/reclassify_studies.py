@@ -49,6 +49,7 @@ DEFAULT_MODEL_COMPARISON_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "model_comparison"
 DEFAULT_MICRO_EXTRACTION_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "micro_extraction"
 DEFAULT_SEMANTIC_PARAGRAPH_INDEX_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "semantic_paragraph_index"
 DEFAULT_UNIT_CLASSIFICATION_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "unit_classification"
+DEFAULT_UNIT_REPAIR_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "unit_classification_repair"
 DEFAULT_MODEL = "llama-3.3-70b-versatile"
 DEFAULT_PROVIDER = "groq"
 DEFAULT_PROVIDER_MODELS = {
@@ -1925,6 +1926,161 @@ def compare_unit_classification_batch(
     print_unit_classification_summary(summary, records_path, raw_responses_path)
 
 
+@app.command("repair-unit-classification-batch")
+def repair_unit_classification_batch(
+    records_path: Annotated[
+        list[Path],
+        typer.Option("--records-path", help="Unit-classification records JSONL to repair."),
+    ],
+    cohort_path: Annotated[
+        Path,
+        typer.Option("--cohort-path", help="Identity-confirmed English triage cohort JSONL."),
+    ] = DEFAULT_COHORT_PATH,
+    database_path: Annotated[
+        Path | None,
+        typer.Option("--database-path", help="SQLite database path."),
+    ] = None,
+    output_dir: Annotated[
+        Path | None,
+        typer.Option("--output-dir", help="Unit repair output directory."),
+    ] = None,
+    raw_output_dir: Annotated[
+        Path | None,
+        typer.Option("--raw-output-dir", help="Raw repair response output directory."),
+    ] = None,
+    semantic_index_path: Annotated[
+        Path | None,
+        typer.Option("--semantic-index-path", help="Merged semantic index used by the run."),
+    ] = None,
+    provider: Annotated[
+        str,
+        typer.Option("--provider", help="Single provider name."),
+    ] = "openai",
+    model: Annotated[
+        str | None,
+        typer.Option("--model", help="Model name for repair."),
+    ] = None,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Prepare repair prompts without calling model APIs."),
+    ] = False,
+    max_units: Annotated[
+        int,
+        typer.Option("--max-units", min=4, max=40, help="Maximum document units per task."),
+    ] = 18,
+    limit: Annotated[
+        int | None,
+        typer.Option("--limit", min=1, help="Maximum repair-needed records to process."),
+    ] = None,
+    sleep_seconds: Annotated[
+        float,
+        typer.Option("--sleep-seconds", min=0.0, help="Delay between model calls."),
+    ] = 1.0,
+) -> None:
+    """Repair unit-classification records that failed local grounding policy."""
+    provider_models = resolve_provider_models(provider, model=model, model_overrides=None)
+    if len(provider_models) != 1:
+        raise typer.BadParameter("repair-unit-classification-batch accepts exactly one provider.")
+    provider_name, model_name = provider_models[0]
+    load_dotenv()
+    settings = get_settings()
+    resolved_database_path = database_path or sqlite_database_path(settings.data_dir)
+    resolved_output_dir = output_dir or settings.data_dir / DEFAULT_UNIT_REPAIR_SUBDIR
+    resolved_raw_output_dir = raw_output_dir or settings.data_dir / DEFAULT_RAW_SUBDIR
+    resolved_output_dir.mkdir(parents=True, exist_ok=True)
+    resolved_raw_output_dir.mkdir(parents=True, exist_ok=True)
+    run_started_at = datetime.now(UTC)
+    run_id = run_started_at.strftime("%Y%m%dT%H%M%SZ_unit_classification_repair")
+    repaired_records_path = resolved_output_dir / f"{run_id}_records.jsonl"
+    summary_path = resolved_output_dir / f"{run_id}_summary.json"
+    raw_responses_path = (
+        resolved_raw_output_dir / f"{run_id}_unit_classification_repair_raw_responses.jsonl"
+    )
+    prompt_previews_path = (
+        resolved_raw_output_dir / f"{run_id}_unit_classification_repair_prompt_previews.jsonl"
+    )
+
+    source_records = load_repair_needed_unit_records(records_path)
+    if limit is not None:
+        source_records = source_records[:limit]
+    label_index = load_semantic_label_index(semantic_index_path) if semantic_index_path else {}
+    candidates = load_candidates_for_poc(
+        cohort_path=cohort_path,
+        database_path=resolved_database_path,
+    )
+    candidates_by_document_id = {candidate.document_id: candidate for candidate in candidates}
+    repaired_records: list[dict[str, Any]] = []
+    raw_responses: list[dict[str, Any]] = []
+    prompt_previews: list[dict[str, Any]] = []
+    for index, source_record in enumerate(source_records):
+        candidate = candidates_by_document_id.get(str(source_record.get("document_id")))
+        if candidate is None:
+            continue
+        task_name = str(source_record.get("task_name"))
+        units = load_candidate_paragraphs(candidate)
+        labels_by_unit = label_index.get(candidate.document_id, {})
+        selected_units = select_units_for_classification_task(
+            units,
+            task_name=task_name,
+            labels_by_unit=labels_by_unit,
+            max_units=max_units,
+        )
+        packet = build_unit_repair_packet(
+            candidate,
+            source_record=source_record,
+            units=selected_units,
+            labels_by_unit=labels_by_unit,
+            run_id=run_id,
+            semantic_index_path=semantic_index_path,
+        )
+        prompt_previews.append(unit_repair_packet_preview(packet))
+        if dry_run:
+            record = dry_run_unit_repair_record(packet, provider=provider_name, model=model_name)
+            repaired_records.append(record)
+            append_jsonl(repaired_records_path, [record])
+            continue
+        api_key = resolve_provider_api_key(provider_name)
+        if not api_key:
+            record = error_unit_repair_record(
+                packet,
+                provider=provider_name,
+                model=model_name,
+                error=f"{api_key_env_var(provider_name)} is not set.",
+            )
+            repaired_records.append(record)
+            append_jsonl(repaired_records_path, [record])
+            continue
+        record, raw_response = run_unit_repair_packet_with_provider(
+            packet,
+            provider=provider_name,
+            model=model_name,
+            api_key=api_key,
+        )
+        repaired_records.append(record)
+        raw_responses.append(raw_response)
+        append_jsonl(repaired_records_path, [record])
+        append_jsonl(raw_responses_path, [raw_response])
+        if sleep_seconds and index < len(source_records) - 1:
+            time.sleep(sleep_seconds)
+    append_jsonl(prompt_previews_path, prompt_previews)
+    summary = build_unit_repair_summary(
+        run_id=run_id,
+        dry_run=dry_run,
+        provider=provider_name,
+        model=model_name,
+        records_path=records_path,
+        repaired_records_path=repaired_records_path,
+        raw_responses_path=raw_responses_path,
+        prompt_previews_path=prompt_previews_path,
+        source_records=source_records,
+        repaired_records=repaired_records,
+        started_at=run_started_at,
+        completed_at=datetime.now(UTC),
+    )
+    write_json(summary_path, summary)
+    print_unit_repair_summary(summary, repaired_records_path)
+
+
 def build_run_paths(*, output_dir: Path, raw_output_dir: Path, run_id: str) -> RunPaths:
     output_dir.mkdir(parents=True, exist_ok=True)
     raw_output_dir.mkdir(parents=True, exist_ok=True)
@@ -2748,6 +2904,155 @@ def unit_classification_packet_preview(packet: dict[str, Any]) -> dict[str, Any]
         "prompt_chars": len(packet["prompt"]),
         "selected_unit_ids": packet["selected_unit_ids"],
         "unit_types": [unit.unit_type for unit in packet["units"]],
+        "prompt": packet["prompt"],
+    }
+
+
+def load_repair_needed_unit_records(paths: list[Path]) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str, str]] = set()
+    for path in paths:
+        for record in load_jsonl(path):
+            audit = record.get("unit_grounding_audit")
+            if not isinstance(audit, dict) or not audit.get("grounding_repair_needed"):
+                continue
+            key = (
+                str(record.get("document_id")),
+                str(record.get("task_name")),
+                str(record.get("provider")),
+                str(record.get("model")),
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            records.append(record)
+    return records
+
+
+def build_unit_repair_packet(
+    candidate: StudyCandidate,
+    *,
+    source_record: dict[str, Any],
+    units: list[EvidenceParagraph],
+    labels_by_unit: dict[str, list[str]],
+    run_id: str,
+    semantic_index_path: Path | None,
+) -> dict[str, Any]:
+    task_name = str(source_record["task_name"])
+    schema = unit_classification_output_schema(task_name)
+    prompt = build_unit_repair_prompt(
+        candidate=candidate,
+        source_record=source_record,
+        task_name=task_name,
+        schema=schema,
+        units=units,
+        labels_by_unit=labels_by_unit,
+    )
+    source_artifacts = [candidate.selected_artifact] if candidate.selected_artifact else []
+    source_artifacts.extend(candidate.metadata_artifacts)
+    return {
+        "run_id": run_id,
+        "document_id": candidate.document_id,
+        "context_id": candidate.context_id,
+        "task_name": task_name,
+        "prompt_version": f"{PROMPT_VERSION}_unit_repair_{task_name}",
+        "prompt": prompt,
+        "expected_output_schema": schema,
+        "source_record": source_record,
+        "selected_unit_ids": [unit.paragraph_id for unit in units],
+        "units": units,
+        "provenance": {
+            "source": "llm_study_reclassification_poc",
+            "method": "unit_classification_grounding_repair",
+            "does_not_mutate_sqlite_review_state": True,
+            "review_boundary": "unit_repair_candidate_not_reviewed_knowledge",
+            "semantic_index_path": str(semantic_index_path) if semantic_index_path else None,
+            "source_artifact_ids": [
+                artifact.artifact_id for artifact in source_artifacts
+            ],
+            "source_artifact_paths": [
+                artifact.payload_path
+                for artifact in source_artifacts
+                if artifact.payload_path
+            ],
+            "legacy_context_id": candidate.context_id,
+            "source_record_run_id": source_record.get("run_id"),
+            "source_record_provider": source_record.get("provider"),
+            "source_record_model": source_record.get("model"),
+        },
+    }
+
+
+def build_unit_repair_prompt(
+    *,
+    candidate: StudyCandidate,
+    source_record: dict[str, Any],
+    task_name: str,
+    schema: dict[str, Any],
+    units: list[EvidenceParagraph],
+    labels_by_unit: dict[str, list[str]],
+) -> str:
+    unit_text = "\n\n".join(
+        "\n".join(
+            [
+                f"[unit_id={unit.paragraph_id}]",
+                f"unit_type: {unit.unit_type}",
+                f"section: {unit.section}",
+                f"candidate_index_labels: {', '.join(labels_by_unit.get(unit.paragraph_id, []))}",
+                f"text: {unit.text}",
+            ]
+        )
+        for unit in units
+    )
+    repair_audit = source_record.get("unit_grounding_audit", {})
+    return f"""You repair one failed JSON candidate for a human-reviewed cannabinoid
+evidence knowledge base. This is not a new extraction task.
+
+Task: {task_name}
+
+Rules:
+- Return only valid JSON matching the schema.
+- Use English only.
+- Do not provide medical advice, treatment recommendations, or clinical instructions.
+- Preserve the original classification values when they are supported by the selected units.
+- Fix only unsupported or policy-violating evidence fields, cited_unit_ids, support_status,
+  needs_human_review, review_reasons, legacy_alignment, and evidence_note when needed.
+- If no short literal quote supports a supported/conflicting/partial field, downgrade that
+  field to insufficient_evidence or not_found.
+- evidence_text is a quote field, not a summary field.
+- Every non-empty evidence_text must be one contiguous substring from exactly one cited unit.
+- evidence_text must be {UNIT_EVIDENCE_TEXT_MAX_CHARS} characters or fewer.
+- evidence_text must not contain ellipses, bracketed omissions, or joined passages.
+- Put explanations in evidence_note, not evidence_text.
+- Keep conflicts with legacy context visible for human review.
+
+Output JSON schema:
+{json.dumps(schema, indent=2)}
+
+Document metadata:
+document_id: {candidate.document_id}
+title: {candidate.title or ""}
+legacy_study_type: {candidate.legacy_study_type or ""}
+
+Original failed record:
+{json.dumps(source_record, indent=2, ensure_ascii=False)}
+
+Local grounding audit to repair:
+{json.dumps(repair_audit, indent=2, ensure_ascii=False)}
+
+Selected document units:
+{unit_text}
+"""
+
+
+def unit_repair_packet_preview(packet: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "run_id": packet["run_id"],
+        "document_id": packet["document_id"],
+        "task_name": packet["task_name"],
+        "prompt_version": packet["prompt_version"],
+        "prompt_chars": len(packet["prompt"]),
+        "selected_unit_ids": packet["selected_unit_ids"],
         "prompt": packet["prompt"],
     }
 
@@ -4882,6 +5187,166 @@ def run_unit_classification_packet_with_provider(
         return record, raw_response
 
 
+def run_unit_repair_packet_with_provider(
+    packet: dict[str, Any],
+    *,
+    provider: ProviderName,
+    model: str,
+    api_key: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    request_payload = build_unit_repair_chat_request(packet, provider=provider, model=model)
+    raw_response: dict[str, Any] = {
+        "run_id": packet["run_id"],
+        "document_id": packet["document_id"],
+        "task_name": packet["task_name"],
+        "provider": provider,
+        "model": model,
+        "request": redacted_request_payload(request_payload),
+        "provenance": packet["provenance"],
+    }
+    started = time.monotonic()
+    try:
+        with httpx.Client(timeout=180) as client:
+            response, attempts = post_provider_with_retries(
+                client,
+                provider=provider,
+                request_payload=request_payload,
+                api_key=api_key,
+            )
+        raw_response["latency_seconds"] = round(time.monotonic() - started, 3)
+        raw_response["attempts"] = attempts
+        raw_response["status_code"] = response.status_code
+        raw_response["response_json"] = response.json()
+        response.raise_for_status()
+        content = response_content_text(raw_response["response_json"], provider=provider)
+        parsed = json.loads(content)
+        record = dict(parsed)
+        record.update(
+            {
+                "run_id": packet["run_id"],
+                "document_id": packet["document_id"],
+                "task_name": packet["task_name"],
+                "provider": provider,
+                "model": model,
+                "poc_status": "candidate_unit_classification_repair",
+                "errors": [],
+                "source_record_run_id": packet["source_record"].get("run_id"),
+                "provenance": unit_repair_provenance(
+                    packet,
+                    provider=provider,
+                    model=model,
+                    latency_seconds=raw_response["latency_seconds"],
+                    output_text=content,
+                ),
+            }
+        )
+        record["unit_grounding_audit"] = build_unit_grounding_audit(record, packet)
+        return record, raw_response
+    except Exception as exc:
+        record = error_unit_repair_record(
+            packet,
+            provider=provider,
+            model=model,
+            error=str(exc),
+        )
+        raw_response["latency_seconds"] = round(time.monotonic() - started, 3)
+        raw_response["error"] = str(exc)
+        return record, raw_response
+
+
+def build_unit_repair_chat_request(
+    packet: dict[str, Any],
+    *,
+    provider: ProviderName,
+    model: str,
+) -> dict[str, Any]:
+    system_content = (
+        "You repair failed auditable JSON evidence records using only selected "
+        "document units. You never provide medical advice."
+    )
+    if provider == "anthropic":
+        return {
+            "model": model,
+            "system": system_content,
+            "messages": [{"role": "user", "content": packet["prompt"]}],
+            "temperature": 0,
+            "max_tokens": 1800,
+        }
+    return {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_content},
+            {"role": "user", "content": packet["prompt"]},
+        ],
+        "temperature": 0,
+        "max_completion_tokens": 1800,
+        "response_format": {"type": "json_object"},
+    }
+
+
+def unit_repair_provenance(
+    packet: dict[str, Any],
+    *,
+    provider: ProviderName,
+    model: str,
+    latency_seconds: float | None,
+    output_text: str | None = None,
+) -> dict[str, Any]:
+    provenance = {
+        **packet["provenance"],
+        "provider": provider,
+        "model": model,
+        "prompt_version": packet["prompt_version"],
+        "selected_unit_ids": packet["selected_unit_ids"],
+        "input_prompt_chars": len(packet["prompt"]),
+        "rough_input_token_estimate": rough_token_count(packet["prompt"]),
+    }
+    if latency_seconds is not None:
+        provenance["latency_seconds"] = latency_seconds
+    if output_text is not None:
+        provenance["output_chars"] = len(output_text)
+        provenance["rough_output_token_estimate"] = rough_token_count(output_text)
+    return provenance
+
+
+def dry_run_unit_repair_record(
+    packet: dict[str, Any],
+    *,
+    provider: ProviderName,
+    model: str,
+) -> dict[str, Any]:
+    record = {
+        **packet["source_record"],
+        "run_id": packet["run_id"],
+        "provider": provider,
+        "model": model,
+        "poc_status": "dry_run_repair_prompt_prepared",
+        "errors": [],
+        "provenance": unit_repair_provenance(
+            packet,
+            provider=provider,
+            model=model,
+            latency_seconds=None,
+        ),
+    }
+    record["unit_grounding_audit"] = build_unit_grounding_audit(record, packet)
+    return record
+
+
+def error_unit_repair_record(
+    packet: dict[str, Any],
+    *,
+    provider: ProviderName,
+    model: str,
+    error: str,
+) -> dict[str, Any]:
+    record = dry_run_unit_repair_record(packet, provider=provider, model=model)
+    record["poc_status"] = "error"
+    record["errors"] = [error]
+    record["review_reasons"] = ["Unit repair failed; inspect raw response before retry."]
+    return record
+
+
 def unit_classification_provenance(
     packet: dict[str, Any],
     *,
@@ -6951,6 +7416,81 @@ def build_unit_classification_summary(
     }
 
 
+def build_unit_repair_summary(
+    *,
+    run_id: str,
+    dry_run: bool,
+    provider: ProviderName,
+    model: str,
+    records_path: list[Path],
+    repaired_records_path: Path,
+    raw_responses_path: Path,
+    prompt_previews_path: Path,
+    source_records: list[dict[str, Any]],
+    repaired_records: list[dict[str, Any]],
+    started_at: datetime,
+    completed_at: datetime,
+) -> dict[str, Any]:
+    grounding_records = [
+        record
+        for record in repaired_records
+        if isinstance(record.get("unit_grounding_audit"), dict)
+    ]
+    passing = [
+        record
+        for record in grounding_records
+        if record["unit_grounding_audit"].get("passes_basic_grounding") is True
+    ]
+    return {
+        "run_id": run_id,
+        "source": "llm_study_reclassification_poc",
+        "method": "repair_unit_classification_grounding_failures",
+        "prompt_version": f"{PROMPT_VERSION}_unit_repair",
+        "dry_run": dry_run,
+        "provider": provider,
+        "model": model,
+        "started_at": started_at.isoformat(),
+        "completed_at": completed_at.isoformat(),
+        "source_records_paths": [str(path) for path in records_path],
+        "repaired_records_path": str(repaired_records_path),
+        "raw_responses_path": str(raw_responses_path),
+        "prompt_previews_path": str(prompt_previews_path),
+        "source_repair_needed_count": len(source_records),
+        "record_count": len(repaired_records),
+        "records_with_errors": sum(bool(record.get("errors")) for record in repaired_records),
+        "grounding_pass_count": len(passing),
+        "grounding_pass_rate": (
+            round(len(passing) / len(grounding_records), 4)
+            if grounding_records
+            else None
+        ),
+        "remaining_repair_needed_count": sum(
+            bool(record.get("unit_grounding_audit", {}).get("grounding_repair_needed"))
+            for record in grounding_records
+        ),
+        "unsupported_evidence_count": sum(
+            len(record.get("unit_grounding_audit", {}).get("unsupported_evidence_texts", []))
+            for record in grounding_records
+        ),
+        "evidence_text_policy_violation_count": sum(
+            len(
+                record.get("unit_grounding_audit", {}).get(
+                    "evidence_text_policy_violations",
+                    [],
+                )
+            )
+            for record in grounding_records
+        ),
+        "throughput": throughput_metrics(repaired_records),
+        "notes": [
+            "Repair records are candidate evidence for human review.",
+            "This command does not validate identity, mutate SQLite, or update reviewed knowledge.",
+            "The repair step is scoped to grounding and citation defects from prior "
+            "unit-classification records.",
+        ],
+    }
+
+
 def build_semantic_paragraph_index_summary(
     *,
     run_id: str,
@@ -7429,6 +7969,25 @@ def print_unit_classification_summary(
         )
     console.print(table)
     console.print({"records": str(records_path), "raw_responses": str(raw_responses_path)})
+
+
+def print_unit_repair_summary(
+    summary: dict[str, Any],
+    repaired_records_path: Path,
+) -> None:
+    table = Table(title="LLM document-unit repair")
+    table.add_column("Metric")
+    table.add_column("Value", justify="right")
+    table.add_row("source_repair_needed", str(summary["source_repair_needed_count"]))
+    table.add_row("records", str(summary["record_count"]))
+    table.add_row("records_with_errors", str(summary["records_with_errors"]))
+    table.add_row("grounding_pass_rate", str(summary["grounding_pass_rate"]))
+    table.add_row(
+        "remaining_repair_needed",
+        str(summary["remaining_repair_needed_count"]),
+    )
+    console.print(table)
+    console.print({"records": str(repaired_records_path)})
 
 
 def print_semantic_paragraph_index_summary(

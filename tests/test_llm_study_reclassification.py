@@ -19,6 +19,7 @@ from pocs.llm_study_reclassification.reclassify_studies import (
     build_task_packet_record,
     build_unit_classification_packet,
     build_unit_grounding_audit,
+    build_unit_repair_packet,
     dry_run_summary_comparison_record,
     evidence_summary_output_schema,
     extract_html_paragraphs,
@@ -26,6 +27,7 @@ from pocs.llm_study_reclassification.reclassify_studies import (
     load_artifacts_by_document_id,
     load_processed_semantic_window_keys,
     load_processed_unit_classification_keys,
+    load_repair_needed_unit_records,
     normalize_label,
     post_provider_with_retries,
     resolve_provider_models,
@@ -1053,6 +1055,85 @@ def test_unit_grounding_audit_flags_stitched_evidence_text() -> None:
     violations = audit["evidence_text_policy_violations"][0]["violations"]
     assert "evidence_text_contains_ellipsis" in violations
     assert "evidence_text_requires_exactly_one_cited_unit" in violations
+
+
+def test_unit_repair_packet_scopes_repair_to_failed_record() -> None:
+    artifact = make_artifact("pmc_nxml")
+    paragraphs = extract_xml_paragraphs(
+        b"""
+        <article><body><sec><title>Methods</title>
+          <p>Participants received oral cannabidiol or placebo for pain.</p>
+        </sec></body></article>
+        """,
+        artifact=artifact,
+    )
+    candidate = build_candidates(
+        [
+            {
+                "document_id": "publication:pmid:1",
+                "context_id": "legacy_english_context:1",
+                "title": "Cannabidiol trial",
+                "type_of_study": "Clinical Trial",
+            }
+        ],
+        artifacts_by_document_id={},
+        abstracts_by_document_id={},
+    )[0]
+    source_record = {
+        "run_id": "source-run",
+        "document_id": candidate.document_id,
+        "task_name": "cannabinoid_classification",
+        "provider": "openai",
+        "model": "gpt-4.1",
+        "unit_grounding_audit": {"grounding_repair_needed": True},
+    }
+
+    packet = build_unit_repair_packet(
+        candidate,
+        source_record=source_record,
+        units=paragraphs,
+        labels_by_unit={},
+        run_id="repair-run",
+        semantic_index_path=None,
+    )
+
+    assert packet["prompt_version"].endswith("_unit_repair_cannabinoid_classification")
+    assert "This is not a new extraction task" in packet["prompt"]
+    assert "Original failed record" in packet["prompt"]
+    assert packet["provenance"]["source_record_run_id"] == "source-run"
+
+
+def test_load_repair_needed_unit_records_deduplicates_records(tmp_path: Path) -> None:
+    records_path = tmp_path / "records.jsonl"
+    repair_audit = '{"grounding_repair_needed": true}'
+    records_path.write_text(
+        "\n".join(
+            [
+                (
+                    '{"document_id":"doc:1","task_name":"study_classification",'
+                    '"provider":"openai","model":"gpt-4.1",'
+                    f'"unit_grounding_audit":{repair_audit}}}'
+                ),
+                (
+                    '{"document_id":"doc:1","task_name":"study_classification",'
+                    '"provider":"openai","model":"gpt-4.1",'
+                    f'"unit_grounding_audit":{repair_audit}}}'
+                ),
+                (
+                    '{"document_id":"doc:2","task_name":"study_classification",'
+                    '"provider":"openai","model":"gpt-4.1",'
+                    '"unit_grounding_audit":{"grounding_repair_needed": false}}'
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    records = load_repair_needed_unit_records([records_path])
+
+    assert len(records) == 1
+    assert records[0]["document_id"] == "doc:1"
 
 
 def test_throughput_metrics_summarizes_prompt_output_and_latency() -> None:
