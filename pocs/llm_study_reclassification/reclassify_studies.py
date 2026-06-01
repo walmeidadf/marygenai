@@ -1565,6 +1565,17 @@ def compare_semantic_paragraph_index(
         float,
         typer.Option("--sleep-seconds", min=0.0, help="Delay between model calls."),
     ] = 3.0,
+    retry_errors: Annotated[
+        bool,
+        typer.Option("--retry-errors", help="Retry records with previous error status."),
+    ] = False,
+    resume_records_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--resume-records-path",
+            help="Existing semantic window records JSONL used to seed a resumed run.",
+        ),
+    ] = None,
 ) -> None:
     """Build a candidate semantic paragraph index from literal cleaned paragraphs."""
     provider_models = resolve_provider_models(
@@ -1604,6 +1615,15 @@ def compare_semantic_paragraph_index(
     )
 
     window_records: list[dict[str, Any]] = []
+    processed_keys = load_processed_semantic_window_keys(
+        resume_records_path,
+        retry_errors=retry_errors,
+    )
+    if resume_records_path:
+        window_records.extend(
+            load_resume_seed_records(resume_records_path, retry_errors=retry_errors)
+        )
+        append_jsonl(records_path, window_records)
     raw_responses: list[dict[str, Any]] = []
     window_previews: list[dict[str, Any]] = []
     paragraph_index_inputs: dict[str, list[EvidenceParagraph]] = {}
@@ -1625,6 +1645,14 @@ def compare_semantic_paragraph_index(
             )
             window_previews.append(semantic_paragraph_window_preview(packet))
             for provider_name, model_name in provider_models:
+                key = semantic_window_key(
+                    candidate.document_id,
+                    window.window_id,
+                    provider_name,
+                    model_name,
+                )
+                if key in processed_keys:
+                    continue
                 if dry_run:
                     record = dry_run_semantic_paragraph_record(
                         packet,
@@ -1755,6 +1783,17 @@ def compare_unit_classification_batch(
         float,
         typer.Option("--sleep-seconds", min=0.0, help="Delay between model calls."),
     ] = 3.0,
+    retry_errors: Annotated[
+        bool,
+        typer.Option("--retry-errors", help="Retry records with previous error status."),
+    ] = False,
+    resume_records_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--resume-records-path",
+            help="Existing unit-classification records JSONL used to seed a resumed run.",
+        ),
+    ] = None,
 ) -> None:
     """Classify studies from selected semantic document units."""
     selected_tasks = resolve_unit_classification_tasks(task)
@@ -1794,6 +1833,13 @@ def compare_unit_classification_batch(
     )
 
     records: list[dict[str, Any]] = []
+    processed_keys = load_processed_unit_classification_keys(
+        resume_records_path,
+        retry_errors=retry_errors,
+    )
+    if resume_records_path:
+        records.extend(load_resume_seed_records(resume_records_path, retry_errors=retry_errors))
+        append_jsonl(records_path, records)
     raw_responses: list[dict[str, Any]] = []
     prompt_previews: list[dict[str, Any]] = []
     for candidate in selected:
@@ -1816,6 +1862,14 @@ def compare_unit_classification_batch(
             )
             prompt_previews.append(unit_classification_packet_preview(packet))
             for provider_name, model_name in provider_models:
+                key = unit_classification_key(
+                    candidate.document_id,
+                    task_name,
+                    provider_name,
+                    model_name,
+                )
+                if key in processed_keys:
+                    continue
                 if dry_run:
                     record = dry_run_unit_classification_record(
                         packet,
@@ -1933,6 +1987,79 @@ def model_comparison_key(
     model: str,
 ) -> tuple[str, str, str, str]:
     return (document_id, task_name, provider, model)
+
+
+def semantic_window_key(
+    document_id: str,
+    window_id: str,
+    provider: ProviderName,
+    model: str,
+) -> tuple[str, str, str, str]:
+    return (document_id, window_id, provider, model)
+
+
+def unit_classification_key(
+    document_id: str,
+    task_name: str,
+    provider: ProviderName,
+    model: str,
+) -> tuple[str, str, str, str]:
+    return (document_id, task_name, provider, model)
+
+
+def load_processed_semantic_window_keys(
+    records_path: Path | None,
+    *,
+    retry_errors: bool,
+) -> set[tuple[str, str, str, str]]:
+    processed: set[tuple[str, str, str, str]] = set()
+    if not records_path or not records_path.exists():
+        return processed
+    for record in load_jsonl(records_path):
+        if record.get("poc_status") == "dry_run_prompt_prepared":
+            continue
+        if retry_errors and record.get("poc_status") == "error":
+            continue
+        document_id = record.get("document_id")
+        window_id = record.get("window_id")
+        provider = record.get("provider")
+        model = record.get("model")
+        if document_id and window_id and provider and model:
+            processed.add((str(document_id), str(window_id), str(provider), str(model)))
+    return processed
+
+
+def load_resume_seed_records(
+    records_path: Path,
+    *,
+    retry_errors: bool,
+) -> list[dict[str, Any]]:
+    records = load_jsonl(records_path)
+    if not retry_errors:
+        return records
+    return [record for record in records if record.get("poc_status") != "error"]
+
+
+def load_processed_unit_classification_keys(
+    records_path: Path | None,
+    *,
+    retry_errors: bool,
+) -> set[tuple[str, str, str, str]]:
+    processed: set[tuple[str, str, str, str]] = set()
+    if not records_path or not records_path.exists():
+        return processed
+    for record in load_jsonl(records_path):
+        if record.get("poc_status") == "dry_run_prompt_prepared":
+            continue
+        if retry_errors and record.get("poc_status") == "error":
+            continue
+        document_id = record.get("document_id")
+        task_name = record.get("task_name")
+        provider = record.get("provider")
+        model = record.get("model")
+        if document_id and task_name and provider and model:
+            processed.add((str(document_id), str(task_name), str(provider), str(model)))
+    return processed
 
 
 def load_processed_model_comparison_keys(
@@ -5948,15 +6075,34 @@ def post_groq_with_retries(
 ) -> tuple[httpx.Response, list[dict[str, Any]]]:
     attempts: list[dict[str, Any]] = []
     response: httpx.Response | None = None
+    last_error: Exception | None = None
     for attempt_number in range(1, max_attempts + 1):
-        response = client.post(
-            GROQ_CHAT_COMPLETIONS_URL,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            json=request_payload,
-        )
+        try:
+            response = client.post(
+                GROQ_CHAT_COMPLETIONS_URL,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=request_payload,
+            )
+        except (httpx.TimeoutException, httpx.TransportError) as exc:
+            last_error = exc
+            wait_seconds = transient_error_wait_seconds(attempt_number)
+            attempts.append(
+                {
+                    "attempt": attempt_number,
+                    "error_type": type(exc).__name__,
+                    "error": str(exc),
+                    "retry_wait_seconds": wait_seconds
+                    if attempt_number < max_attempts
+                    else None,
+                }
+            )
+            if attempt_number == max_attempts:
+                break
+            time.sleep(wait_seconds)
+            continue
         attempt = {"attempt": attempt_number, "status_code": response.status_code}
         attempts.append(attempt)
         if (
@@ -5968,6 +6114,8 @@ def post_groq_with_retries(
         wait_seconds = retry_wait_seconds(response)
         attempt["retry_wait_seconds"] = wait_seconds
         time.sleep(wait_seconds)
+    if last_error is not None:
+        raise RuntimeError(f"Groq request failed after {max_attempts} attempts: {last_error}")
     if response is None:
         raise RuntimeError("Groq request did not execute.")
     return response, attempts
@@ -5991,12 +6139,48 @@ def post_provider_with_retries(
 
     attempts: list[dict[str, Any]] = []
     response: httpx.Response | None = None
+    last_error: Exception | None = None
     for attempt_number in range(1, max_attempts + 1):
-        response = client.post(
-            provider_url(provider),
-            headers=provider_headers(provider, api_key),
-            json=request_payload,
-        )
+        try:
+            response = client.post(
+                provider_url(provider),
+                headers=provider_headers(provider, api_key),
+                json=request_payload,
+            )
+        except httpx.TimeoutException as exc:
+            last_error = exc
+            wait_seconds = transient_error_wait_seconds(attempt_number)
+            attempts.append(
+                {
+                    "attempt": attempt_number,
+                    "error_type": type(exc).__name__,
+                    "error": str(exc),
+                    "retry_wait_seconds": wait_seconds
+                    if attempt_number < max_attempts
+                    else None,
+                }
+            )
+            if attempt_number == max_attempts:
+                break
+            time.sleep(wait_seconds)
+            continue
+        except httpx.TransportError as exc:
+            last_error = exc
+            wait_seconds = transient_error_wait_seconds(attempt_number)
+            attempts.append(
+                {
+                    "attempt": attempt_number,
+                    "error_type": type(exc).__name__,
+                    "error": str(exc),
+                    "retry_wait_seconds": wait_seconds
+                    if attempt_number < max_attempts
+                    else None,
+                }
+            )
+            if attempt_number == max_attempts:
+                break
+            time.sleep(wait_seconds)
+            continue
         attempt = {"attempt": attempt_number, "status_code": response.status_code}
         attempts.append(attempt)
         if response.status_code not in {429, 500, 502, 503, 504} or attempt_number == max_attempts:
@@ -6004,6 +6188,10 @@ def post_provider_with_retries(
         wait_seconds = retry_wait_seconds(response)
         attempt["retry_wait_seconds"] = wait_seconds
         time.sleep(wait_seconds)
+    if last_error is not None:
+        raise RuntimeError(
+            f"{provider} request failed after {max_attempts} attempts: {last_error}"
+        )
     if response is None:
         raise RuntimeError(f"{provider} request did not execute.")
     return response, attempts
@@ -6058,6 +6246,10 @@ def retry_wait_seconds(response: httpx.Response) -> float:
     if match:
         return min(max(float(match.group(1)) + 1.0, 1.0), 90.0)
     return 20.0
+
+
+def transient_error_wait_seconds(attempt_number: int) -> float:
+    return min(2.0 * attempt_number, 10.0)
 
 
 def is_daily_token_limit(response: httpx.Response) -> bool:

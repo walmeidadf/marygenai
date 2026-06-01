@@ -130,6 +130,9 @@ labels are candidate retrieval metadata only, not reviewed knowledge.
 Run summaries include preparation throughput metrics by provider/model: prompt
 characters, rough input tokens, output size when a model was called, latency,
 records with errors, and paragraph-label audit pass rates.
+If a larger run has transient API timeouts, resume it by passing the prior
+records file and `--retry-errors`; successful records seed the new merged index
+and only previous error keys are called again.
 
 Window size is intentionally empirical. Current runs should monitor audit pass
 rate, evidence-term support, downstream extraction quality against the legacy
@@ -161,6 +164,9 @@ The current strict evidence contract treats `evidence_text` as a quote field:
 one short contiguous substring from exactly one cited unit, without ellipses or
 joined passages. Any synthesis belongs in `evidence_note`. The local audit marks
 `grounding_repair_needed` when a record needs a focused repair/adjudication pass.
+This command also supports `--resume-records-path ... --retry-errors` so a
+checkpointed run can retry transient error records without reclassifying
+successful document/task/provider/model combinations.
 
 Current local findings from the 4-document OpenAI POC:
 

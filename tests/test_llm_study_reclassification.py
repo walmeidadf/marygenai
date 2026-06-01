@@ -1,6 +1,9 @@
 import sqlite3
 from pathlib import Path
 
+import httpx
+
+import pocs.llm_study_reclassification.reclassify_studies as reclassify_studies
 from pocs.llm_study_reclassification.reclassify_studies import (
     ArtifactReference,
     build_candidates,
@@ -21,7 +24,10 @@ from pocs.llm_study_reclassification.reclassify_studies import (
     extract_html_paragraphs,
     extract_xml_paragraphs,
     load_artifacts_by_document_id,
+    load_processed_semantic_window_keys,
+    load_processed_unit_classification_keys,
     normalize_label,
+    post_provider_with_retries,
     resolve_provider_models,
     result_direction_matches,
     select_best_full_text_artifact,
@@ -32,6 +38,20 @@ from pocs.llm_study_reclassification.reclassify_studies import (
     select_units_for_classification_task,
     throughput_metrics,
 )
+
+
+class FlakyClient:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def post(self, *args, **kwargs) -> httpx.Response:
+        self.calls += 1
+        if self.calls == 1:
+            raise httpx.ReadTimeout("temporary timeout")
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": "{}"}}]},
+        )
 
 
 def make_artifact(
@@ -586,6 +606,66 @@ def test_resolve_provider_models_includes_cerebras_default() -> None:
     )
 
     assert provider_models == [("cerebras", "gpt-oss-120b")]
+
+
+def test_post_provider_with_retries_retries_transient_timeout(monkeypatch) -> None:
+    client = FlakyClient()
+    monkeypatch.setattr(reclassify_studies.time, "sleep", lambda seconds: None)
+
+    response, attempts = post_provider_with_retries(
+        client,  # type: ignore[arg-type]
+        provider="openai",
+        request_payload={"model": "gpt-4.1", "messages": []},
+        api_key="test-key",
+        max_attempts=2,
+    )
+
+    assert response.status_code == 200
+    assert client.calls == 2
+    assert attempts[0]["error_type"] == "ReadTimeout"
+    assert attempts[1]["status_code"] == 200
+
+
+def test_resume_key_loaders_skip_successes_but_retry_errors(tmp_path: Path) -> None:
+    records_path = tmp_path / "records.jsonl"
+    records_path.write_text(
+        "\n".join(
+            [
+                (
+                    '{"document_id":"doc:1","window_id":"doc:1:window:0001",'
+                    '"provider":"openai","model":"gpt-4.1",'
+                    '"poc_status":"candidate_semantic_paragraph_index"}'
+                ),
+                (
+                    '{"document_id":"doc:2","window_id":"doc:2:window:0001",'
+                    '"provider":"openai","model":"gpt-4.1","poc_status":"error"}'
+                ),
+                (
+                    '{"document_id":"doc:1","task_name":"study_classification",'
+                    '"provider":"openai","model":"gpt-4.1",'
+                    '"poc_status":"candidate_unit_classification"}'
+                ),
+                (
+                    '{"document_id":"doc:2","task_name":"study_classification",'
+                    '"provider":"openai","model":"gpt-4.1","poc_status":"error"}'
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    semantic_keys = load_processed_semantic_window_keys(
+        records_path,
+        retry_errors=True,
+    )
+    unit_keys = load_processed_unit_classification_keys(
+        records_path,
+        retry_errors=True,
+    )
+
+    assert semantic_keys == {("doc:1", "doc:1:window:0001", "openai", "gpt-4.1")}
+    assert unit_keys == {("doc:1", "study_classification", "openai", "gpt-4.1")}
 
 
 def test_model_comparison_dry_run_preserves_packet_provenance(tmp_path: Path) -> None:
