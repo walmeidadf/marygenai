@@ -181,6 +181,20 @@ unsupported fields, and preserve legacy conflicts for human review. It writes
 candidate repair records under
 `data/normalized/llm_study_reclassification/unit_classification_repair/`.
 
+Run one segment-specific unit pipeline per document:
+
+```bash
+uv run python pocs/llm_study_reclassification/reclassify_studies.py compare-segmented-unit-pipeline-batch --provider openai --pipeline auto --semantic-index-path data/normalized/llm_study_reclassification/semantic_paragraph_index/RUN_merged_index.jsonl --max-units 18 --document-id publication:pmcid:PMC10492088
+```
+
+This command uses the legacy English study type as a routing hint and runs one
+of three contracts: `clinical_intervention`, `preclinical_mechanistic`, or
+`evidence_synthesis`. It is intentionally narrower than the three-task unit
+classifier: each output is a single candidate document-level record tailored to
+the routed segment. The legacy English context is used as a guardrail and
+alignment baseline, but not as a source unit for grounding. Source support must
+come from selected document units with literal `evidence_text` quotes.
+
 Current local findings from the 4-document OpenAI POC:
 
 - Semantic document units plus task-family classification looked more useful
@@ -215,6 +229,18 @@ Current local findings from the 30-document legacy-guided OpenAI POC:
   in synthetic/endocannabinoid, inflammation, animal, laboratory, and review
   contexts; these likely need a more structured segment-specific contract rather
   than a broader free-form agent.
+- A first segmented pipeline run over 15 selected documents produced 15 records
+  with no API or parsing errors. The initial grounding pass rate was 0.7333, with
+  four records marked for repair. Three failures were quote-length policy
+  violations; one was a schema/audit artifact caused by citing the legacy context
+  inside `legacy_alignment`, which the contract now avoids by using
+  `source_unit_ids` there. A one-document rerun of the affected preclinical case
+  passed grounding after that contract fix.
+- The 15-document segmented run used 71,187 OpenAI prompt tokens and 5,797
+  completion tokens on `gpt-4.1`, averaging 4,746 prompt tokens, 387 completion
+  tokens, and 5.6 seconds of model latency per document. At the observed size,
+  this is a low-cost enough experiment to expand after quote-length repair is
+  tested, but the cost still depends on selected unit count and article length.
 
 ```bash
 uv run python pocs/llm_study_reclassification/reclassify_studies.py run --dry-run --limit 5

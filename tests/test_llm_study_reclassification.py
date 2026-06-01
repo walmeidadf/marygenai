@@ -15,6 +15,7 @@ from pocs.llm_study_reclassification.reclassify_studies import (
     build_paragraph_index_audit,
     build_paragraph_windows,
     build_prompt_package,
+    build_segmented_unit_pipeline_prompt,
     build_span_grounding_audit,
     build_task_packet_record,
     build_unit_classification_packet,
@@ -24,6 +25,7 @@ from pocs.llm_study_reclassification.reclassify_studies import (
     evidence_summary_output_schema,
     extract_html_paragraphs,
     extract_xml_paragraphs,
+    infer_segmented_unit_pipeline,
     load_artifacts_by_document_id,
     load_processed_semantic_window_keys,
     load_processed_unit_classification_keys,
@@ -32,12 +34,14 @@ from pocs.llm_study_reclassification.reclassify_studies import (
     post_provider_with_retries,
     resolve_provider_models,
     result_direction_matches,
+    segmented_unit_pipeline_output_schema,
     select_best_full_text_artifact,
     select_evidence_chunks,
     select_micro_extraction_candidates,
     select_stratified_candidates,
     select_task_evidence_spans,
     select_units_for_classification_task,
+    select_units_for_segmented_pipeline,
     throughput_metrics,
 )
 
@@ -957,6 +961,99 @@ def test_select_units_for_classification_task_uses_semantic_labels() -> None:
     )
 
     assert [unit.paragraph_id for unit in selected] == [paragraphs[0].paragraph_id]
+
+
+def test_infer_segmented_unit_pipeline_uses_legacy_study_type() -> None:
+    candidates = build_candidates(
+        [
+            {
+                "document_id": "publication:pmid:1",
+                "context_id": "legacy_english_context:1",
+                "title": "Cannabis review",
+                "type_of_study": "Meta-analysis",
+            },
+            {
+                "document_id": "publication:pmid:2",
+                "context_id": "legacy_english_context:2",
+                "title": "Cannabidiol mouse model",
+                "type_of_study": "Animal Study",
+            },
+            {
+                "document_id": "publication:pmid:3",
+                "context_id": "legacy_english_context:3",
+                "title": "Nabiximols trial",
+                "type_of_study": "Double Blind Clinical Trial",
+            },
+        ],
+        artifacts_by_document_id={},
+        abstracts_by_document_id={},
+    )
+
+    assert infer_segmented_unit_pipeline(candidates[0]) == "evidence_synthesis"
+    assert infer_segmented_unit_pipeline(candidates[1]) == "preclinical_mechanistic"
+    assert infer_segmented_unit_pipeline(candidates[2]) == "clinical_intervention"
+
+
+def test_select_units_for_segmented_pipeline_uses_segment_keywords() -> None:
+    artifact = make_artifact("pmc_nxml")
+    paragraphs = extract_xml_paragraphs(
+        b"""
+        <article><body><sec><title>Methods</title>
+          <p>Participants received oral cannabidiol or placebo.</p>
+          <p>CB1 receptor signaling was measured in mouse tissue using an assay.</p>
+        </sec></body></article>
+        """,
+        artifact=artifact,
+    )
+
+    selected = select_units_for_segmented_pipeline(
+        paragraphs,
+        pipeline_name="preclinical_mechanistic",
+        labels_by_unit={},
+        max_units=1,
+    )
+
+    assert [unit.paragraph_id for unit in selected] == [paragraphs[1].paragraph_id]
+
+
+def test_segmented_pipeline_prompt_has_evidence_synthesis_guardrails() -> None:
+    artifact = make_artifact("pmc_nxml")
+    paragraphs = extract_xml_paragraphs(
+        b"""
+        <article><body><sec><title>Abstract</title>
+          <p>This systematic review included randomized controlled trials of cannabinoids.</p>
+        </sec></body></article>
+        """,
+        artifact=artifact,
+    )
+    candidate = build_candidates(
+        [
+            {
+                "document_id": "publication:pmid:1",
+                "context_id": "legacy_english_context:1",
+                "title": "Cannabinoid systematic review",
+                "type_of_study": "Meta-analysis",
+                "condition": "Pain",
+            }
+        ],
+        artifacts_by_document_id={},
+        abstracts_by_document_id={},
+    )[0]
+
+    prompt = build_segmented_unit_pipeline_prompt(
+        candidate=candidate,
+        pipeline_name="evidence_synthesis",
+        schema=segmented_unit_pipeline_output_schema("evidence_synthesis"),
+        units=paragraphs,
+        labels_by_unit={paragraphs[0].paragraph_id: ["study_design"]},
+        legacy_context_text="Legacy English context says meta-analysis for pain.",
+    )
+
+    assert "Do not extract single cited studies" in prompt
+    assert "legacy English context only as a guardrail" in prompt
+    assert "Do not cite the legacy English context as a source unit" in prompt
+    assert "one contiguous substring from exactly one cited unit" in prompt
+    assert "source_unit_ids" in prompt
 
 
 def test_unit_classification_prompt_separates_quote_from_note() -> None:

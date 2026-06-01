@@ -50,6 +50,7 @@ DEFAULT_MICRO_EXTRACTION_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "micro_extraction"
 DEFAULT_SEMANTIC_PARAGRAPH_INDEX_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "semantic_paragraph_index"
 DEFAULT_UNIT_CLASSIFICATION_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "unit_classification"
 DEFAULT_UNIT_REPAIR_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "unit_classification_repair"
+DEFAULT_SEGMENTED_UNIT_PIPELINE_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "segmented_unit_pipeline"
 DEFAULT_MODEL = "llama-3.3-70b-versatile"
 DEFAULT_PROVIDER = "groq"
 DEFAULT_PROVIDER_MODELS = {
@@ -78,6 +79,11 @@ UNIT_CLASSIFICATION_TASKS = (
     "condition_classification",
     "cannabinoid_classification",
     "study_classification",
+)
+SEGMENTED_UNIT_PIPELINES = (
+    "clinical_intervention",
+    "preclinical_mechanistic",
+    "evidence_synthesis",
 )
 SEMANTIC_PARAGRAPH_LABELS = (
     "study_design",
@@ -2081,6 +2087,174 @@ def repair_unit_classification_batch(
     print_unit_repair_summary(summary, repaired_records_path)
 
 
+@app.command("compare-segmented-unit-pipeline-batch")
+def compare_segmented_unit_pipeline_batch(
+    cohort_path: Annotated[
+        Path,
+        typer.Option("--cohort-path", help="Identity-confirmed English triage cohort JSONL."),
+    ] = DEFAULT_COHORT_PATH,
+    database_path: Annotated[
+        Path | None,
+        typer.Option("--database-path", help="SQLite database path."),
+    ] = None,
+    output_dir: Annotated[
+        Path | None,
+        typer.Option("--output-dir", help="Segmented pipeline output directory."),
+    ] = None,
+    raw_output_dir: Annotated[
+        Path | None,
+        typer.Option("--raw-output-dir", help="Raw segmented response output directory."),
+    ] = None,
+    pipeline: Annotated[
+        str,
+        typer.Option("--pipeline", help="Pipeline name or 'auto'."),
+    ] = "auto",
+    document_id: Annotated[
+        list[str] | None,
+        typer.Option("--document-id", help="Document id to include; repeat for fixed samples."),
+    ] = None,
+    limit: Annotated[
+        int | None,
+        typer.Option("--limit", min=1, help="Maximum candidates when document ids are omitted."),
+    ] = None,
+    semantic_index_path: Annotated[
+        Path | None,
+        typer.Option("--semantic-index-path", help="Merged semantic index used for retrieval."),
+    ] = None,
+    provider: Annotated[
+        str,
+        typer.Option("--provider", help="Single provider name."),
+    ] = "openai",
+    model: Annotated[
+        str | None,
+        typer.Option("--model", help="Model name for segmented classification."),
+    ] = None,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Prepare prompts without calling model APIs."),
+    ] = False,
+    max_units: Annotated[
+        int,
+        typer.Option("--max-units", min=4, max=40, help="Maximum document units."),
+    ] = 18,
+    sleep_seconds: Annotated[
+        float,
+        typer.Option("--sleep-seconds", min=0.0, help="Delay between model calls."),
+    ] = 1.0,
+) -> None:
+    """Run one segment-specific document-unit pipeline per selected document."""
+    provider_models = resolve_provider_models(provider, model=model, model_overrides=None)
+    if len(provider_models) != 1:
+        raise typer.BadParameter("compare-segmented-unit-pipeline-batch accepts one provider.")
+    provider_name, model_name = provider_models[0]
+    if pipeline != "auto" and pipeline not in SEGMENTED_UNIT_PIPELINES:
+        raise typer.BadParameter(
+            "pipeline must be 'auto' or one of: " + ", ".join(SEGMENTED_UNIT_PIPELINES)
+        )
+    load_dotenv()
+    settings = get_settings()
+    resolved_database_path = database_path or sqlite_database_path(settings.data_dir)
+    resolved_output_dir = output_dir or settings.data_dir / DEFAULT_SEGMENTED_UNIT_PIPELINE_SUBDIR
+    resolved_raw_output_dir = raw_output_dir or settings.data_dir / DEFAULT_RAW_SUBDIR
+    resolved_output_dir.mkdir(parents=True, exist_ok=True)
+    resolved_raw_output_dir.mkdir(parents=True, exist_ok=True)
+    run_started_at = datetime.now(UTC)
+    run_id = run_started_at.strftime("%Y%m%dT%H%M%SZ_segmented_unit_pipeline")
+    records_path = resolved_output_dir / f"{run_id}_records.jsonl"
+    summary_path = resolved_output_dir / f"{run_id}_summary.json"
+    raw_responses_path = (
+        resolved_raw_output_dir / f"{run_id}_segmented_unit_pipeline_raw_responses.jsonl"
+    )
+    prompt_previews_path = (
+        resolved_raw_output_dir / f"{run_id}_segmented_unit_pipeline_prompt_previews.jsonl"
+    )
+    label_index = load_semantic_label_index(semantic_index_path) if semantic_index_path else {}
+    candidates = load_candidates_for_poc(
+        cohort_path=cohort_path,
+        database_path=resolved_database_path,
+    )
+    selected = select_micro_extraction_candidates(
+        candidates,
+        document_ids=document_id or [],
+        limit=limit,
+    )
+    records: list[dict[str, Any]] = []
+    raw_responses: list[dict[str, Any]] = []
+    prompt_previews: list[dict[str, Any]] = []
+    for index, candidate in enumerate(selected):
+        pipeline_name = (
+            infer_segmented_unit_pipeline(candidate) if pipeline == "auto" else pipeline
+        )
+        units = load_candidate_paragraphs(candidate)
+        labels_by_unit = label_index.get(candidate.document_id, {})
+        selected_units = select_units_for_segmented_pipeline(
+            units,
+            pipeline_name=pipeline_name,
+            labels_by_unit=labels_by_unit,
+            max_units=max_units,
+        )
+        packet = build_segmented_unit_pipeline_packet(
+            candidate,
+            pipeline_name=pipeline_name,
+            units=selected_units,
+            labels_by_unit=labels_by_unit,
+            run_id=run_id,
+            semantic_index_path=semantic_index_path,
+        )
+        prompt_previews.append(segmented_unit_pipeline_packet_preview(packet))
+        if dry_run:
+            record = dry_run_segmented_unit_pipeline_record(
+                packet,
+                provider=provider_name,
+                model=model_name,
+            )
+            records.append(record)
+            append_jsonl(records_path, [record])
+            continue
+        api_key = resolve_provider_api_key(provider_name)
+        if not api_key:
+            record = error_segmented_unit_pipeline_record(
+                packet,
+                provider=provider_name,
+                model=model_name,
+                error=f"{api_key_env_var(provider_name)} is not set.",
+            )
+            records.append(record)
+            append_jsonl(records_path, [record])
+            continue
+        record, raw_response = run_segmented_unit_pipeline_packet_with_provider(
+            packet,
+            provider=provider_name,
+            model=model_name,
+            api_key=api_key,
+        )
+        records.append(record)
+        raw_responses.append(raw_response)
+        append_jsonl(records_path, [record])
+        append_jsonl(raw_responses_path, [raw_response])
+        if sleep_seconds and index < len(selected) - 1:
+            time.sleep(sleep_seconds)
+    append_jsonl(prompt_previews_path, prompt_previews)
+    summary = build_segmented_unit_pipeline_summary(
+        run_id=run_id,
+        dry_run=dry_run,
+        provider=provider_name,
+        model=model_name,
+        pipeline=pipeline,
+        semantic_index_path=semantic_index_path,
+        records_path=records_path,
+        raw_responses_path=raw_responses_path,
+        prompt_previews_path=prompt_previews_path,
+        selected=selected,
+        records=records,
+        started_at=run_started_at,
+        completed_at=datetime.now(UTC),
+        max_units=max_units,
+    )
+    write_json(summary_path, summary)
+    print_segmented_unit_pipeline_summary(summary, records_path)
+
+
 def build_run_paths(*, output_dir: Path, raw_output_dir: Path, run_id: str) -> RunPaths:
     output_dir.mkdir(parents=True, exist_ok=True)
     raw_output_dir.mkdir(parents=True, exist_ok=True)
@@ -2569,6 +2743,17 @@ def resolve_unit_classification_tasks(task: str) -> list[str]:
     return [task]
 
 
+def infer_segmented_unit_pipeline(candidate: StudyCandidate) -> str:
+    study_type = normalize_label(candidate.legacy_study_type)
+    if study_type in {"clinical trial", "double blind clinical trial"}:
+        return "clinical_intervention"
+    if study_type in {"animal study", "laboratory study"}:
+        return "preclinical_mechanistic"
+    if study_type in {"meta analysis", "clinical meta analysis"}:
+        return "evidence_synthesis"
+    return "clinical_intervention"
+
+
 def load_semantic_label_index(path: Path) -> dict[str, dict[str, list[str]]]:
     label_index: dict[str, dict[str, list[str]]] = defaultdict(dict)
     for row in load_jsonl(path):
@@ -2611,6 +2796,115 @@ def select_units_for_classification_task(
             if len(selected) >= min(max_units, 4):
                 break
     return sorted(selected, key=lambda unit: unit.ordinal)
+
+
+def select_units_for_segmented_pipeline(
+    units: list[EvidenceParagraph],
+    *,
+    pipeline_name: str,
+    labels_by_unit: dict[str, list[str]],
+    max_units: int,
+) -> list[EvidenceParagraph]:
+    scored = [
+        (score_unit_for_segmented_pipeline(unit, pipeline_name, labels_by_unit), unit)
+        for unit in units
+    ]
+    selected = [
+        unit
+        for score, unit in sorted(scored, key=lambda item: (-item[0], item[1].ordinal))
+        if score > 0
+    ][:max_units]
+    if len(selected) < min(max_units, 6):
+        selected_ids = {unit.paragraph_id for unit in selected}
+        for unit in units:
+            if unit.paragraph_id not in selected_ids:
+                selected.append(unit)
+                selected_ids.add(unit.paragraph_id)
+            if len(selected) >= min(max_units, 6):
+                break
+    return sorted(selected, key=lambda unit: unit.ordinal)
+
+
+def score_unit_for_segmented_pipeline(
+    unit: EvidenceParagraph,
+    pipeline_name: str,
+    labels_by_unit: dict[str, list[str]],
+) -> int:
+    labels = set(labels_by_unit.get(unit.paragraph_id, []))
+    text = normalize_label(" ".join([unit.section, unit.text]))
+    label_weights = {
+        "clinical_intervention": {
+            "study_design": 10,
+            "population_model": 8,
+            "intervention_or_exposure": 8,
+            "dose_route_duration": 6,
+            "comparator_control": 5,
+            "condition_or_target": 5,
+            "outcomes_results": 4,
+            "safety_adverse_events": 3,
+        },
+        "preclinical_mechanistic": {
+            "intervention_or_exposure": 8,
+            "population_model": 8,
+            "condition_or_target": 6,
+            "dose_route_duration": 5,
+            "outcomes_results": 5,
+            "safety_adverse_events": 2,
+            "study_design": 3,
+        },
+        "evidence_synthesis": {
+            "study_design": 10,
+            "intervention_or_exposure": 7,
+            "condition_or_target": 7,
+            "population_model": 5,
+            "outcomes_results": 6,
+            "safety_adverse_events": 3,
+        },
+    }[pipeline_name]
+    score = sum(label_weights.get(label, 0) for label in labels)
+    keywords = {
+        "clinical_intervention": (
+            "randomized",
+            "trial",
+            "participants",
+            "patients",
+            "placebo",
+            "dose",
+            "mg",
+            "adverse",
+            "primary outcome",
+        ),
+        "preclinical_mechanistic": (
+            "mouse",
+            "mice",
+            "rat",
+            "cell",
+            "receptor",
+            "cb1",
+            "cb2",
+            "gpr55",
+            "anandamide",
+            "assay",
+            "in vitro",
+            "in vivo",
+        ),
+        "evidence_synthesis": (
+            "systematic review",
+            "meta analysis",
+            "meta-analysis",
+            "included studies",
+            "search",
+            "pooled",
+            "heterogeneity",
+            "randomized controlled trials",
+        ),
+    }[pipeline_name]
+    score += sum(2 for keyword in keywords if keyword in text)
+    if unit.unit_type == "table":
+        score += 2
+    if normalize_label(unit.section) in {"abstract", "methods", "results"}:
+        score += 1
+    return score
 
 
 def score_unit_for_classification_task(
@@ -2739,6 +3033,211 @@ def build_unit_classification_packet(
             ],
             "legacy_context_id": candidate.context_id,
         },
+    }
+
+
+def build_segmented_unit_pipeline_packet(
+    candidate: StudyCandidate,
+    *,
+    pipeline_name: str,
+    units: list[EvidenceParagraph],
+    labels_by_unit: dict[str, list[str]],
+    run_id: str,
+    semantic_index_path: Path | None,
+) -> dict[str, Any]:
+    schema = segmented_unit_pipeline_output_schema(pipeline_name)
+    prompt = build_segmented_unit_pipeline_prompt(
+        candidate=candidate,
+        pipeline_name=pipeline_name,
+        schema=schema,
+        units=units,
+        labels_by_unit=labels_by_unit,
+        legacy_context_text=build_legacy_guardrail_text(candidate),
+    )
+    source_artifacts = [candidate.selected_artifact] if candidate.selected_artifact else []
+    source_artifacts.extend(candidate.metadata_artifacts)
+    return {
+        "run_id": run_id,
+        "document_id": candidate.document_id,
+        "context_id": candidate.context_id,
+        "task_name": pipeline_name,
+        "pipeline_name": pipeline_name,
+        "prompt_version": f"{PROMPT_VERSION}_segmented_{pipeline_name}",
+        "prompt": prompt,
+        "expected_output_schema": schema,
+        "selected_unit_ids": [unit.paragraph_id for unit in units],
+        "units": units,
+        "provenance": {
+            "source": "llm_study_reclassification_poc",
+            "method": "segmented_unit_pipeline_classification",
+            "does_not_mutate_sqlite_review_state": True,
+            "review_boundary": "segmented_pipeline_candidate_not_reviewed_knowledge",
+            "retrieval_method": "semantic_document_unit_label_keyword_selection_v0.1",
+            "semantic_index_path": str(semantic_index_path) if semantic_index_path else None,
+            "source_artifact_ids": [
+                artifact.artifact_id for artifact in source_artifacts
+            ],
+            "source_artifact_paths": [
+                artifact.payload_path
+                for artifact in source_artifacts
+                if artifact.payload_path
+            ],
+            "legacy_context_id": candidate.context_id,
+        },
+    }
+
+
+def segmented_unit_pipeline_output_schema(pipeline_name: str) -> dict[str, Any]:
+    common: dict[str, Any] = {
+        "document_id": "string",
+        "pipeline_name": pipeline_name,
+        "pipeline_support_status": (
+            "supported | conflicting | partial | not_found | insufficient_evidence"
+        ),
+        "legacy_alignment": {
+            "alignment": "supports | conflicts | partial | not_in_legacy | insufficient_evidence",
+            "note": "string",
+            "source_unit_ids": ["selected document unit id if source units support the note"],
+        },
+        "needs_human_review": "boolean",
+        "review_reasons": ["string"],
+    }
+    evidence_entry = {
+        "support_status": "supported | conflicting | partial | not_found | insufficient_evidence",
+        "cited_unit_ids": ["one unit id for evidence_text support"],
+        "evidence_text": (
+            "single short verbatim substring from one cited unit, max "
+            f"{UNIT_EVIDENCE_TEXT_MAX_CHARS} characters, or empty string"
+        ),
+        "evidence_note": "optional synthesis or explanation; not a source quote",
+        "confidence": "high | medium | low",
+    }
+    if pipeline_name == "clinical_intervention":
+        common["clinical_intervention"] = {
+            "study_design": "string | null",
+            "population": "string | null",
+            "condition_or_target": "string | null",
+            "intervention_or_exposure": "string | null",
+            "dose_route_duration": "string | null",
+            "comparator": "string | null",
+            "result_direction": "positive | negative | mixed | neutral | safety_signal | unclear",
+            **evidence_entry,
+        }
+    elif pipeline_name == "preclinical_mechanistic":
+        common["preclinical_mechanistic"] = {
+            "model_or_system": "string | null",
+            "species_cell_or_tissue": "string | null",
+            "compound_or_ligand": "string | null",
+            "target_receptor_or_pathway": "string | null",
+            "assay_or_intervention": "string | null",
+            "condition_or_mechanism": "string | null",
+            "result_direction": "positive | negative | mixed | neutral | safety_signal | unclear",
+            **evidence_entry,
+        }
+    elif pipeline_name == "evidence_synthesis":
+        common["evidence_synthesis"] = {
+            "synthesis_type": "systematic_review | meta_analysis | narrative_review | unclear",
+            "included_study_types": ["string"],
+            "review_scope": "string | null",
+            "population_or_model_scope": "string | null",
+            "intervention_or_exposure_scope": "string | null",
+            "condition_scope": "string | null",
+            "conclusion_direction": (
+                "positive | negative | mixed | neutral | safety_signal | unclear"
+            ),
+            **evidence_entry,
+        }
+    return common
+
+
+def build_segmented_unit_pipeline_prompt(
+    *,
+    candidate: StudyCandidate,
+    pipeline_name: str,
+    schema: dict[str, Any],
+    units: list[EvidenceParagraph],
+    labels_by_unit: dict[str, list[str]],
+    legacy_context_text: str,
+) -> str:
+    unit_text = "\n\n".join(
+        "\n".join(
+            [
+                f"[unit_id={unit.paragraph_id}]",
+                f"unit_type: {unit.unit_type}",
+                f"section: {unit.section}",
+                f"candidate_index_labels: {', '.join(labels_by_unit.get(unit.paragraph_id, []))}",
+                f"text: {unit.text}",
+            ]
+        )
+        for unit in units
+    )
+    focus = {
+        "clinical_intervention": (
+            "Focus on a human clinical intervention or exposure study: design, "
+            "participants, condition, cannabinoid/product, dose/route/duration, "
+            "comparator, outcomes, and safety."
+        ),
+        "preclinical_mechanistic": (
+            "Focus on preclinical or mechanistic evidence: species/cell/tissue, "
+            "compound or ligand, receptor/pathway, model, assay/intervention, and outcome."
+        ),
+        "evidence_synthesis": (
+            "Focus on evidence synthesis: whether this is a systematic review, "
+            "meta-analysis, or narrative review; included study types; scope; and "
+            "review-level conclusion. Do not extract single cited studies as if they "
+            "were the article's own intervention."
+        ),
+    }[pipeline_name]
+    return f"""You are running a segment-specific classification pipeline for a
+human-reviewed cannabinoid evidence knowledge base.
+
+Pipeline: {pipeline_name}
+Pipeline focus: {focus}
+
+Rules:
+- Do not provide medical advice, treatment recommendations, or clinical instructions.
+- Return only valid JSON matching the schema.
+- Use English only.
+- Use only the selected document units below for source support.
+- Use the legacy English context only as a guardrail and comparison baseline.
+- Do not cite the legacy English context as a source unit.
+- Treat candidate_index_labels as retrieval hints, not truth.
+- evidence_text is a quote field, not a summary field.
+- Every non-empty evidence_text must be one contiguous substring from exactly one cited unit.
+- evidence_text must be {UNIT_EVIDENCE_TEXT_MAX_CHARS} characters or fewer.
+- evidence_text must not contain ellipses, bracketed omissions, or joined passages.
+- Put explanations in evidence_note, not evidence_text.
+- If evidence is missing, use not_found or insufficient_evidence.
+- Preserve source/legacy conflicts for human review.
+
+Output JSON schema:
+{json.dumps(schema, indent=2)}
+
+Document metadata:
+document_id: {candidate.document_id}
+title: {candidate.title or ""}
+publication_year: {candidate.publication_year or ""}
+legacy_study_type: {candidate.legacy_study_type or ""}
+legacy_study_result: {candidate.legacy_study_result or ""}
+legacy_sample_size: {candidate.legacy_sample_size or ""}
+
+Legacy English context:
+{legacy_context_text}
+
+Selected document units:
+{unit_text}
+"""
+
+
+def segmented_unit_pipeline_packet_preview(packet: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "run_id": packet["run_id"],
+        "document_id": packet["document_id"],
+        "pipeline_name": packet["pipeline_name"],
+        "prompt_version": packet["prompt_version"],
+        "prompt_chars": len(packet["prompt"]),
+        "selected_unit_ids": packet["selected_unit_ids"],
+        "prompt": packet["prompt"],
     }
 
 
@@ -5187,6 +5686,157 @@ def run_unit_classification_packet_with_provider(
         return record, raw_response
 
 
+def run_segmented_unit_pipeline_packet_with_provider(
+    packet: dict[str, Any],
+    *,
+    provider: ProviderName,
+    model: str,
+    api_key: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    request_payload = build_segmented_unit_pipeline_chat_request(
+        packet,
+        provider=provider,
+        model=model,
+    )
+    raw_response: dict[str, Any] = {
+        "run_id": packet["run_id"],
+        "document_id": packet["document_id"],
+        "pipeline_name": packet["pipeline_name"],
+        "provider": provider,
+        "model": model,
+        "request": redacted_request_payload(request_payload),
+        "provenance": packet["provenance"],
+    }
+    started = time.monotonic()
+    try:
+        with httpx.Client(timeout=180) as client:
+            response, attempts = post_provider_with_retries(
+                client,
+                provider=provider,
+                request_payload=request_payload,
+                api_key=api_key,
+            )
+        raw_response["latency_seconds"] = round(time.monotonic() - started, 3)
+        raw_response["attempts"] = attempts
+        raw_response["status_code"] = response.status_code
+        raw_response["response_json"] = response.json()
+        response.raise_for_status()
+        content = response_content_text(raw_response["response_json"], provider=provider)
+        parsed = json.loads(content)
+        record = dict(parsed)
+        record.update(
+            {
+                "run_id": packet["run_id"],
+                "document_id": packet["document_id"],
+                "task_name": packet["pipeline_name"],
+                "pipeline_name": packet["pipeline_name"],
+                "provider": provider,
+                "model": model,
+                "poc_status": "candidate_segmented_unit_pipeline",
+                "errors": [],
+                "provenance": unit_classification_provenance(
+                    packet,
+                    provider=provider,
+                    model=model,
+                    latency_seconds=raw_response["latency_seconds"],
+                    output_text=content,
+                ),
+            }
+        )
+        record["unit_grounding_audit"] = build_unit_grounding_audit(record, packet)
+        return record, raw_response
+    except Exception as exc:
+        record = error_segmented_unit_pipeline_record(
+            packet,
+            provider=provider,
+            model=model,
+            error=str(exc),
+        )
+        raw_response["latency_seconds"] = round(time.monotonic() - started, 3)
+        raw_response["error"] = str(exc)
+        return record, raw_response
+
+
+def build_segmented_unit_pipeline_chat_request(
+    packet: dict[str, Any],
+    *,
+    provider: ProviderName,
+    model: str,
+) -> dict[str, Any]:
+    system_content = (
+        "You run one segment-specific auditable scientific evidence pipeline as "
+        "compact JSON only. You never provide medical advice."
+    )
+    if provider == "anthropic":
+        return {
+            "model": model,
+            "system": system_content,
+            "messages": [{"role": "user", "content": packet["prompt"]}],
+            "temperature": 0,
+            "max_tokens": 1800,
+        }
+    return {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_content},
+            {"role": "user", "content": packet["prompt"]},
+        ],
+        "temperature": 0,
+        "max_completion_tokens": 1800,
+        "response_format": {"type": "json_object"},
+    }
+
+
+def dry_run_segmented_unit_pipeline_record(
+    packet: dict[str, Any],
+    *,
+    provider: ProviderName,
+    model: str,
+) -> dict[str, Any]:
+    record = {
+        "run_id": packet["run_id"],
+        "document_id": packet["document_id"],
+        "task_name": packet["pipeline_name"],
+        "pipeline_name": packet["pipeline_name"],
+        "provider": provider,
+        "model": model,
+        "poc_status": "dry_run_prompt_prepared",
+        "errors": [],
+        "pipeline_support_status": "insufficient_evidence",
+        "needs_human_review": True,
+        "review_reasons": ["Dry run only; no segmented pipeline record was generated."],
+        "legacy_alignment": {},
+        "provenance": unit_classification_provenance(
+            packet,
+            provider=provider,
+            model=model,
+            latency_seconds=None,
+        ),
+    }
+    record["unit_grounding_audit"] = build_unit_grounding_audit(record, packet)
+    return record
+
+
+def error_segmented_unit_pipeline_record(
+    packet: dict[str, Any],
+    *,
+    provider: ProviderName,
+    model: str,
+    error: str,
+) -> dict[str, Any]:
+    record = dry_run_segmented_unit_pipeline_record(
+        packet,
+        provider=provider,
+        model=model,
+    )
+    record["poc_status"] = "error"
+    record["errors"] = [error]
+    record["review_reasons"] = [
+        "Segmented unit pipeline failed; inspect raw response before retry."
+    ]
+    return record
+
+
 def run_unit_repair_packet_with_provider(
     packet: dict[str, Any],
     *,
@@ -7491,6 +8141,93 @@ def build_unit_repair_summary(
     }
 
 
+def build_segmented_unit_pipeline_summary(
+    *,
+    run_id: str,
+    dry_run: bool,
+    provider: ProviderName,
+    model: str,
+    pipeline: str,
+    semantic_index_path: Path | None,
+    records_path: Path,
+    raw_responses_path: Path,
+    prompt_previews_path: Path,
+    selected: list[StudyCandidate],
+    records: list[dict[str, Any]],
+    started_at: datetime,
+    completed_at: datetime,
+    max_units: int,
+) -> dict[str, Any]:
+    grounding_records = [
+        record
+        for record in records
+        if isinstance(record.get("unit_grounding_audit"), dict)
+    ]
+    passing = [
+        record
+        for record in grounding_records
+        if record["unit_grounding_audit"].get("passes_basic_grounding") is True
+    ]
+    return {
+        "run_id": run_id,
+        "source": "llm_study_reclassification_poc",
+        "method": "compare_segmented_unit_pipeline_contracts",
+        "prompt_version": f"{PROMPT_VERSION}_segmented_unit_pipeline",
+        "dry_run": dry_run,
+        "provider": provider,
+        "model": model,
+        "pipeline": pipeline,
+        "semantic_index_path": str(semantic_index_path) if semantic_index_path else None,
+        "records_path": str(records_path),
+        "raw_responses_path": str(raw_responses_path),
+        "prompt_previews_path": str(prompt_previews_path),
+        "started_at": started_at.isoformat(),
+        "completed_at": completed_at.isoformat(),
+        "selected_count": len(selected),
+        "record_count": len(records),
+        "records_with_errors": sum(bool(record.get("errors")) for record in records),
+        "pipeline_counts": dict(
+            Counter(str(record.get("pipeline_name")) for record in records).most_common()
+        ),
+        "grounding_pass_count": len(passing),
+        "grounding_pass_rate": (
+            round(len(passing) / len(grounding_records), 4)
+            if grounding_records
+            else None
+        ),
+        "grounding_repair_needed_count": sum(
+            bool(record.get("unit_grounding_audit", {}).get("grounding_repair_needed"))
+            for record in grounding_records
+        ),
+        "unsupported_evidence_count": sum(
+            len(record.get("unit_grounding_audit", {}).get("unsupported_evidence_texts", []))
+            for record in grounding_records
+        ),
+        "evidence_text_policy_violation_count": sum(
+            len(
+                record.get("unit_grounding_audit", {}).get(
+                    "evidence_text_policy_violations",
+                    [],
+                )
+            )
+            for record in grounding_records
+        ),
+        "needs_human_review_count": sum(
+            bool(record.get("needs_human_review")) for record in records
+        ),
+        "throughput": throughput_metrics(records),
+        "retrieval_policy": {
+            "max_units": max_units,
+            "method": "pipeline-specific semantic labels plus deterministic keyword scoring",
+        },
+        "notes": [
+            "Segmented pipeline records are candidate evidence for human review.",
+            "This command does not validate identity, mutate SQLite, or update reviewed knowledge.",
+            "The POC compares segment-specific contracts before expanding the sample.",
+        ],
+    }
+
+
 def build_semantic_paragraph_index_summary(
     *,
     run_id: str,
@@ -7988,6 +8725,28 @@ def print_unit_repair_summary(
     )
     console.print(table)
     console.print({"records": str(repaired_records_path)})
+
+
+def print_segmented_unit_pipeline_summary(
+    summary: dict[str, Any],
+    records_path: Path,
+) -> None:
+    table = Table(title="LLM segmented unit pipeline")
+    table.add_column("Metric")
+    table.add_column("Value", justify="right")
+    table.add_row("selected", str(summary["selected_count"]))
+    table.add_row("records", str(summary["record_count"]))
+    table.add_row("records_with_errors", str(summary["records_with_errors"]))
+    table.add_row("grounding_pass_rate", str(summary["grounding_pass_rate"]))
+    table.add_row(
+        "grounding_repair_needed",
+        str(summary["grounding_repair_needed_count"]),
+    )
+    table.add_row("needs_human_review", str(summary["needs_human_review_count"]))
+    for label, count in summary["pipeline_counts"].items():
+        table.add_row(f"pipeline:{label}", str(count))
+    console.print(table)
+    console.print({"records": str(records_path)})
 
 
 def print_semantic_paragraph_index_summary(

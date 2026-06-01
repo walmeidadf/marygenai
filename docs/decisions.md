@@ -511,6 +511,29 @@ Qdrant-style service, improves unit selection. Groq and Cerebras remain better
 candidates for narrower later-stage tasks after robust models have prepared or
 selected the relevant evidence context.
 
+## 2026-06-01: Test Segment-Specific Unit Contracts Before Agentic Retrieval
+
+Before adding an agentic retrieval loop or a vector store to classification, the
+POC should test whether segment-specific output contracts reduce hallucination,
+evidence stitching, and review burden using the same literal document units.
+The first segment contracts are `clinical_intervention`,
+`preclinical_mechanistic`, and `evidence_synthesis`, with the legacy English
+study type used as a routing hint rather than reviewed truth.
+
+The legacy English context remains a guardrail and alignment baseline. It must
+not be cited as source evidence in local grounding audits. Source support should
+come from selected document units only; `legacy_alignment` may reference
+selected source units through `source_unit_ids`, while quote-bearing fields use
+`cited_unit_ids` plus short contiguous `evidence_text`.
+
+A first OpenAI run over 15 selected documents produced no API or parsing errors
+and showed that the segmented approach is worth continuing, but the evidence
+quote contract still needs a narrow repair pass. The main remaining grounding
+failure pattern is overlong quote text rather than unsupported source claims.
+This suggests improving quote-length discipline and repair/adjudication before
+increasing sample size or adopting ChromaDB/hybrid retrieval as part of the
+pipeline.
+
 ## 2026-05-20: Persist Access Artifacts As Candidate Evidence
 
 The first operational access enrichment command now selects prioritized PubMed
