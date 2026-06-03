@@ -23,6 +23,7 @@ Audit source/unit quality before semantic labeling, retrieval, or classification
 
 ```bash
 uv run python pocs/llm_study_reclassification/reclassify_studies.py audit-source-units --semantic-index-path data/normalized/llm_study_reclassification/semantic_paragraph_index/RUN_merged_index.jsonl
+uv run python pocs/llm_study_reclassification/reclassify_studies.py audit-source-units --input-mode source-artifacts --limit 500
 ```
 
 This command reads already persisted merged semantic-unit artifacts, does not
@@ -33,6 +34,11 @@ presence flags, Recaptcha/JavaScript detection, OCR/source-repair hints, and a
 rough `cannabinoid_focus_score`. The summary reports counts by quality bucket
 and routing recommendation so low-quality source artifacts can be blocked or
 sent to source repair before any downstream LLM classification.
+Use `--input-mode source-artifacts` to audit a stratified sample directly from
+the identity-confirmed cohort plus locally persisted access-enrichment artifacts
+before semantic paragraph indexing exists for those documents. This mode reads
+existing payloads and publication abstracts only; it does not use legacy context
+as source evidence.
 
 Prepare an adaptive evidence index without calling Groq:
 

@@ -110,6 +110,7 @@ SOURCE_UNIT_QUALITY_BUCKETS = (
     "low_cannabinoid_focus",
     "biomarker_only",
 )
+SOURCE_UNIT_AUDIT_INPUT_MODES = ("semantic-index", "source-artifacts")
 FULL_TEXT_ARTIFACT_PRIORITY = {
     "pmc_nxml": 0,
     "europe_pmc_full_text_xml": 1,
@@ -2428,6 +2429,14 @@ def compare_segmented_unit_pipeline_batch(
 
 @app.command("audit-source-units")
 def audit_source_units(
+    cohort_path: Annotated[
+        Path,
+        typer.Option("--cohort-path", help="Identity-confirmed English triage cohort JSONL."),
+    ] = DEFAULT_COHORT_PATH,
+    database_path: Annotated[
+        Path | None,
+        typer.Option("--database-path", help="SQLite database path."),
+    ] = None,
     semantic_index_path: Annotated[
         Path | None,
         typer.Option(
@@ -2435,6 +2444,13 @@ def audit_source_units(
             help="Merged semantic paragraph index JSONL to audit.",
         ),
     ] = None,
+    input_mode: Annotated[
+        str,
+        typer.Option(
+            "--input-mode",
+            help="Audit input mode: semantic-index or source-artifacts.",
+        ),
+    ] = "semantic-index",
     output_dir: Annotated[
         Path | None,
         typer.Option("--output-dir", help="Source-unit quality audit output directory."),
@@ -2450,8 +2466,15 @@ def audit_source_units(
 ) -> None:
     """Audit source/unit quality before semantic retrieval or LLM classification."""
     settings = get_settings()
-    resolved_semantic_index_path = semantic_index_path or latest_semantic_index_path(
-        settings.data_dir
+    if input_mode not in SOURCE_UNIT_AUDIT_INPUT_MODES:
+        raise typer.BadParameter(
+            "input-mode must be one of: " + ", ".join(SOURCE_UNIT_AUDIT_INPUT_MODES)
+        )
+    resolved_database_path = database_path or sqlite_database_path(settings.data_dir)
+    resolved_semantic_index_path = (
+        semantic_index_path or latest_semantic_index_path(settings.data_dir)
+        if input_mode == "semantic-index"
+        else semantic_index_path
     )
     resolved_output_dir = output_dir or settings.data_dir / DEFAULT_SOURCE_UNIT_QUALITY_SUBDIR
     resolved_output_dir.mkdir(parents=True, exist_ok=True)
@@ -2460,11 +2483,28 @@ def audit_source_units(
     records_path = resolved_output_dir / f"{run_id}_records.jsonl"
     summary_path = resolved_output_dir / f"{run_id}_summary.json"
 
-    source_records = load_source_unit_index_records(
-        resolved_semantic_index_path,
-        document_ids=document_id or [],
-        limit=limit,
-    )
+    if input_mode == "semantic-index":
+        if resolved_semantic_index_path is None:
+            raise typer.BadParameter("--semantic-index-path is required for semantic-index mode.")
+        source_records = load_source_unit_index_records(
+            resolved_semantic_index_path,
+            document_ids=document_id or [],
+            limit=limit,
+        )
+    else:
+        candidates = load_candidates_for_poc(
+            cohort_path=cohort_path,
+            database_path=resolved_database_path,
+        )
+        selected_candidates = select_source_unit_audit_candidates(
+            candidates,
+            document_ids=document_id or [],
+            limit=limit,
+        )
+        source_records = [
+            source_unit_index_record_from_candidate(candidate)
+            for candidate in selected_candidates
+        ]
     audit_records = [
         build_source_unit_quality_record(record, run_id=run_id)
         for record in source_records
@@ -2472,6 +2512,9 @@ def audit_source_units(
     append_jsonl(records_path, audit_records)
     summary = build_source_unit_quality_summary(
         run_id=run_id,
+        input_mode=input_mode,
+        cohort_path=cohort_path,
+        database_path=resolved_database_path,
         semantic_index_path=resolved_semantic_index_path,
         records_path=records_path,
         selected_records=source_records,
@@ -3014,6 +3057,97 @@ def load_source_unit_index_records(
     return records
 
 
+def select_source_unit_audit_candidates(
+    candidates: list[StudyCandidate],
+    *,
+    document_ids: list[str],
+    limit: int | None,
+) -> list[StudyCandidate]:
+    if document_ids:
+        return select_micro_extraction_candidates(
+            candidates,
+            document_ids=document_ids,
+            limit=limit,
+        )
+    return select_stratified_candidates(
+        candidates,
+        processed_document_ids=set(),
+        limit=limit,
+    )
+
+
+def source_unit_index_record_from_candidate(candidate: StudyCandidate) -> dict[str, Any]:
+    paragraphs = load_candidate_source_audit_paragraphs(candidate)
+    selected_artifact = slim_artifact(candidate.selected_artifact)
+    return {
+        "document_id": candidate.document_id,
+        "context_id": candidate.context_id,
+        "title": candidate.title,
+        "publication_year": candidate.publication_year,
+        "pmid": candidate.pmid,
+        "pmcid": candidate.pmcid,
+        "doi": candidate.doi,
+        "legacy_study_type": candidate.legacy_study_type,
+        "pathologies": candidate.pathologies,
+        "selected_artifact": selected_artifact,
+        "selected_artifact_type": (
+            selected_artifact.get("artifact_type") if selected_artifact else None
+        ),
+        "metadata_artifact_types": [
+            artifact.artifact_type for artifact in candidate.metadata_artifacts
+        ],
+        "has_publication_abstract": bool(candidate.publication_abstract),
+        "paragraph_count": len(paragraphs),
+        "merged_annotations": [
+            {
+                "paragraph_id": paragraph.paragraph_id,
+                "ordinal": paragraph.ordinal,
+                "section": paragraph.section,
+                "unit_type": paragraph.unit_type,
+                "text": paragraph.text,
+                "artifact_id": paragraph.artifact_id,
+                "artifact_path": paragraph.artifact_path,
+                "source_kind": paragraph.source_kind,
+                "labels": [],
+            }
+            for paragraph in paragraphs
+        ],
+        "provenance": {
+            "source": "llm_study_reclassification_poc",
+            "method": "source_artifact_unit_quality_audit_input",
+            "review_boundary": "source_unit_quality_is_candidate_routing_metadata",
+            "does_not_download_full_text": True,
+            "does_not_call_llm": True,
+        },
+    }
+
+
+def load_candidate_source_audit_paragraphs(
+    candidate: StudyCandidate,
+) -> list[EvidenceParagraph]:
+    paragraphs = load_source_paragraphs(candidate)
+    if paragraphs:
+        return paragraphs
+    if not candidate.publication_abstract:
+        return []
+    abstract_paragraphs: list[EvidenceParagraph] = []
+    for sentence in split_sentences(candidate.publication_abstract):
+        if len(sentence) < 30:
+            continue
+        abstract_paragraphs.append(
+            EvidenceParagraph(
+                paragraph_id=f"p{len(abstract_paragraphs) + 1:04d}",
+                document_id=candidate.document_id,
+                ordinal=len(abstract_paragraphs) + 1,
+                section="abstract_metadata",
+                unit_type="abstract",
+                text=truncate_text(sentence, 1_200),
+                source_kind="abstract_metadata",
+            )
+        )
+    return abstract_paragraphs
+
+
 def build_source_unit_quality_record(
     source_record: dict[str, Any],
     *,
@@ -3093,6 +3227,17 @@ def build_source_unit_quality_record(
     return {
         "run_id": run_id,
         "document_id": source_record.get("document_id"),
+        "context_id": source_record.get("context_id"),
+        "title": source_record.get("title"),
+        "publication_year": source_record.get("publication_year"),
+        "pmid": source_record.get("pmid"),
+        "pmcid": source_record.get("pmcid"),
+        "doi": source_record.get("doi"),
+        "legacy_study_type": source_record.get("legacy_study_type"),
+        "pathologies": source_record.get("pathologies", []),
+        "selected_artifact_type": source_record.get("selected_artifact_type"),
+        "metadata_artifact_types": source_record.get("metadata_artifact_types", []),
+        "has_publication_abstract": bool(source_record.get("has_publication_abstract")),
         "provider": source_record.get("provider"),
         "model": source_record.get("model"),
         "quality_bucket": quality_bucket,
@@ -3263,14 +3408,15 @@ def source_units_need_ocr(
     text = normalize_label(
         " ".join(str(annotation.get("text") or "") for annotation in annotations)
     )
-    scan_patterns = (
-        r"\bocr\b",
-        r"\bscanned\b",
+    poor_extraction_patterns = (
+        r"\bocr generated\b",
+        r"\bocr text\b",
         r"\bimage pdf\b",
         r"\bpage image\b",
         r"\bunrecognized text\b",
+        r"\bno text extracted\b",
     )
-    if any(re.search(pattern, text) for pattern in scan_patterns):
+    if any(re.search(pattern, text) for pattern in poor_extraction_patterns):
         return True
     has_abstract_section = any(
         source_unit_section_matches(str(annotation.get("section") or ""), {"abstract"})
@@ -9150,7 +9296,10 @@ def build_semantic_paragraph_index_summary(
 def build_source_unit_quality_summary(
     *,
     run_id: str,
-    semantic_index_path: Path,
+    input_mode: str,
+    cohort_path: Path,
+    database_path: Path,
+    semantic_index_path: Path | None,
     records_path: Path,
     selected_records: list[dict[str, Any]],
     audit_records: list[dict[str, Any]],
@@ -9162,12 +9311,27 @@ def build_source_unit_quality_summary(
         "source": "llm_study_reclassification_poc",
         "method": "audit_source_units_before_semantic_labeling_or_classification",
         "prompt_version": None,
+        "input_mode": input_mode,
         "started_at": started_at.isoformat(),
         "completed_at": completed_at.isoformat(),
-        "semantic_index_path": str(semantic_index_path),
+        "cohort_path": str(cohort_path),
+        "database_path": str(database_path),
+        "semantic_index_path": str(semantic_index_path) if semantic_index_path else None,
         "records_path": str(records_path),
         "selected_count": len(selected_records),
         "record_count": len(audit_records),
+        "selected_artifact_type_counts": dict(
+            Counter(
+                str(record.get("selected_artifact_type") or "none")
+                for record in audit_records
+            ).most_common()
+        ),
+        "legacy_study_type_counts": dict(
+            Counter(
+                str(record.get("legacy_study_type") or "unknown")
+                for record in audit_records
+            ).most_common()
+        ),
         "quality_bucket_counts": dict(
             Counter(record["quality_bucket"] for record in audit_records).most_common()
         ),

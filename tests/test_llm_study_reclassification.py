@@ -46,6 +46,7 @@ from pocs.llm_study_reclassification.reclassify_studies import (
     select_task_evidence_spans,
     select_units_for_classification_task,
     select_units_for_segmented_pipeline,
+    source_unit_index_record_from_candidate,
     throughput_metrics,
 )
 
@@ -1528,6 +1529,34 @@ def test_source_unit_quality_detects_rich_full_text() -> None:
     assert record["has_results"] is True
 
 
+def test_source_unit_quality_does_not_treat_scanned_method_as_ocr() -> None:
+    annotations = []
+    for index in range(12):
+        annotations.append(
+            {
+                "paragraph_id": f"p{index + 1:04d}",
+                "section": "Methods" if index < 6 else "Results",
+                "unit_type": "paragraph",
+                "labels": ["study_design", "outcomes_results"],
+                "text": (
+                    "Cannabidiol treated cell images were scanned for analysis "
+                    "and significant outcomes were measured."
+                ),
+            }
+        )
+    source_record = {
+        "document_id": "publication:pmid:scan-method",
+        "provider": "openai",
+        "model": "gpt-4.1",
+        "merged_annotations": annotations,
+    }
+
+    record = build_source_unit_quality_record(source_record, run_id="run")
+
+    assert record["needs_ocr"] is False
+    assert record["quality_bucket"] == "full_text_rich"
+
+
 def test_source_unit_quality_detects_low_cannabinoid_focus() -> None:
     source_record = {
         "document_id": "publication:url:0c4ab371df7dff5b",
@@ -1594,12 +1623,46 @@ def test_source_unit_quality_detects_biomarker_only_focus() -> None:
     assert record["needs_source_repair"] is False
 
 
+def test_source_unit_index_record_from_candidate_uses_abstract_not_legacy() -> None:
+    candidate = build_candidates(
+        [
+            {
+                "document_id": "publication:pmid:1",
+                "context_id": "legacy_english_context:1",
+                "title": "Cannabidiol trial",
+                "type_of_study": "Clinical Trial",
+                "study_result": "Positive",
+                "key_findings": "Legacy says cannabidiol was studied.",
+            }
+        ],
+        artifacts_by_document_id={},
+        abstracts_by_document_id={
+            "publication:pmid:1": (
+                "Cannabidiol was evaluated in adults with chronic pain. "
+                "The randomized trial measured pain outcomes."
+            )
+        },
+    )[0]
+
+    record = source_unit_index_record_from_candidate(candidate)
+
+    assert record["selected_artifact_type"] is None
+    assert record["has_publication_abstract"] is True
+    assert record["paragraph_count"] == 2
+    assert {
+        annotation["source_kind"] for annotation in record["merged_annotations"]
+    } == {"abstract_metadata"}
+    assert "Legacy says" not in record["merged_annotations"][0]["text"]
+
+
 def test_source_unit_quality_summary_counts_buckets_and_routes(tmp_path: Path) -> None:
     started_at = datetime(2026, 6, 3, tzinfo=UTC)
     records = [
         {
             "quality_bucket": "full_text_rich",
             "routing_recommendation": "use_for_segmented_classification",
+            "selected_artifact_type": "pmc_nxml",
+            "legacy_study_type": "Clinical Trial",
             "needs_source_repair": False,
             "recaptcha_or_js_detected": False,
             "needs_ocr": False,
@@ -1610,6 +1673,8 @@ def test_source_unit_quality_summary_counts_buckets_and_routes(tmp_path: Path) -
         {
             "quality_bucket": "recaptcha_or_js",
             "routing_recommendation": "block_before_llm",
+            "selected_artifact_type": "pmc_html",
+            "legacy_study_type": "Meta-analysis",
             "needs_source_repair": True,
             "recaptcha_or_js_detected": True,
             "needs_ocr": False,
@@ -1621,7 +1686,10 @@ def test_source_unit_quality_summary_counts_buckets_and_routes(tmp_path: Path) -
 
     summary = build_source_unit_quality_summary(
         run_id="run",
-        semantic_index_path=tmp_path / "semantic.jsonl",
+        input_mode="source-artifacts",
+        cohort_path=tmp_path / "cohort.jsonl",
+        database_path=tmp_path / "db.sqlite",
+        semantic_index_path=None,
         records_path=tmp_path / "records.jsonl",
         selected_records=[{}, {}],
         audit_records=records,
@@ -1636,5 +1704,10 @@ def test_source_unit_quality_summary_counts_buckets_and_routes(tmp_path: Path) -
     assert summary["routing_recommendation_counts"] == {
         "use_for_segmented_classification": 1,
         "block_before_llm": 1,
+    }
+    assert summary["selected_artifact_type_counts"] == {"pmc_nxml": 1, "pmc_html": 1}
+    assert summary["legacy_study_type_counts"] == {
+        "Clinical Trial": 1,
+        "Meta-analysis": 1,
     }
     assert summary["needs_source_repair_count"] == 1
