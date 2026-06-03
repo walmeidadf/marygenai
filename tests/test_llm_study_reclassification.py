@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
@@ -17,6 +18,8 @@ from pocs.llm_study_reclassification.reclassify_studies import (
     build_prompt_package,
     build_segmented_unit_pipeline_prompt,
     build_segmented_unit_repair_packet,
+    build_source_unit_quality_record,
+    build_source_unit_quality_summary,
     build_span_grounding_audit,
     build_task_packet_record,
     build_unit_classification_packet,
@@ -1418,3 +1421,220 @@ def test_merge_semantic_paragraph_indexes_deduplicates_votes() -> None:
     assert annotation["labels"] == ["intervention_or_exposure"]
     assert annotation["label_votes"] == {"intervention_or_exposure": 1}
     assert annotation["unit_type"] == "paragraph"
+
+
+def test_source_unit_quality_detects_recaptcha_js_artifact() -> None:
+    source_record = {
+        "document_id": "publication:pmcid:PMC8039032",
+        "provider": "openai",
+        "model": "gpt-4.1",
+        "merged_annotations": [
+            {
+                "paragraph_id": "p0001",
+                "section": "unparsed_full_text",
+                "unit_type": "paragraph",
+                "labels": ["not_relevant"],
+                "text": "window['ppConfig'] = {productName: 'RecaptchaChallengePageUi'};",
+            }
+        ],
+    }
+
+    record = build_source_unit_quality_record(source_record, run_id="run")
+
+    assert record["quality_bucket"] == "recaptcha_or_js"
+    assert record["routing_recommendation"] == "block_before_llm"
+    assert record["recaptcha_or_js_detected"] is True
+    assert record["needs_source_repair"] is True
+
+
+def test_source_unit_quality_detects_abstract_plus_boilerplate() -> None:
+    source_record = {
+        "document_id": "publication:pmcid:PMC2011510",
+        "provider": "openai",
+        "model": "gpt-4.1",
+        "merged_annotations": [
+            {
+                "paragraph_id": "p0001",
+                "section": "html_full_text",
+                "unit_type": "paragraph",
+                "labels": ["not_relevant"],
+                "text": (
+                    "This article is licensed under a Creative Commons Attribution "
+                    "4.0 International License."
+                ),
+            },
+            {
+                "paragraph_id": "p0002",
+                "section": "Abstract",
+                "unit_type": "paragraph",
+                "labels": [
+                    "study_design",
+                    "population_model",
+                    "intervention_or_exposure",
+                    "condition_or_target",
+                ],
+                "text": (
+                    "Nabilone, a synthetic cannabinoid, was compared in a "
+                    "double-blind crossover study of 34 patients with cancer pain."
+                ),
+            },
+            {
+                "paragraph_id": "p0003",
+                "section": "Selected References",
+                "unit_type": "paragraph",
+                "labels": ["not_relevant"],
+                "text": "These references are in PubMed. This may not be the complete list.",
+            },
+        ],
+    }
+
+    record = build_source_unit_quality_record(source_record, run_id="run")
+
+    assert record["quality_bucket"] == "abstract_plus_boilerplate"
+    assert record["routing_recommendation"] == "abstract_triage_or_fetch_better_source"
+    assert record["has_abstract"] is True
+    assert record["scientific_unit_count"] == 1
+    assert record["boilerplate_unit_count"] == 2
+
+
+def test_source_unit_quality_detects_rich_full_text() -> None:
+    annotations = []
+    for index in range(12):
+        section = "Methods" if index < 4 else "Results"
+        annotations.append(
+            {
+                "paragraph_id": f"p{index + 1:04d}",
+                "section": section,
+                "unit_type": "paragraph",
+                "labels": ["study_design", "intervention_or_exposure", "outcomes_results"],
+                "text": (
+                    "Patients received cannabidiol treatment in a randomized trial "
+                    "and outcomes were measured after dosing."
+                ),
+            }
+        )
+    source_record = {
+        "document_id": "publication:pmcid:PMC2228252",
+        "provider": "openai",
+        "model": "gpt-4.1",
+        "merged_annotations": annotations,
+    }
+
+    record = build_source_unit_quality_record(source_record, run_id="run")
+
+    assert record["quality_bucket"] == "full_text_rich"
+    assert record["routing_recommendation"] == "use_for_segmented_classification"
+    assert record["has_methods"] is True
+    assert record["has_results"] is True
+
+
+def test_source_unit_quality_detects_low_cannabinoid_focus() -> None:
+    source_record = {
+        "document_id": "publication:url:0c4ab371df7dff5b",
+        "provider": "openai",
+        "model": "gpt-4.1",
+        "merged_annotations": [
+            {
+                "paragraph_id": "p0001",
+                "section": "Methods",
+                "unit_type": "paragraph",
+                "labels": ["study_design", "population_model"],
+                "text": (
+                    "Adult patients with major depressive disorder were enrolled in "
+                    "a double-blind randomized trial."
+                ),
+            },
+            {
+                "paragraph_id": "p0002",
+                "section": "Results",
+                "unit_type": "paragraph",
+                "labels": ["outcomes_results"],
+                "text": "The treatment group had improved depression scores compared with placebo.",
+            },
+        ],
+    }
+
+    record = build_source_unit_quality_record(source_record, run_id="run")
+
+    assert record["quality_bucket"] == "low_cannabinoid_focus"
+    assert record["routing_recommendation"] == "source_repair_or_identity_check"
+    assert record["cannabinoid_focus_score"] == 0.0
+
+
+def test_source_unit_quality_detects_biomarker_only_focus() -> None:
+    source_record = {
+        "document_id": "publication:pmcid:PMC10466388",
+        "provider": "openai",
+        "model": "gpt-4.1",
+        "merged_annotations": [
+            {
+                "paragraph_id": "p0001",
+                "section": "Methods",
+                "unit_type": "paragraph",
+                "labels": ["study_design", "population_model"],
+                "text": "Participants completed Tai Chi exercise for knee osteoarthritis pain.",
+            },
+            {
+                "paragraph_id": "p0002",
+                "section": "Results",
+                "unit_type": "paragraph",
+                "labels": ["outcomes_results"],
+                "text": (
+                    "Plasma endocannabinoid levels were measured as biomarkers "
+                    "before and after the exercise intervention."
+                ),
+            },
+        ],
+    }
+
+    record = build_source_unit_quality_record(source_record, run_id="run")
+
+    assert record["quality_bucket"] == "biomarker_only"
+    assert record["routing_recommendation"] == "biomarker_or_indirect_focus_review"
+    assert record["needs_source_repair"] is False
+
+
+def test_source_unit_quality_summary_counts_buckets_and_routes(tmp_path: Path) -> None:
+    started_at = datetime(2026, 6, 3, tzinfo=UTC)
+    records = [
+        {
+            "quality_bucket": "full_text_rich",
+            "routing_recommendation": "use_for_segmented_classification",
+            "needs_source_repair": False,
+            "recaptcha_or_js_detected": False,
+            "needs_ocr": False,
+            "unit_count": 12,
+            "scientific_unit_count": 12,
+            "cannabinoid_focus_score": 0.5,
+        },
+        {
+            "quality_bucket": "recaptcha_or_js",
+            "routing_recommendation": "block_before_llm",
+            "needs_source_repair": True,
+            "recaptcha_or_js_detected": True,
+            "needs_ocr": False,
+            "unit_count": 3,
+            "scientific_unit_count": 0,
+            "cannabinoid_focus_score": 0.0,
+        },
+    ]
+
+    summary = build_source_unit_quality_summary(
+        run_id="run",
+        semantic_index_path=tmp_path / "semantic.jsonl",
+        records_path=tmp_path / "records.jsonl",
+        selected_records=[{}, {}],
+        audit_records=records,
+        started_at=started_at,
+        completed_at=started_at,
+    )
+
+    assert summary["quality_bucket_counts"] == {
+        "full_text_rich": 1,
+        "recaptcha_or_js": 1,
+    }
+    assert summary["routing_recommendation_counts"] == {
+        "use_for_segmented_classification": 1,
+        "block_before_llm": 1,
+    }
+    assert summary["needs_source_repair_count"] == 1

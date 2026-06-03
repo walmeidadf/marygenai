@@ -19,6 +19,21 @@ review items, review decisions, or document review state.
 
 ## Run
 
+Audit source/unit quality before semantic labeling, retrieval, or classification:
+
+```bash
+uv run python pocs/llm_study_reclassification/reclassify_studies.py audit-source-units --semantic-index-path data/normalized/llm_study_reclassification/semantic_paragraph_index/RUN_merged_index.jsonl
+```
+
+This command reads already persisted merged semantic-unit artifacts, does not
+download full text, does not call an LLM, and writes heuristic routing metadata
+under `data/normalized/llm_study_reclassification/source_unit_quality/`.
+Records include `quality_bucket`, `routing_recommendation`, unit counts, section
+presence flags, Recaptcha/JavaScript detection, OCR/source-repair hints, and a
+rough `cannabinoid_focus_score`. The summary reports counts by quality bucket
+and routing recommendation so low-quality source artifacts can be blocked or
+sent to source repair before any downstream LLM classification.
+
 Prepare an adaptive evidence index without calling Groq:
 
 ```bash

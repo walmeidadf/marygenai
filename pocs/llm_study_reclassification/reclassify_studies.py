@@ -52,6 +52,7 @@ DEFAULT_UNIT_CLASSIFICATION_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "unit_classificatio
 DEFAULT_UNIT_REPAIR_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "unit_classification_repair"
 DEFAULT_SEGMENTED_UNIT_PIPELINE_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "segmented_unit_pipeline"
 DEFAULT_SEGMENTED_UNIT_REPAIR_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "segmented_unit_pipeline_repair"
+DEFAULT_SOURCE_UNIT_QUALITY_SUBDIR = DEFAULT_OUTPUT_SUBDIR / "source_unit_quality"
 DEFAULT_MODEL = "llama-3.3-70b-versatile"
 DEFAULT_PROVIDER = "groq"
 DEFAULT_PROVIDER_MODELS = {
@@ -97,6 +98,17 @@ SEMANTIC_PARAGRAPH_LABELS = (
     "safety_adverse_events",
     "background",
     "not_relevant",
+)
+SOURCE_UNIT_QUALITY_BUCKETS = (
+    "full_text_rich",
+    "abstract_only",
+    "abstract_plus_boilerplate",
+    "boilerplate_heavy",
+    "recaptcha_or_js",
+    "image_pdf_or_scan",
+    "metadata_only",
+    "low_cannabinoid_focus",
+    "biomarker_only",
 )
 FULL_TEXT_ARTIFACT_PRIORITY = {
     "pmc_nxml": 0,
@@ -2414,6 +2426,63 @@ def compare_segmented_unit_pipeline_batch(
     print_segmented_unit_pipeline_summary(summary, records_path)
 
 
+@app.command("audit-source-units")
+def audit_source_units(
+    semantic_index_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--semantic-index-path",
+            help="Merged semantic paragraph index JSONL to audit.",
+        ),
+    ] = None,
+    output_dir: Annotated[
+        Path | None,
+        typer.Option("--output-dir", help="Source-unit quality audit output directory."),
+    ] = None,
+    document_id: Annotated[
+        list[str] | None,
+        typer.Option("--document-id", help="Document id to include; repeat for fixed samples."),
+    ] = None,
+    limit: Annotated[
+        int | None,
+        typer.Option("--limit", min=1, help="Maximum records after document filtering."),
+    ] = None,
+) -> None:
+    """Audit source/unit quality before semantic retrieval or LLM classification."""
+    settings = get_settings()
+    resolved_semantic_index_path = semantic_index_path or latest_semantic_index_path(
+        settings.data_dir
+    )
+    resolved_output_dir = output_dir or settings.data_dir / DEFAULT_SOURCE_UNIT_QUALITY_SUBDIR
+    resolved_output_dir.mkdir(parents=True, exist_ok=True)
+    run_started_at = datetime.now(UTC)
+    run_id = run_started_at.strftime("%Y%m%dT%H%M%SZ_source_unit_quality")
+    records_path = resolved_output_dir / f"{run_id}_records.jsonl"
+    summary_path = resolved_output_dir / f"{run_id}_summary.json"
+
+    source_records = load_source_unit_index_records(
+        resolved_semantic_index_path,
+        document_ids=document_id or [],
+        limit=limit,
+    )
+    audit_records = [
+        build_source_unit_quality_record(record, run_id=run_id)
+        for record in source_records
+    ]
+    append_jsonl(records_path, audit_records)
+    summary = build_source_unit_quality_summary(
+        run_id=run_id,
+        semantic_index_path=resolved_semantic_index_path,
+        records_path=records_path,
+        selected_records=source_records,
+        audit_records=audit_records,
+        started_at=run_started_at,
+        completed_at=datetime.now(UTC),
+    )
+    write_json(summary_path, summary)
+    print_source_unit_quality_summary(summary, records_path, summary_path)
+
+
 def build_run_paths(*, output_dir: Path, raw_output_dir: Path, run_id: str) -> RunPaths:
     output_dir.mkdir(parents=True, exist_ok=True)
     raw_output_dir.mkdir(parents=True, exist_ok=True)
@@ -2911,6 +2980,358 @@ def infer_segmented_unit_pipeline(candidate: StudyCandidate) -> str:
     if study_type in {"meta analysis", "clinical meta analysis"}:
         return "evidence_synthesis"
     return "clinical_intervention"
+
+
+def latest_semantic_index_path(data_dir: Path) -> Path:
+    semantic_index_dir = data_dir / DEFAULT_SEMANTIC_PARAGRAPH_INDEX_SUBDIR
+    candidates = sorted(semantic_index_dir.glob("*_merged_index.jsonl"))
+    if not candidates:
+        raise typer.BadParameter(
+            "No merged semantic index JSONL found. Pass --semantic-index-path."
+        )
+    return candidates[-1]
+
+
+def load_source_unit_index_records(
+    semantic_index_path: Path,
+    *,
+    document_ids: list[str],
+    limit: int | None,
+) -> list[dict[str, Any]]:
+    wanted = set(document_ids)
+    records: list[dict[str, Any]] = []
+    seen_document_ids: set[str] = set()
+    for record in load_jsonl(semantic_index_path):
+        document_id = str(record.get("document_id") or "")
+        if not document_id or document_id in seen_document_ids:
+            continue
+        if wanted and document_id not in wanted:
+            continue
+        records.append(record)
+        seen_document_ids.add(document_id)
+        if limit is not None and len(records) >= limit:
+            break
+    return records
+
+
+def build_source_unit_quality_record(
+    source_record: dict[str, Any],
+    *,
+    run_id: str,
+) -> dict[str, Any]:
+    annotations = [
+        annotation
+        for annotation in source_record.get("merged_annotations", [])
+        if isinstance(annotation, dict)
+    ]
+    unit_count = len(annotations)
+    boilerplate_flags = [
+        is_source_unit_boilerplate(annotation) for annotation in annotations
+    ]
+    recaptcha_or_js_detected = any(
+        source_unit_has_recaptcha_or_js(annotation) for annotation in annotations
+    )
+    scientific_flags = [
+        is_scientific_source_unit(annotation, boilerplate=boilerplate)
+        for annotation, boilerplate in zip(annotations, boilerplate_flags, strict=True)
+    ]
+    sections = [str(annotation.get("section") or "") for annotation in annotations]
+    label_counts = Counter(
+        label
+        for annotation in annotations
+        for label in annotation.get("labels", [])
+        if isinstance(label, str)
+    )
+    scientific_unit_count = sum(scientific_flags)
+    boilerplate_unit_count = sum(boilerplate_flags)
+    cannabinoid_focus_score = source_unit_cannabinoid_focus_score(
+        annotations,
+        scientific_flags=scientific_flags,
+    )
+    direct_cannabinoid_unit_count = sum(
+        source_unit_has_direct_cannabinoid_focus(annotation)
+        for annotation in annotations
+    )
+    biomarker_unit_count = sum(
+        source_unit_has_biomarker_only_focus(annotation) for annotation in annotations
+    )
+    has_abstract = any(
+        source_unit_section_matches(section, {"abstract"}) for section in sections
+    )
+    has_methods = any(
+        source_unit_section_matches(section, {"method", "materials", "patients"})
+        for section in sections
+    )
+    has_results = any(
+        source_unit_section_matches(section, {"result", "finding"})
+        for section in sections
+    )
+    has_discussion = any(
+        source_unit_section_matches(section, {"discussion", "conclusion"})
+        for section in sections
+    )
+    needs_ocr = source_units_need_ocr(
+        annotations,
+        unit_count=unit_count,
+        scientific_unit_count=scientific_unit_count,
+        recaptcha_or_js_detected=recaptcha_or_js_detected,
+    )
+    quality_bucket = classify_source_unit_quality_bucket(
+        unit_count=unit_count,
+        scientific_unit_count=scientific_unit_count,
+        boilerplate_unit_count=boilerplate_unit_count,
+        has_abstract=has_abstract,
+        has_methods=has_methods,
+        has_results=has_results,
+        has_discussion=has_discussion,
+        recaptcha_or_js_detected=recaptcha_or_js_detected,
+        needs_ocr=needs_ocr,
+        cannabinoid_focus_score=cannabinoid_focus_score,
+        direct_cannabinoid_unit_count=direct_cannabinoid_unit_count,
+        biomarker_unit_count=biomarker_unit_count,
+    )
+    return {
+        "run_id": run_id,
+        "document_id": source_record.get("document_id"),
+        "provider": source_record.get("provider"),
+        "model": source_record.get("model"),
+        "quality_bucket": quality_bucket,
+        "routing_recommendation": source_unit_routing_recommendation(quality_bucket),
+        "unit_count": unit_count,
+        "scientific_unit_count": scientific_unit_count,
+        "boilerplate_unit_count": boilerplate_unit_count,
+        "has_abstract": has_abstract,
+        "has_methods": has_methods,
+        "has_results": has_results,
+        "has_discussion": has_discussion,
+        "recaptcha_or_js_detected": recaptcha_or_js_detected,
+        "needs_ocr": needs_ocr,
+        "needs_source_repair": quality_bucket
+        in {
+            "abstract_plus_boilerplate",
+            "boilerplate_heavy",
+            "recaptcha_or_js",
+            "image_pdf_or_scan",
+            "metadata_only",
+            "low_cannabinoid_focus",
+        },
+        "cannabinoid_focus_score": cannabinoid_focus_score,
+        "label_counts": dict(label_counts.most_common()),
+        "unit_type_counts": dict(
+            Counter(
+                str(annotation.get("unit_type")) for annotation in annotations
+            ).most_common()
+        ),
+        "section_counts": dict(
+            Counter(clean_text(section) or "unknown" for section in sections).most_common()
+        ),
+        "audit_basis": {
+            "method": "heuristic_source_unit_quality_audit",
+            "input_record_poc_status": source_record.get("poc_status"),
+            "review_boundary": "source_unit_quality_is_candidate_routing_metadata",
+        },
+    }
+
+
+def is_source_unit_boilerplate(annotation: dict[str, Any]) -> bool:
+    text = normalize_label(str(annotation.get("text") or ""))
+    section = normalize_label(str(annotation.get("section") or ""))
+    boilerplate_terms = (
+        "creative commons attribution",
+        "terms of this license",
+        "selected references",
+        "these references are in pubmed",
+        "correspondence",
+        "edited by",
+        "reviewed by",
+        "copyright",
+        "spdx-license-identifier",
+        "closure library",
+        "gstatic.com",
+    )
+    return (
+        is_boilerplate_paragraph(text)
+        or any(term in text for term in boilerplate_terms)
+        or section in {"selected references", "references"}
+    )
+
+
+def source_unit_has_recaptcha_or_js(annotation: dict[str, Any]) -> bool:
+    text = normalize_label(str(annotation.get("text") or ""))
+    recaptcha_terms = (
+        "recaptchachallengepageui",
+        "recaptcha/challengepage",
+        "window['ppconfig']",
+        'window["ppconfig"]',
+        "wiz_global_data",
+        "boq-recaptcha",
+        "javascript",
+    )
+    return any(term in text for term in recaptcha_terms)
+
+
+def is_scientific_source_unit(annotation: dict[str, Any], *, boilerplate: bool) -> bool:
+    if boilerplate or source_unit_has_recaptcha_or_js(annotation):
+        return False
+    labels = {
+        label for label in annotation.get("labels", []) if isinstance(label, str)
+    }
+    if labels - {"background", "not_relevant"}:
+        return True
+    section = normalize_label(str(annotation.get("section") or ""))
+    if source_unit_section_matches(section, {"abstract", "method", "result", "discussion"}):
+        return "not_relevant" not in labels
+    text = normalize_label(str(annotation.get("text") or ""))
+    scientific_terms = (
+        "randomized",
+        "trial",
+        "patients",
+        "mice",
+        "rats",
+        "cells",
+        "dose",
+        "treatment",
+        "outcome",
+        "significant",
+    )
+    return any(term in text for term in scientific_terms)
+
+
+def source_unit_cannabinoid_focus_score(
+    annotations: list[dict[str, Any]],
+    *,
+    scientific_flags: list[bool],
+) -> float:
+    if not annotations:
+        return 0.0
+    scored_count = sum(scientific_flags) or len(annotations)
+    cannabinoid_count = sum(
+        flag
+        and (
+            source_unit_has_direct_cannabinoid_focus(annotation)
+            or source_unit_has_biomarker_only_focus(annotation)
+        )
+        for annotation, flag in zip(annotations, scientific_flags, strict=True)
+    )
+    return round(cannabinoid_count / scored_count, 4) if scored_count else 0.0
+
+
+def source_unit_has_direct_cannabinoid_focus(annotation: dict[str, Any]) -> bool:
+    text = normalize_label(str(annotation.get("text") or ""))
+    direct_patterns = (
+        r"\bcannabinoids?\b",
+        r"\bcannabis\b",
+        r"\bcannabidiol\b",
+        r"\bcbd\b",
+        r"\bthc\b",
+        r"\bnabilone\b",
+        r"\bdronabinol\b",
+        r"\bnabiximols\b",
+        r"\bmarijuana\b",
+        r"\bmarihuana\b",
+    )
+    return any(re.search(pattern, text) for pattern in direct_patterns)
+
+
+def source_unit_has_biomarker_only_focus(annotation: dict[str, Any]) -> bool:
+    text = normalize_label(str(annotation.get("text") or ""))
+    biomarker_terms = (
+        "endocannabinoid",
+        "anandamide",
+        "2-arachidonoylglycerol",
+        "2-ag",
+        "cb1",
+        "cb2",
+    )
+    return any(term in text for term in biomarker_terms)
+
+
+def source_unit_section_matches(section: str, terms: set[str]) -> bool:
+    normalized = normalize_label(section)
+    return any(term in normalized for term in terms)
+
+
+def source_units_need_ocr(
+    annotations: list[dict[str, Any]],
+    *,
+    unit_count: int,
+    scientific_unit_count: int,
+    recaptcha_or_js_detected: bool,
+) -> bool:
+    if recaptcha_or_js_detected:
+        return False
+    text = normalize_label(
+        " ".join(str(annotation.get("text") or "") for annotation in annotations)
+    )
+    scan_patterns = (
+        r"\bocr\b",
+        r"\bscanned\b",
+        r"\bimage pdf\b",
+        r"\bpage image\b",
+        r"\bunrecognized text\b",
+    )
+    if any(re.search(pattern, text) for pattern in scan_patterns):
+        return True
+    has_abstract_section = any(
+        source_unit_section_matches(str(annotation.get("section") or ""), {"abstract"})
+        for annotation in annotations
+    )
+    return unit_count <= 3 and scientific_unit_count <= 1 and not has_abstract_section
+
+
+def classify_source_unit_quality_bucket(
+    *,
+    unit_count: int,
+    scientific_unit_count: int,
+    boilerplate_unit_count: int,
+    has_abstract: bool,
+    has_methods: bool,
+    has_results: bool,
+    has_discussion: bool,
+    recaptcha_or_js_detected: bool,
+    needs_ocr: bool,
+    cannabinoid_focus_score: float,
+    direct_cannabinoid_unit_count: int,
+    biomarker_unit_count: int,
+) -> str:
+    if recaptcha_or_js_detected:
+        return "recaptcha_or_js"
+    if needs_ocr:
+        return "image_pdf_or_scan"
+    if unit_count == 0 or scientific_unit_count == 0:
+        return "metadata_only"
+    if has_abstract and unit_count <= 4 and boilerplate_unit_count > 0:
+        return "abstract_plus_boilerplate"
+    if has_abstract and unit_count <= 3:
+        return "abstract_only"
+    if boilerplate_unit_count / unit_count >= 0.5:
+        return "boilerplate_heavy"
+    if direct_cannabinoid_unit_count == 0 and biomarker_unit_count > 0:
+        return "biomarker_only"
+    if cannabinoid_focus_score < 0.08:
+        return "low_cannabinoid_focus"
+    if scientific_unit_count >= 10 and (
+        has_methods or has_results or has_discussion or scientific_unit_count >= 20
+    ):
+        return "full_text_rich"
+    return "abstract_only" if has_abstract else "metadata_only"
+
+
+def source_unit_routing_recommendation(quality_bucket: str) -> str:
+    if quality_bucket == "full_text_rich":
+        return "use_for_segmented_classification"
+    if quality_bucket in {"abstract_only", "abstract_plus_boilerplate"}:
+        return "abstract_triage_or_fetch_better_source"
+    if quality_bucket in {
+        "boilerplate_heavy",
+        "recaptcha_or_js",
+        "image_pdf_or_scan",
+        "metadata_only",
+    }:
+        return "block_before_llm"
+    if quality_bucket == "biomarker_only":
+        return "biomarker_or_indirect_focus_review"
+    return "source_repair_or_identity_check"
 
 
 def load_semantic_label_index(path: Path) -> dict[str, dict[str, list[str]]]:
@@ -8726,6 +9147,61 @@ def build_semantic_paragraph_index_summary(
     }
 
 
+def build_source_unit_quality_summary(
+    *,
+    run_id: str,
+    semantic_index_path: Path,
+    records_path: Path,
+    selected_records: list[dict[str, Any]],
+    audit_records: list[dict[str, Any]],
+    started_at: datetime,
+    completed_at: datetime,
+) -> dict[str, Any]:
+    return {
+        "run_id": run_id,
+        "source": "llm_study_reclassification_poc",
+        "method": "audit_source_units_before_semantic_labeling_or_classification",
+        "prompt_version": None,
+        "started_at": started_at.isoformat(),
+        "completed_at": completed_at.isoformat(),
+        "semantic_index_path": str(semantic_index_path),
+        "records_path": str(records_path),
+        "selected_count": len(selected_records),
+        "record_count": len(audit_records),
+        "quality_bucket_counts": dict(
+            Counter(record["quality_bucket"] for record in audit_records).most_common()
+        ),
+        "routing_recommendation_counts": dict(
+            Counter(
+                record["routing_recommendation"] for record in audit_records
+            ).most_common()
+        ),
+        "needs_source_repair_count": sum(
+            bool(record["needs_source_repair"]) for record in audit_records
+        ),
+        "recaptcha_or_js_detected_count": sum(
+            bool(record["recaptcha_or_js_detected"]) for record in audit_records
+        ),
+        "needs_ocr_count": sum(bool(record["needs_ocr"]) for record in audit_records),
+        "mean_unit_count": rounded_mean(
+            [int(record["unit_count"]) for record in audit_records]
+        ),
+        "mean_scientific_unit_count": rounded_mean(
+            [int(record["scientific_unit_count"]) for record in audit_records]
+        ),
+        "mean_cannabinoid_focus_score": rounded_mean(
+            [float(record["cannabinoid_focus_score"]) for record in audit_records]
+        ),
+        "notes": [
+            "This command audits already persisted semantic unit artifacts only.",
+            "It does not download full text, call an LLM, validate identity, mutate SQLite, "
+            "or update reviewed knowledge.",
+            "Quality buckets and routing recommendations are heuristic candidate metadata "
+            "for human review and pipeline triage.",
+        ],
+    }
+
+
 def mean_latency_seconds(records: list[dict[str, Any]]) -> float | None:
     latencies = [
         float(record["provenance"]["latency_seconds"])
@@ -9149,6 +9625,27 @@ def print_segmented_unit_repair_summary(
         table.add_row(f"pipeline:{label}", str(count))
     console.print(table)
     console.print({"records": str(repaired_records_path)})
+
+
+def print_source_unit_quality_summary(
+    summary: dict[str, Any],
+    records_path: Path,
+    summary_path: Path,
+) -> None:
+    table = Table(title="LLM source-unit quality audit")
+    table.add_column("Metric")
+    table.add_column("Value", justify="right")
+    table.add_row("selected", str(summary["selected_count"]))
+    table.add_row("records", str(summary["record_count"]))
+    table.add_row("needs_source_repair", str(summary["needs_source_repair_count"]))
+    table.add_row("recaptcha_or_js", str(summary["recaptcha_or_js_detected_count"]))
+    table.add_row("needs_ocr", str(summary["needs_ocr_count"]))
+    for bucket, count in summary["quality_bucket_counts"].items():
+        table.add_row(f"quality_bucket:{bucket}", str(count))
+    for route, count in summary["routing_recommendation_counts"].items():
+        table.add_row(f"routing:{route}", str(count))
+    console.print(table)
+    console.print({"records": str(records_path), "summary": str(summary_path)})
 
 
 def print_semantic_paragraph_index_summary(
