@@ -272,6 +272,28 @@ Current local findings from the 30-document legacy-guided OpenAI POC:
   `not_found` after source-unit inspection. This is useful behavior for the POC:
   the pipeline is surfacing likely legacy/source mismatches and weak source
   extraction cases instead of forcing claims from the legacy context.
+- Manual review of six representative segmented records showed that the next
+  POC should audit source/unit quality before LLM classification. The reviewed
+  cases separated several failure modes that look similar downstream:
+  `PMC2011510` is effectively abstract-only plus boilerplate even though the
+  abstract strongly supports basic clinical classification; `PMC2228252` has
+  rich full-text units and is suitable for direct classification; `PMC2294085`
+  supports a narrative review mention of cannabinoids but not the legacy
+  `Meta-analysis` classification; `PMC10466388` has good text but low
+  therapeutic cannabinoid focus because Tai Chi is the intervention and
+  endocannabinoids are biomarkers; `publication:url:0c4ab371df7dff5b` is a
+  source/legacy mismatch where the source describes a BUP/SAM randomized trial
+  rather than the legacy clinical meta-analysis; and `PMC8039032` is a source
+  quality failure where the persisted source text is Recaptcha/JavaScript
+  boilerplate. These cases argue for a small `audit-source-units` POC command
+  after access enrichment and source unit extraction, before semantic labeling
+  and segmented classification.
+- Candidate source/unit quality buckets to test are `full_text_rich`,
+  `abstract_only`, `abstract_plus_boilerplate`, `boilerplate_heavy`,
+  `recaptcha_or_js`, `image_pdf_or_scan`, `metadata_only`,
+  `low_cannabinoid_focus`, and `biomarker_only`. Outputs should remain
+  candidate provenance for human review and should not mutate SQLite review
+  state or reviewed knowledge.
 
 ```bash
 uv run python pocs/llm_study_reclassification/reclassify_studies.py run --dry-run --limit 5

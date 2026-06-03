@@ -553,6 +553,42 @@ sample, but the next analysis should separate true model behavior from upstream
 source/unit extraction quality before adding vector retrieval or agentic
 retrieval tools.
 
+## 2026-06-03: Audit Source Unit Quality Before LLM Classification
+
+The next POC should add a source/unit quality audit after access enrichment and
+source unit extraction, before semantic labeling, retrieval, or segmented LLM
+classification. This should remain a POC command until thresholds are validated
+against manual review; it should write ignored JSONL outputs only and must not
+mutate SQLite review state or reviewed knowledge.
+
+Manual review of representative segmented records showed distinct upstream
+quality and routing cases:
+
+- `PMC2011510`: effectively abstract-only plus license/reference boilerplate;
+  the abstract supports basic clinical classification, but full methods/results
+  would require OCR or another text source.
+- `PMC2228252`: rich full-text NXML with enough scientific units for direct
+  classification.
+- `PMC2294085`: source text supports a narrative review mention of
+  cannabinoids, but not the legacy `Meta-analysis` classification or a strong
+  positive evidence-synthesis conclusion.
+- `PMC10466388`: source text is good, but cannabinoid relevance is indirect;
+  Tai Chi is the intervention and endocannabinoids are biomarkers.
+- `publication:url:0c4ab371df7dff5b`: selected source and legacy context
+  describe different studies; the source is a BUP/SAM randomized trial, not the
+  legacy clinical meta-analysis.
+- `PMC8039032`: persisted source text is Recaptcha/JavaScript boilerplate and
+  should be blocked before LLM classification.
+
+The POC should produce candidate provenance fields such as `quality_bucket`,
+`routing_recommendation`, `unit_count`, `scientific_unit_count`,
+`boilerplate_unit_count`, `has_abstract`, `has_methods`, `has_results`,
+`has_discussion`, `recaptcha_or_js_detected`, `needs_ocr`,
+`needs_source_repair`, and `cannabinoid_focus_score`. Initial buckets to test
+are `full_text_rich`, `abstract_only`, `abstract_plus_boilerplate`,
+`boilerplate_heavy`, `recaptcha_or_js`, `image_pdf_or_scan`, `metadata_only`,
+`low_cannabinoid_focus`, and `biomarker_only`.
+
 ## 2026-05-20: Persist Access Artifacts As Candidate Evidence
 
 The first operational access enrichment command now selects prioritized PubMed
