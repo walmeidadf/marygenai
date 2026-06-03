@@ -6,7 +6,7 @@ from typing import Annotated
 import typer
 from rich.console import Console
 
-from marygenai.access_enrichment.pipeline import run_access_enrichment
+from marygenai.access_enrichment.pipeline import audit_access_artifacts, run_access_enrichment
 from marygenai.persistence.sqlite import sqlite_database_path
 from marygenai.settings import get_settings
 from marygenai.storage import LocalStorage
@@ -95,3 +95,24 @@ def run(
         fetch_pdf=fetch_pdf,
     )
     console.print(result.model_dump(mode="json"))
+
+
+@app.command("audit-artifacts")
+def audit_artifacts(
+    limit: Annotated[
+        int | None,
+        typer.Option("--limit", min=1, help="Maximum persisted artifacts to audit."),
+    ] = None,
+    database_path: Annotated[
+        Path | None,
+        typer.Option("--database-path", help="SQLite database path."),
+    ] = None,
+) -> None:
+    """Audit locally persisted access artifacts without network fetches."""
+    settings = get_settings()
+    summary = audit_access_artifacts(
+        storage=LocalStorage(settings.data_dir),
+        database_path=database_path or sqlite_database_path(settings.data_dir),
+        limit=limit,
+    )
+    console.print(summary)

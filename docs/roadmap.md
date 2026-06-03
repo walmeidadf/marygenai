@@ -21,8 +21,11 @@ The pipeline shape should be:
    controlled designs.
 4. Enrich access paths through PMC, Europe PMC, Unpaywall, DOI, and publisher
    links.
-5. Sample full text and PDFs only after access has been classified.
-6. Extract high-value fields with provenance and human review, especially fields
+5. Audit persisted access artifacts before source-unit labeling or LLM
+   classification.
+6. Sample full text and PDFs only after access has been classified and artifact
+   payload quality has been checked.
+7. Extract high-value fields with provenance and human review, especially fields
    that abstracts rarely provide reliably.
 
 This preserves two separate tracks:
@@ -48,6 +51,55 @@ The MVP review queue should be dominated by `cannabinoid_focus`. Records with
 direct cannabinoid evidence in title or indexed PubMed metadata are the primary
 review candidates. Study design, access, recency, and citation metrics are
 secondary signals.
+
+## Access Artifact Quality Roadmap
+
+The LLM study reclassification POC showed that grounded classification is no
+longer the dominant near-term bottleneck. Source sufficiency, source-unit
+quality, and legacy/source mismatch are now the gating risks.
+
+Access enrichment should therefore become a quality-gated workflow:
+
+1. Audit every persisted `access_enrichment_artifact` locally, without network
+   fetches or SQLite/review-state mutation.
+2. Mark artifact-level operational quality in ignored JSONL outputs:
+   `usable_full_text`, `invalid_payload`, `missing_payload`, `metadata_only`, or
+   `error`.
+3. Build a document-level rollup that preserves the best usable source and
+   separates routing states:
+   `usable_for_llm_classification`, `needs_reenrichment`,
+   `source_triage_needed`, and `not_enriched`.
+4. Reprocess only documents with invalid full-text artifacts, using a different
+   enrichment strategy rather than blindly retrying the same source.
+5. Keep low-cannabinoid-focus and likely source/legacy mismatch cases separate
+   from reenrichment. Those belong in identity/focus review, not automatic
+   fetch retry.
+
+Operational queues should stay distinct:
+
+- `reenrich_invalid_payload`: Recaptcha/JavaScript pages, HTML saved as XML,
+  missing payloads, parser-hostile full-text artifacts.
+- `source_triage_needed`: abstract-only, metadata-only, or
+  abstract-plus-boilerplate records where a better source may exist but is not
+  currently available locally.
+- `identity_or_focus_review`: low cannabinoid focus, biomarker-only focus, and
+  suspected legacy/source mismatch.
+
+Invalid artifacts should not be deleted. They are evidence of source access
+failure and should remain available for audit, while downstream extraction
+should ignore them as full-text sources.
+
+Current audit command:
+
+```bash
+uv run marygenai access-enrichment audit-artifacts
+```
+
+The first artifact-level audit should distinguish Recaptcha/JavaScript blocks
+from HTML returned through an XML endpoint. Recaptcha/JavaScript blocks usually
+need alternate-source reenrichment. HTML returned through an XML endpoint may be
+usable source text but should be repaired or normalized as an HTML artifact so
+future routing does not treat it as structured NXML.
 
 ## MVP Implementation Progress
 

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 import time
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
@@ -28,6 +29,14 @@ from marygenai.storage import LocalStorage
 DEFAULT_CANNABINOID_FOCUS = ("direct_title_or_indexed",)
 DEFAULT_FULL_TEXT_PRIORITY = ("high_auto_full_text",)
 DEFAULT_EXCLUDED_IDENTITY_STATUS = "needs_manual_identity_review"
+ACCESS_ARTIFACT_QUALITY_SUBDIR = Path(
+    "normalized/publication_enrichments/access_artifact_quality"
+)
+USABLE_FULL_TEXT_ARTIFACT_PRIORITY = (
+    "pmc_nxml",
+    "europe_pmc_full_text_xml",
+    "pmc_html",
+)
 
 
 class AccessClientBundle(Protocol):
@@ -147,6 +156,401 @@ def run_access_enrichment(
         output_paths={name: str(path) for name, path in output_paths.items()},
         counts=counts,
     )
+
+
+def audit_access_artifacts(
+    *,
+    storage: LocalStorage,
+    database_path: Path | None = None,
+    run_id: str | None = None,
+    limit: int | None = None,
+) -> dict[str, Any]:
+    """Audit locally persisted access artifacts without fetching or mutating state."""
+    storage.ensure_layout()
+    resolved_database_path = database_path or sqlite_database_path(storage.root)
+    resolved_run_id = run_id or datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    started_at = datetime.now(UTC)
+    with connect_sqlite(resolved_database_path) as connection:
+        connection.row_factory = sqlite3.Row
+        artifact_rows = load_access_artifact_rows(connection, limit=limit)
+        abstracts_by_document_id = load_artifact_document_abstract_flags(
+            connection,
+            [str(row["document_id"]) for row in artifact_rows],
+        )
+
+    artifact_records = [
+        audit_access_artifact_row(row, storage=storage) for row in artifact_rows
+    ]
+    document_records = build_access_artifact_document_rollups(
+        artifact_records,
+        abstracts_by_document_id=abstracts_by_document_id,
+        run_id=resolved_run_id,
+    )
+    for record in artifact_records:
+        record["run_id"] = resolved_run_id
+    completed_at = datetime.now(UTC)
+    artifact_records_path = write_dict_jsonl(
+        storage.path(
+            ACCESS_ARTIFACT_QUALITY_SUBDIR
+            / f"{resolved_run_id}_access_artifact_quality_records.jsonl"
+        ),
+        artifact_records,
+    )
+    document_records_path = write_dict_jsonl(
+        storage.path(
+            ACCESS_ARTIFACT_QUALITY_SUBDIR
+            / f"{resolved_run_id}_access_artifact_document_rollup.jsonl"
+        ),
+        document_records,
+    )
+    summary = build_access_artifact_quality_summary(
+        run_id=resolved_run_id,
+        database_path=resolved_database_path,
+        artifact_records_path=artifact_records_path,
+        document_records_path=document_records_path,
+        artifact_records=artifact_records,
+        document_records=document_records,
+        started_at=started_at,
+        completed_at=completed_at,
+    )
+    summary_path = storage.write_json(
+        ACCESS_ARTIFACT_QUALITY_SUBDIR
+        / f"{resolved_run_id}_access_artifact_quality_summary.json",
+        summary,
+    )
+    summary["summary_path"] = str(summary_path)
+    return summary
+
+
+def load_access_artifact_rows(
+    connection: sqlite3.Connection,
+    *,
+    limit: int | None,
+) -> list[sqlite3.Row]:
+    query = """
+        SELECT artifact_id, document_id, source, artifact_type, access_class, url, license,
+               payload_path, payload_sha256, payload_size_bytes, raw_payload_json,
+               errors_json, provenance_json, run_id, created_at
+        FROM access_enrichment_artifact
+        ORDER BY document_id ASC, created_at DESC, artifact_type ASC
+    """
+    params: list[Any] = []
+    if limit is not None:
+        query += " LIMIT ?"
+        params.append(limit)
+    return connection.execute(query, params).fetchall()
+
+
+def load_artifact_document_abstract_flags(
+    connection: sqlite3.Connection,
+    document_ids: list[str],
+) -> dict[str, bool]:
+    flags: dict[str, bool] = {}
+    unique_document_ids = sorted(set(document_ids))
+    for chunk in chunks(unique_document_ids, 800):
+        placeholders = ", ".join("?" for _ in chunk)
+        rows = connection.execute(
+            f"""
+            SELECT document_id, abstract
+            FROM publication
+            WHERE document_id IN ({placeholders})
+            """,
+            chunk,
+        ).fetchall()
+        for row in rows:
+            flags[str(row["document_id"])] = bool(value_or_none(row["abstract"]))
+    return flags
+
+
+def audit_access_artifact_row(
+    row: sqlite3.Row,
+    *,
+    storage: LocalStorage,
+) -> dict[str, Any]:
+    errors = json_loads_list(row["errors_json"])
+    artifact_type = str(row["artifact_type"])
+    payload_path = value_or_none(row["payload_path"])
+    payload_quality_status = "metadata_only"
+    quality_bucket = "metadata_only"
+    invalid_reason: str | None = None
+    evidence: list[str] = []
+    is_usable_for_full_text = False
+    repair_recommendation = "keep_as_metadata"
+
+    if errors:
+        payload_quality_status = "error"
+        quality_bucket = "error_artifact"
+        invalid_reason = "; ".join(errors)
+        repair_recommendation = "retry_or_try_alternate_source"
+    elif artifact_type in USABLE_FULL_TEXT_ARTIFACT_PRIORITY:
+        if not payload_path:
+            payload_quality_status = "missing_payload"
+            quality_bucket = "missing_payload"
+            invalid_reason = "full_text_artifact_missing_payload_path"
+            repair_recommendation = "retry_or_try_alternate_source"
+        else:
+            resolved_payload_path = resolve_payload_path(payload_path, storage=storage)
+            if not resolved_payload_path.exists():
+                payload_quality_status = "missing_payload"
+                quality_bucket = "missing_payload_file"
+                invalid_reason = "payload_path_does_not_exist"
+                evidence = [str(resolved_payload_path)]
+                repair_recommendation = "retry_or_repair_local_artifact"
+            else:
+                content = resolved_payload_path.read_bytes()
+                invalid_reason = invalid_full_text_payload_error(
+                    content,
+                    artifact_type=artifact_type,
+                )
+                if invalid_reason:
+                    payload_quality_status = "invalid_payload"
+                    quality_bucket = invalid_reason.split(":", 1)[1]
+                    evidence = invalid_payload_evidence(content)
+                    repair_recommendation = repair_recommendation_for_invalid_payload(
+                        invalid_reason
+                    )
+                else:
+                    payload_quality_status = "usable_full_text"
+                    quality_bucket = "usable_full_text"
+                    is_usable_for_full_text = True
+                    repair_recommendation = "use_for_downstream_source_units"
+
+    return {
+        "artifact_id": str(row["artifact_id"]),
+        "document_id": str(row["document_id"]),
+        "source": str(row["source"]),
+        "artifact_type": artifact_type,
+        "access_class": row["access_class"],
+        "url": row["url"],
+        "license": row["license"],
+        "payload_path": payload_path,
+        "payload_size_bytes": row["payload_size_bytes"],
+        "payload_quality_status": payload_quality_status,
+        "quality_bucket": quality_bucket,
+        "repair_recommendation": repair_recommendation,
+        "is_usable_for_full_text": is_usable_for_full_text,
+        "invalid_reason": invalid_reason,
+        "evidence": evidence,
+        "replacement_priority": replacement_priority_for_artifact_quality(
+            artifact_type,
+            payload_quality_status,
+        ),
+        "source_run_id": row["run_id"],
+        "source_created_at": row["created_at"],
+        "provenance": {
+            "source": "access_enrichment",
+            "method": "local_access_artifact_quality_audit",
+            "review_boundary": "operational_artifact_quality_not_reviewed_knowledge",
+            "does_not_fetch_network": True,
+            "does_not_mutate_sqlite": True,
+        },
+    }
+
+
+def resolve_payload_path(payload_path: str, *, storage: LocalStorage) -> Path:
+    path = Path(payload_path)
+    return path if path.is_absolute() else storage.root.parent / path
+
+
+def invalid_full_text_payload_error(content: bytes, *, artifact_type: str) -> str | None:
+    preview = content[:8_000].decode("utf-8", errors="replace").lower()
+    recaptcha_markers = (
+        "recaptchachallengepageui",
+        "recaptcha/challengepage",
+        "window['ppconfig']",
+        'window["ppconfig"]',
+        "boq-recaptcha",
+    )
+    if any(marker in preview for marker in recaptcha_markers):
+        return f"{artifact_type}:blocked_recaptcha_or_javascript_payload"
+    if artifact_type in {"pmc_nxml", "europe_pmc_full_text_xml"} and looks_like_html_document(
+        preview
+    ):
+        return f"{artifact_type}:expected_xml_received_html"
+    return None
+
+
+def invalid_payload_evidence(content: bytes) -> list[str]:
+    preview = content[:8_000].decode("utf-8", errors="replace").lower()
+    evidence_markers = (
+        "recaptchachallengepageui",
+        "recaptcha/challengepage",
+        "window['ppconfig']",
+        'window["ppconfig"]',
+        "boq-recaptcha",
+        "<!doctype html",
+        "<html",
+    )
+    return [marker for marker in evidence_markers if marker in preview][:5]
+
+
+def replacement_priority_for_artifact_quality(
+    artifact_type: str,
+    payload_quality_status: str,
+) -> str:
+    if payload_quality_status == "usable_full_text":
+        return "none"
+    if artifact_type in {"pmc_nxml", "pmc_html", "europe_pmc_full_text_xml"}:
+        return "try_alternate_full_text_source"
+    return "metadata_only_no_replacement"
+
+
+def repair_recommendation_for_invalid_payload(invalid_reason: str) -> str:
+    if invalid_reason.endswith(":expected_xml_received_html"):
+        return "normalize_or_fetch_html_artifact"
+    return "reenrich_invalid_payload"
+
+
+def build_access_artifact_document_rollups(
+    artifact_records: list[dict[str, Any]],
+    *,
+    abstracts_by_document_id: dict[str, bool],
+    run_id: str,
+) -> list[dict[str, Any]]:
+    by_document_id: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for record in artifact_records:
+        by_document_id[record["document_id"]].append(record)
+    rollups: list[dict[str, Any]] = []
+    for document_id, records in sorted(by_document_id.items()):
+        usable_records = [
+            record for record in records if record["is_usable_for_full_text"]
+        ]
+        invalid_full_text_records = [
+            record
+            for record in records
+            if record["artifact_type"] in USABLE_FULL_TEXT_ARTIFACT_PRIORITY
+            and record["payload_quality_status"] in {"invalid_payload", "missing_payload", "error"}
+        ]
+        best_usable_source = best_usable_full_text_source(usable_records)
+        has_metadata = any(record["artifact_type"].endswith("_metadata") for record in records)
+        has_abstract = abstracts_by_document_id.get(document_id, False)
+        if best_usable_source:
+            document_enrichment_status = "usable_for_llm_classification"
+            needs_reenrichment = False
+            needs_manual_source_review = False
+        elif invalid_full_text_records:
+            document_enrichment_status = "needs_reenrichment"
+            needs_reenrichment = True
+            needs_manual_source_review = False
+        elif has_metadata or has_abstract:
+            document_enrichment_status = "source_triage_needed"
+            needs_reenrichment = False
+            needs_manual_source_review = True
+        else:
+            document_enrichment_status = "not_enriched"
+            needs_reenrichment = False
+            needs_manual_source_review = True
+        rollups.append(
+            {
+                "run_id": run_id,
+                "document_id": document_id,
+                "artifact_count": len(records),
+                "artifact_type_counts": dict(
+                    Counter(record["artifact_type"] for record in records).most_common()
+                ),
+                "payload_quality_status_counts": dict(
+                    Counter(
+                        record["payload_quality_status"] for record in records
+                    ).most_common()
+                ),
+                "quality_bucket_counts": dict(
+                    Counter(record["quality_bucket"] for record in records).most_common()
+                ),
+                "best_usable_source": best_usable_source,
+                "document_enrichment_status": document_enrichment_status,
+                "needs_reenrichment": needs_reenrichment,
+                "needs_manual_source_review": needs_manual_source_review,
+                "usable_for_llm_classification": bool(best_usable_source),
+                "has_metadata_artifact": has_metadata,
+                "has_publication_abstract": has_abstract,
+                "invalid_artifact_ids": [
+                    record["artifact_id"] for record in invalid_full_text_records
+                ],
+                "provenance": {
+                    "source": "access_enrichment",
+                    "method": "local_access_artifact_quality_document_rollup",
+                    "review_boundary": (
+                        "operational_document_enrichment_status_not_reviewed_knowledge"
+                    ),
+                    "does_not_fetch_network": True,
+                    "does_not_mutate_sqlite": True,
+                },
+            }
+        )
+    return rollups
+
+
+def best_usable_full_text_source(records: list[dict[str, Any]]) -> str | None:
+    if not records:
+        return None
+    priority = {
+        artifact_type: index
+        for index, artifact_type in enumerate(USABLE_FULL_TEXT_ARTIFACT_PRIORITY)
+    }
+    return sorted(
+        records,
+        key=lambda record: priority.get(record["artifact_type"], 99),
+    )[0]["artifact_type"]
+
+
+def build_access_artifact_quality_summary(
+    *,
+    run_id: str,
+    database_path: Path,
+    artifact_records_path: Path,
+    document_records_path: Path,
+    artifact_records: list[dict[str, Any]],
+    document_records: list[dict[str, Any]],
+    started_at: datetime,
+    completed_at: datetime,
+) -> dict[str, Any]:
+    return {
+        "run_id": run_id,
+        "source": "access_enrichment",
+        "method": "local_access_artifact_quality_audit",
+        "started_at": started_at.isoformat(),
+        "completed_at": completed_at.isoformat(),
+        "database_path": str(database_path),
+        "artifact_records_path": str(artifact_records_path),
+        "document_records_path": str(document_records_path),
+        "artifact_count": len(artifact_records),
+        "document_count": len(document_records),
+        "artifact_type_counts": dict(
+            Counter(record["artifact_type"] for record in artifact_records).most_common()
+        ),
+        "payload_quality_status_counts": dict(
+            Counter(
+                record["payload_quality_status"] for record in artifact_records
+            ).most_common()
+        ),
+        "quality_bucket_counts": dict(
+            Counter(record["quality_bucket"] for record in artifact_records).most_common()
+        ),
+        "repair_recommendation_counts": dict(
+            Counter(
+                record["repair_recommendation"] for record in artifact_records
+            ).most_common()
+        ),
+        "document_enrichment_status_counts": dict(
+            Counter(
+                record["document_enrichment_status"] for record in document_records
+            ).most_common()
+        ),
+        "needs_reenrichment_count": sum(
+            bool(record["needs_reenrichment"]) for record in document_records
+        ),
+        "needs_manual_source_review_count": sum(
+            bool(record["needs_manual_source_review"]) for record in document_records
+        ),
+        "usable_for_llm_classification_count": sum(
+            bool(record["usable_for_llm_classification"]) for record in document_records
+        ),
+        "notes": [
+            "This audit reads locally persisted access artifacts only.",
+            "It does not fetch network resources, mutate SQLite, or change review state.",
+            "Artifact quality flags are operational routing metadata, not reviewed knowledge.",
+        ],
+    }
 
 
 def select_access_enrichment_candidates(
@@ -376,22 +780,59 @@ def fetch_pmc_artifacts(
     assert candidate.pmcid is not None
     try:
         nxml = clients.pmc.fetch_nxml(candidate.pmcid)
-        artifacts.append(
-            write_bytes_artifact(
-                storage=storage,
-                run_id=run_id,
-                candidate=candidate,
-                source="pmc",
-                artifact_type="pmc_nxml",
-                relative_dir=Path("raw/pmc/xml"),
-                content=nxml,
-                suffix=".nxml",
-                url=f"https://pmc.ncbi.nlm.nih.gov/articles/{candidate.pmcid}/?report=xml",
-                fetched_at=fetched_at,
-                access_class="open_access_xml",
-                license=None,
-            )
+        invalid_payload_error = invalid_full_text_payload_error(
+            nxml,
+            artifact_type="pmc_nxml",
         )
+        if invalid_payload_error:
+            if invalid_payload_error.endswith(":expected_xml_received_html"):
+                artifacts.append(
+                    write_bytes_artifact(
+                        storage=storage,
+                        run_id=run_id,
+                        candidate=candidate,
+                        source="pmc",
+                        artifact_type="pmc_html",
+                        relative_dir=Path("raw/pmc/html"),
+                        content=nxml,
+                        suffix=".html",
+                        url=(
+                            "https://pmc.ncbi.nlm.nih.gov/articles/"
+                            f"{candidate.pmcid}/?report=xml"
+                        ),
+                        fetched_at=fetched_at,
+                        access_class="open_access_html",
+                        license=None,
+                    )
+                )
+            else:
+                artifacts.append(
+                    error_artifact(
+                        candidate,
+                        run_id,
+                        "pmc",
+                        "pmc_nxml",
+                        invalid_payload_error,
+                        fetched_at,
+                    )
+                )
+        else:
+            artifacts.append(
+                write_bytes_artifact(
+                    storage=storage,
+                    run_id=run_id,
+                    candidate=candidate,
+                    source="pmc",
+                    artifact_type="pmc_nxml",
+                    relative_dir=Path("raw/pmc/xml"),
+                    content=nxml,
+                    suffix=".nxml",
+                    url=f"https://pmc.ncbi.nlm.nih.gov/articles/{candidate.pmcid}/?report=xml",
+                    fetched_at=fetched_at,
+                    access_class="open_access_xml",
+                    license=None,
+                )
+            )
     except httpx.HTTPError as error:
         artifacts.append(
             error_artifact(
@@ -406,22 +847,38 @@ def fetch_pmc_artifacts(
     if fetch_pmc_html:
         try:
             html = clients.pmc.fetch_html(candidate.pmcid)
-            artifacts.append(
-                write_bytes_artifact(
-                    storage=storage,
-                    run_id=run_id,
-                    candidate=candidate,
-                    source="pmc",
-                    artifact_type="pmc_html",
-                    relative_dir=Path("raw/pmc/html"),
-                    content=html,
-                    suffix=".html",
-                    url=f"https://pmc.ncbi.nlm.nih.gov/articles/{candidate.pmcid}/",
-                    fetched_at=fetched_at,
-                    access_class="open_access_html",
-                    license=None,
-                )
+            invalid_payload_error = invalid_full_text_payload_error(
+                html,
+                artifact_type="pmc_html",
             )
+            if invalid_payload_error:
+                artifacts.append(
+                    error_artifact(
+                        candidate,
+                        run_id,
+                        "pmc",
+                        "pmc_html",
+                        invalid_payload_error,
+                        fetched_at,
+                    )
+                )
+            else:
+                artifacts.append(
+                    write_bytes_artifact(
+                        storage=storage,
+                        run_id=run_id,
+                        candidate=candidate,
+                        source="pmc",
+                        artifact_type="pmc_html",
+                        relative_dir=Path("raw/pmc/html"),
+                        content=html,
+                        suffix=".html",
+                        url=f"https://pmc.ncbi.nlm.nih.gov/articles/{candidate.pmcid}/",
+                        fetched_at=fetched_at,
+                        access_class="open_access_html",
+                        license=None,
+                    )
+                )
         except httpx.HTTPError as error:
             artifacts.append(
                 error_artifact(
@@ -434,6 +891,11 @@ def fetch_pmc_artifacts(
                 )
             )
     return artifacts
+
+
+def looks_like_html_document(text: str) -> bool:
+    stripped = text.lstrip()
+    return stripped.startswith("<!doctype html") or stripped.startswith("<html")
 
 
 def write_json_artifact(
@@ -877,6 +1339,30 @@ def dedupe_preserving_order(values: list[str]) -> list[str]:
         seen.add(value)
         deduped.append(value)
     return deduped
+
+
+def chunks(values: list[str], size: int) -> list[list[str]]:
+    return [values[index : index + size] for index in range(0, len(values), size)]
+
+
+def json_loads_list(value: str | None) -> list[str]:
+    if not value:
+        return []
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        return [value]
+    if not isinstance(parsed, list):
+        return [str(parsed)]
+    return [str(item) for item in parsed]
+
+
+def write_dict_jsonl(path: Path, records: list[dict[str, Any]]) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as file:
+        for record in records:
+            file.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
+    return path
 
 
 def safe_document_id(document_id: str) -> str:
