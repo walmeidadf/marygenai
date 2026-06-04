@@ -4,6 +4,11 @@ Each subfolder should contain small, disposable experiments for a single data so
 
 Practical rule: a POC should produce evidence for architectural decisions, not become a production adapter too early.
 
+Before expanding LLM classification, read
+`docs/source_availability_assessment.md`. The current gate is whether source
+enrichment can produce at least 5,000 classification-ready texts; metadata-only
+coverage does not satisfy that gate.
+
 Current publication-source POCs:
 
 - PubMed expanded metadata: `uv run python pocs/pubmed/validate_pubmed.py batch --retmax 100`

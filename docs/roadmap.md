@@ -3,6 +3,11 @@
 This roadmap captures the current working plan for the publication-source track.
 It should be updated whenever a POC changes the next step or the source strategy.
 
+The current source-availability gate is documented in
+[Source Availability Assessment](source_availability_assessment.md). Downstream
+LLM classification should not be the main focus until the project has a credible
+path to at least 5,000 classification-ready source texts.
+
 ## Current Strategy
 
 MaryGenAI should use PubMed as the primary source for discovering new publication
@@ -56,7 +61,9 @@ secondary signals.
 
 The LLM study reclassification POC showed that grounded classification is no
 longer the dominant near-term bottleneck. Source sufficiency, source-unit
-quality, and legacy/source mismatch are now the gating risks.
+quality, and legacy/source mismatch are now the gating risks. The current local
+artifact audit found only about 1,300 classification-ready full-text documents,
+which is not enough for the original automation goal.
 
 Access enrichment should therefore become a quality-gated workflow:
 

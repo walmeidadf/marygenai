@@ -119,10 +119,16 @@ POC questions:
 
 ## PDF Samples
 
-PDFs should be tested only on a small sample at first.
+PDFs are a serious candidate source for study classification text. The earlier
+small PDF sample was useful, but it was too small to justify deferring PDF
+processing. For the source-availability gate, extracted PDF text can be valuable
+even when table extraction, figure interpretation, and exact dosage/arm parsing
+remain incomplete.
 
-PDF and full-text processing should follow the resolver POCs. The project should
-classify full-text availability before downloading or parsing files.
+PDF and full-text processing should still follow resolver and access-quality
+audits. The project should classify availability and terms before downloading or
+parsing files, but it should not exclude PDF text if that is the realistic path
+to classification-ready coverage.
 
 POC questions:
 
@@ -130,3 +136,5 @@ POC questions:
 - Which require OCR or table extraction?
 - Which fields are only available in PDF/full text?
 - Is the value worth the operational complexity?
+- How many additional classification-ready texts can PDF extraction add beyond
+  PMC/Europe PMC XML and HTML?
