@@ -57,6 +57,52 @@ Important interpretation:
 
 ## What The Existing POCs Already Showed
 
+### Source Availability Ceiling And Official Fetch Router
+
+The June 2026 source-availability POCs narrowed the gate to legacy publication
+records with a core identifier and then tested real retrieval routes. These
+outputs are local operational artifacts under ignored `data/` paths; they are not
+reviewed knowledge and do not mutate SQLite or review state.
+
+Local ceiling summary:
+
+- legacy publication records with `PMID`, `PMCID`, or DOI: 6,491;
+- already usable legacy-core records before the new source acquisition work: 977;
+- non-usable legacy-core records needing source acquisition: 5,514;
+- local or Europe PMC-discovered PMCID route candidates: 1,940;
+- Unpaywall PDF URL candidates: 1,172;
+- NCBI ELink candidates: 4,151;
+- OpenAlex identity/access candidates: 5,514.
+
+Validated acquisition results as of 2026-06-11:
+
+| source strategy | attempted documents | source-ready texts | source-ready with cannabinoid signal |
+| --- | ---: | ---: | ---: |
+| PMC OAI-PMH | 1,940 | 1,510 | 1,380 |
+| Unpaywall PDF | 1,172 | 427 | 378 |
+| Augmented links sample | 30 | 25 | 24 |
+
+The non-overlapping total from PMC OAI-PMH plus Unpaywall PDF is currently 1,678
+new source-ready texts, or 1,534 new texts when requiring a simple cannabinoid
+term signal. Added to the previous corpus-level usable count of 1,307 documents,
+the local corpus is roughly 2,985 source-ready texts, or 2,841 with a cannabinoid
+term signal. The augmented-link route has started strongly but is not yet
+exhausted.
+
+Operational interpretation:
+
+- PMC OAI-PMH is the strongest first acquisition route for local or discovered
+  PMCIDs and avoids fragile PMC page scraping.
+- Digital PDF extraction with PyMuPDF is validated enough to keep PDFs as a
+  first-class classification source. OCR remains a separate residual route for
+  scanned or poor-text-layer PDFs.
+- NCBI ELink and OpenAlex are best treated as access/identity augmentation
+  sources. They discover many links, but the project must filter non-source
+  surfaces before fetching article text.
+- The plausible near-term target is now around 4,000 source-ready texts with
+  continued augmented-link acquisition and future PubMed-discovery expansion,
+  rather than relying only on the private legacy-core universe.
+
 ### Link Resolver
 
 The local-only link resolver classified 7,347 legacy rows:

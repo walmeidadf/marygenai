@@ -6,7 +6,11 @@ It should be updated whenever a POC changes the next step or the source strategy
 The current source-availability gate is documented in
 [Source Availability Assessment](source_availability_assessment.md). Downstream
 LLM classification should not be the main focus until the project has a credible
-path to at least 5,000 classification-ready source texts.
+path to a large enough classification-ready corpus. The original target was
+5,000+ source texts; after the June 2026 source-acquisition POCs, a roughly
+4,000-text high-quality starting corpus is considered a practical threshold for
+starting the first classification workflow while PubMed discovery continues to
+expand the corpus.
 
 ## Current Strategy
 
@@ -24,12 +28,12 @@ The pipeline shape should be:
 3. Prioritize higher-reputation study types for review, especially systematic
    reviews, meta-analyses, randomized/controlled clinical trials, and other
    controlled designs.
-4. Enrich access paths through PMC, Europe PMC, Unpaywall, DOI, and publisher
-   links.
+4. Enrich access paths through PMC OAI-PMH, NCBI ELink, OpenAlex, Unpaywall,
+   DOI, and publisher/repository links.
 5. Audit persisted access artifacts before source-unit labeling or LLM
    classification.
-6. Sample full text and PDFs only after access has been classified and artifact
-   payload quality has been checked.
+6. Acquire source text through official or source-declared routes first, keeping
+   PMC OAI-PMH and digital PDF extraction ahead of publisher-page scraping.
 7. Extract high-value fields with provenance and human review, especially fields
    that abstracts rarely provide reliably.
 
@@ -107,6 +111,36 @@ from HTML returned through an XML endpoint. Recaptcha/JavaScript blocks usually
 need alternate-source reenrichment. HTML returned through an XML endpoint may be
 usable source text but should be repaired or normalized as an HTML artifact so
 future routing does not treat it as structured NXML.
+
+## Source Acquisition Roadmap
+
+Status: first official-source fetch router POC implemented in June 2026.
+
+Current operational path:
+
+1. Build a local route plan for non-usable legacy-core records.
+2. Acquire PMC OAI-PMH XML/text for local or Europe PMC-discovered PMCIDs.
+3. Acquire Unpaywall PDF URLs and extract digital PDF text with PyMuPDF.
+4. Run NCBI ELink and OpenAlex as access/identity augmentation sources.
+5. Acquire prioritized augmented links, filtering out non-source link surfaces
+   and preferring PMC OAI-PMH, PDF-like links, selected repositories/publishers,
+   and DOI landing pages.
+6. Treat OCR as a residual route for PDFs that retrieve but produce too little
+   text, not as the default PDF strategy.
+
+Current POC commands:
+
+```bash
+uv run python -m pocs.official_source_fetch_router.fetch_router route
+uv run python -m pocs.official_source_fetch_router.fetch_router acquire-pmc-oai --limit 100
+uv run python -m pocs.official_source_fetch_router.fetch_router acquire-unpaywall-pdf --limit 50
+uv run python -m pocs.official_source_fetch_router.fetch_router augment-ncbi-elink --limit 200
+uv run python -m pocs.official_source_fetch_router.fetch_router augment-openalex --limit 200
+uv run python -m pocs.official_source_fetch_router.fetch_router acquire-augmented-links --limit 100
+```
+
+These commands write ignored local artifacts under `data/`. They do not mutate
+SQLite, review queues, review decisions, or reviewed knowledge.
 
 ## MVP Implementation Progress
 

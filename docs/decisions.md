@@ -210,6 +210,36 @@ evidence text count, not-found/insufficient-evidence counts, latency, and errors
 are operational audit signals, not acceptance criteria for automatic knowledge
 updates.
 
+## 2026-06-11: Use Official-First Source Acquisition Before Publisher Fetching
+
+The source-acquisition path should prefer official or source-declared routes
+before generic publisher fetching. For PMC records, PMC OAI-PMH is the first
+production-like route because it produced source-ready text reliably and avoids
+fragile page scraping. NCBI ELink and OpenAlex are access/identity augmentation
+sources rather than full-text sources; their URLs must be filtered before
+acquisition because many LinkOut targets are metadata, clinical, commercial, or
+non-article surfaces.
+
+Source acquisition POC outputs remain ignored local artifacts. They must not
+mutate SQLite, review queues, review decisions, or reviewed knowledge.
+
+## 2026-06-11: Treat Digital PDF Extraction As First-Class, OCR As Residual
+
+PDF text is valid source material for study classification when digital text can
+be extracted with sufficient scientific-section signal. The project uses PyMuPDF
+as the near-term digital PDF extractor and separates poor-text-layer or scanned
+PDFs into a later OCR route. OCR should not be the default PDF path, and table,
+figure, dosage, and arm reconstruction remain later enrichment problems.
+
+## 2026-06-11: Start Classification Work Around A Practical 4,000-Text Corpus
+
+The original source-availability gate targeted 5,000+ classification-ready
+texts. The June 2026 acquisition POCs showed a credible path toward roughly
+4,000 high-quality source texts when PMC OAI-PMH, Unpaywall PDFs, augmented
+links, and later PubMed discovery are combined. A roughly 4,000-text corpus is
+therefore sufficient to begin the first classification workflow, while continued
+source acquisition and PubMed discovery should keep expanding coverage.
+
 ## 2026-05-15: Put Review Queue Access Behind Reusable DTOs Before UI
 
 The first review workflow implementation should expose SQLite review state
