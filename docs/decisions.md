@@ -233,12 +233,35 @@ figure, dosage, and arm reconstruction remain later enrichment problems.
 
 ## 2026-06-11: Start Classification Work Around A Practical 4,000-Text Corpus
 
+Superseded by the 2026-06-15 pivot decision below.
+
 The original source-availability gate targeted 5,000+ classification-ready
 texts. The June 2026 acquisition POCs showed a credible path toward roughly
 4,000 high-quality source texts when PMC OAI-PMH, Unpaywall PDFs, augmented
 links, and later PubMed discovery are combined. A roughly 4,000-text corpus is
 therefore sufficient to begin the first classification workflow, while continued
 source acquisition and PubMed discovery should keep expanding coverage.
+
+## 2026-06-15: Pivot To Source Intelligence And Candidate Classification
+
+The exhausted June 2026 legacy-core acquisition campaign showed that the
+legacy-only corpus is likely below the original 5,000+ target and below a strict
+4,000 classification-ready threshold. The local maintainer workspace currently
+has about 3,149 strict classification-ready legacy-core documents and about 3,374
+broader source-ready legacy-core documents.
+
+MaryGenAI should therefore continue as a cannabinoid scientific
+source-intelligence and candidate-classification engine rather than pause for
+large-scale human curation. The next workstream is to freeze a deduplicated
+classification corpus rollup, define a strict candidate classification schema,
+run a small stratified AI-classification POC, and later expose discovered,
+enriched, source-ready, and candidate-classified scientific documents through
+read-only retrieval surfaces such as an MCP server.
+
+AI classification outputs are candidate evidence only. They must preserve
+source, model, prompt, schema, confidence, and evidence-span provenance, and must
+not be described as human-reviewed knowledge unless a human review workflow has
+explicitly promoted them.
 
 ## 2026-05-15: Put Review Queue Access Behind Reusable DTOs Before UI
 

@@ -6,10 +6,15 @@ metadata-only enrichment does not count as classification-ready material.
 
 ## Decision Question
 
-The project should not spend substantial effort on downstream classification
-unless the enrichment layer can plausibly produce at least 5,000
-classification-ready source texts from the maintainer bootstrap and near-term
-candidate corpus.
+The original question was whether the enrichment layer could plausibly produce at
+least 5,000 classification-ready source texts from the maintainer bootstrap and
+near-term candidate corpus. The June 2026 source-acquisition campaign answered
+that the legacy-only ceiling is probably below that target.
+
+The project has therefore pivoted: MaryGenAI should continue as a
+source-intelligence and candidate-classification engine, starting from the
+classification-ready corpus that exists and expanding through PubMed discovery
+rather than pausing until a 5,000+ reviewed corpus exists.
 
 Classification-ready means enough article text exists to classify study type,
 cannabinoid role, target condition, population/model, intervention/exposure,
@@ -55,6 +60,55 @@ Important interpretation:
 - The immediate project question is source availability, not LLM classification
   quality.
 
+## June 2026 Final Legacy-Core Acquisition Result
+
+After PMC OAI-PMH, Unpaywall PDF extraction, NCBI ELink/OpenAlex augmentation,
+and filtered augmented-link acquisition were exhausted for the initial
+legacy-core campaign, the operational local result was:
+
+- legacy-core operational documents: 6,491;
+- baseline usable legacy-core documents before new acquisition: 977;
+- official-source acquisition attempted documents: 5,322;
+- additional strict classification-ready documents: 2,172;
+- additional broader source-ready documents: 2,397;
+- total strict classification-ready legacy-core documents: 3,149;
+- total broader source-ready legacy-core documents: 3,374.
+
+Strict classification-ready means real extracted source text with enough length,
+scientific-section signal, and a simple cannabinoid term signal. Broader
+source-ready means the article text appears long and scientific enough for
+classification, but the simple cannabinoid term detector did not necessarily
+fire.
+
+By strategy:
+
+| source strategy | attempted documents | source-ready texts | strict classification-ready texts |
+| --- | ---: | ---: | ---: |
+| PMC OAI-PMH | 1,940 | 1,510 | 1,380 |
+| Unpaywall PDF | 1,172 | 427 | 378 |
+| Filtered augmented links | 3,501 | 719 | 638 |
+
+Main failure classes across acquisition records:
+
+| failure class | records |
+| --- | ---: |
+| access blocked | 3,340 |
+| retrieved but not enough text | 1,955 |
+| HTTP non-success | 492 |
+| PDF likely needs OCR or has bad text layer | 81 |
+| request error | 72 |
+| not found | 65 |
+
+Operational conclusion:
+
+- The legacy-only corpus is good enough to start classification POCs, especially
+  for high-coverage condition areas.
+- It is probably not enough to reach 4,000 strict classification-ready documents
+  without new PubMed discovery or a materially different source strategy.
+- OCR can recover some residual PDFs, but it is too small to close the gap by
+  itself.
+- PubMed discovery is the preferred growth path beyond the legacy-only ceiling.
+
 ## What The Existing POCs Already Showed
 
 ### Source Availability Ceiling And Official Fetch Router
@@ -74,20 +128,17 @@ Local ceiling summary:
 - NCBI ELink candidates: 4,151;
 - OpenAlex identity/access candidates: 5,514.
 
-Validated acquisition results as of 2026-06-11:
+Validated acquisition results during the campaign:
 
 | source strategy | attempted documents | source-ready texts | source-ready with cannabinoid signal |
 | --- | ---: | ---: | ---: |
 | PMC OAI-PMH | 1,940 | 1,510 | 1,380 |
 | Unpaywall PDF | 1,172 | 427 | 378 |
-| Augmented links sample | 30 | 25 | 24 |
+| Filtered augmented links | 3,501 | 719 | 638 |
 
-The non-overlapping total from PMC OAI-PMH plus Unpaywall PDF is currently 1,678
-new source-ready texts, or 1,534 new texts when requiring a simple cannabinoid
-term signal. Added to the previous corpus-level usable count of 1,307 documents,
-the local corpus is roughly 2,985 source-ready texts, or 2,841 with a cannabinoid
-term signal. The augmented-link route has started strongly but is not yet
-exhausted.
+The deduplicated legacy-core total after all three acquisition strategies is
+3,374 broader source-ready documents, or 3,149 strict classification-ready
+documents.
 
 Operational interpretation:
 
@@ -208,8 +259,9 @@ remain later enrichment problems.
 
 ## Source Availability Research Questions
 
-The next research session should answer these quantitatively for the local
-document universe:
+The June 2026 campaign answered the immediate legacy-core availability question.
+Future expansion should continue to answer these quantitatively for PubMed
+discovery candidates and any new document universe:
 
 1. How many records can be matched to PMC Open Access package XML or text?
 2. How many records can be retrieved through Europe PMC `fullTextXML`?
@@ -218,8 +270,9 @@ document universe:
 5. How many publisher OA landing pages expose usable article HTML?
 6. How many records appear in external open full-text corpora such as BioC PMC
    OA, S2ORC/Semantic Scholar, CORE, OpenAIRE, or OpenAlex-linked sources?
-7. Combining non-overlapping sources, can the project reach 5,000-8,000
-   classification-ready texts?
+7. Combining non-overlapping sources and new PubMed discovery records, how far
+   can the project grow beyond the current 3,149-3,374 legacy-core
+   classification/source-ready corpus?
 
 The output should be a coverage table with at least:
 
@@ -235,8 +288,14 @@ The output should be a coverage table with at least:
 
 ## Stop/Continue Gate
 
-Continue the automation-first project only if a credible, legal, and technically
-stable path exists to reach at least 5,000 classification-ready source texts.
+The original automation-first gate is not met by the legacy-only corpus. The
+project should not claim a 5,000+ reviewed or classification-ready legacy corpus.
 
-If the realistic ceiling remains near 1,300-2,500 texts, the project should be
-paused, reframed, or narrowed before further LLM classification work.
+The project should continue in a reframed form:
+
+- use the current 3,149 strict classification-ready legacy-core documents as the
+  first candidate-classification substrate;
+- keep the 3,374 broader source-ready documents as a secondary substrate for
+  detector tuning and prompt testing;
+- expand beyond the legacy ceiling through PubMed discovery;
+- clearly label AI outputs as candidate evidence until human review is available.

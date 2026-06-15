@@ -1,6 +1,8 @@
 # Architecture Approach
 
-The project starts as a data-source and ontology lab. Architecture should emerge from the evidence gathered in POCs.
+The project starts as a data-source, ontology, source-intelligence, and
+candidate-classification lab. Architecture should emerge from the evidence
+gathered in POCs.
 
 The public repository does not include the maintainer's private legacy exports.
 The architecture distinguishes private bootstrap inputs from public reviewed
@@ -68,10 +70,13 @@ This should begin as simple structured files, such as YAML or JSON. RDF/OWL or g
 
 ### Application Layer
 
-The next application layer is the MVP review and curation platform documented in
-[MVP Plan](mvp_plan.md). Its first maintainer job is to load and validate private
-bootstrap records, discover PubMed candidate publications from January 2024
-onward, enrich selected candidates, and preserve review decisions.
+The next application layer is the MVP source-intelligence and
+candidate-classification platform documented in [MVP Plan](mvp_plan.md). Its
+first maintainer job is to load and validate private bootstrap records, discover
+PubMed candidate publications from January 2024 onward, enrich selected
+candidates, prepare classification-ready corpora, generate candidate
+classifications with provenance, and preserve review decisions when human review
+is available.
 
 Candidate storage approaches include:
 
@@ -103,12 +108,20 @@ The current local application layer has landed in three small slices:
 This is still an internal curation surface. It does not make the project a
 clinical or public recommendation product.
 
+The future external integration surface should be read-only. A candidate MCP
+server can expose discovered, metadata-enriched, source-ready, and
+candidate-classified scientific documents to AI tools, but it must preserve trust
+levels and avoid presenting candidate classifications as reviewed clinical
+truth.
+
 ## Design Principles
 
 - Keep source payloads auditable.
 - Separate document identity from source identity.
 - Separate extraction from review.
 - Separate legacy association from new-publication discovery.
+- Separate source readiness from AI candidate classification.
+- Separate AI candidate evidence from human-reviewed knowledge.
 - Treat dosing and drug interactions as specialized extraction domains.
 - Prefer field-level provenance over a single record-level confidence score.
 - Let `cannabinoid_focus` dominate review ranking; citation metrics are secondary
@@ -126,9 +139,9 @@ The first small full-text sample supports an HTML/XML-first architecture:
   extraction value justifies a parser;
 - route every extracted field through HITL before it becomes reviewed knowledge.
 
-The production pipeline should treat LLM extraction as an evidence-generation
-step, not as final truth. LLM outputs need the same field-level provenance and
-review state as heuristic extraction outputs.
+The production pipeline should treat LLM extraction and classification as
+evidence-generation steps, not as final truth. LLM outputs need the same
+field-level provenance and review state as heuristic extraction outputs.
 
 The preferred LLM shape is a two-stage flow:
 

@@ -1,25 +1,27 @@
 # Roadmap
 
-This roadmap captures the current working plan for the publication-source track.
-It should be updated whenever a POC changes the next step or the source strategy.
+This roadmap captures the current working plan for the publication-source and
+candidate-classification track. It should be updated whenever a POC changes the
+next step, source strategy, or classification strategy.
 
 The current source-availability gate is documented in
 [Source Availability Assessment](source_availability_assessment.md). Downstream
-LLM classification should not be the main focus until the project has a credible
-path to a large enough classification-ready corpus. The original target was
-5,000+ source texts; after the June 2026 source-acquisition POCs, a roughly
-4,000-text high-quality starting corpus is considered a practical threshold for
-starting the first classification workflow while PubMed discovery continues to
-expand the corpus.
+LLM classification was intentionally deferred until source availability could be
+tested. The original target was 5,000+ source texts; after the June 2026
+source-acquisition POCs, the legacy-only ceiling appears closer to roughly
+3,100-3,400 classification/source-ready texts. The project is therefore pivoting
+from a review-first knowledge-base MVP to a source-intelligence and
+candidate-classification engine that can grow through PubMed discovery and expose
+candidate classifications for later review.
 
 ## Current Strategy
 
-MaryGenAI should use PubMed as the primary source for discovering new publication
-records and anchoring publication identity. PubMed is not the crawler for files.
-The current product step is a local MVP for review and curation using the
-validated POC outputs, rather than waiting for Semantic Scholar API access.
-Semantic Scholar remains useful as a later enrichment source, but it is not a
-blocker for the first MVP shape.
+MaryGenAI should use PubMed as the primary source for discovering new
+publication records and anchoring publication identity. PubMed is not the
+crawler for files. The current product step is a local MVP for source
+intelligence, classification-ready corpus preparation, and candidate
+classification using the validated POC outputs. Semantic Scholar remains useful
+as a later enrichment source, but it is not a blocker for the first MVP shape.
 
 The pipeline shape should be:
 
@@ -34,8 +36,12 @@ The pipeline shape should be:
    classification.
 6. Acquire source text through official or source-declared routes first, keeping
    PMC OAI-PMH and digital PDF extraction ahead of publisher-page scraping.
-7. Extract high-value fields with provenance and human review, especially fields
-   that abstracts rarely provide reliably.
+7. Build a deduplicated classification corpus rollup with source quality,
+   provenance, ontology links, study type, and condition labels.
+8. Run a small stratified AI classification POC on source-ready documents.
+9. Expose candidate-classified scientific documents through read-only retrieval
+   surfaces, potentially an MCP server, while keeping human-reviewed knowledge as
+   a higher trust layer.
 
 This preserves two separate tracks:
 
@@ -53,13 +59,33 @@ When a field is absent, especially dosage or treatment duration, the pipeline
 should distinguish between `not_reported`, `not_applicable`, and
 `needs_more_evidence` rather than assuming an extraction failure.
 
-The public project should eventually publish reviewed snapshots that replace the
-private bootstrap as the starting point for new users.
+The public project should eventually publish source-intelligence snapshots,
+candidate classification outputs, and reviewed snapshots as separate trust
+levels. Reviewed snapshots remain the highest-trust baseline, but candidate
+classification outputs can still be useful for retrieval and triage when clearly
+labeled.
 
 The MVP review queue should be dominated by `cannabinoid_focus`. Records with
 direct cannabinoid evidence in title or indexed PubMed metadata are the primary
 review candidates. Study design, access, recency, and citation metrics are
 secondary signals.
+
+## Current Dataset And Classification Direction
+
+The next workstream is defined in
+[Classification Dataset Plan](classification_dataset_plan.md). In short:
+
+- freeze a classification corpus rollup from the current legacy-core source
+  acquisition outputs;
+- use the strict corpus of about 3,149 classification-ready legacy-core
+  documents as the first working dataset;
+- keep a broader source-ready set of about 3,374 documents as a secondary queue
+  for prompt/schema validation and detector tuning;
+- prioritize an initial stratified POC across high-coverage condition areas such
+  as pain, addiction/cannabis, epilepsy, anxiety, depression, psychosis,
+  cancer, and inflammation;
+- define candidate classification outputs as reviewable evidence, not final
+  knowledge.
 
 ## Access Artifact Quality Roadmap
 
@@ -114,7 +140,8 @@ future routing does not treat it as structured NXML.
 
 ## Source Acquisition Roadmap
 
-Status: first official-source fetch router POC implemented in June 2026.
+Status: first official-source fetch router POC implemented and exhausted for the
+initial legacy-core acquisition campaign in June 2026.
 
 Current operational path:
 
@@ -127,6 +154,9 @@ Current operational path:
    and DOI landing pages.
 6. Treat OCR as a residual route for PDFs that retrieve but produce too little
    text, not as the default PDF strategy.
+7. Stop treating additional legacy acquisition as the main unblocker once the
+   route queue is exhausted; shift effort to corpus rollup, candidate
+   classification, and PubMed discovery expansion.
 
 Current POC commands:
 
@@ -144,9 +174,10 @@ SQLite, review queues, review decisions, or reviewed knowledge.
 
 ## MVP Implementation Progress
 
-Current operational focus: run PubMed discovery month-by-month from January 2024
-through the current date, classify candidates against the maintainer baseline,
-then enrich only records that are relevant enough for review.
+Current operational focus: define the classification corpus rollup and schema,
+then run a small stratified AI-classification POC over source-ready documents.
+PubMed discovery remains the main route for growing beyond the legacy-only
+ceiling.
 
 ### MVP Initial Load
 

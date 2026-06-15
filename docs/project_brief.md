@@ -1,8 +1,15 @@
 # Project Brief
 
-MaryGenAI aims to build a structured, continuously updated, human-reviewed
-evidence base for scientific studies and related documents about cannabinoid
+MaryGenAI aims to build a structured, continuously updated scientific
+source-intelligence engine for studies and related documents about cannabinoid
 therapy in human and veterinary contexts.
+
+The project still values human-reviewed evidence as the highest trust layer, but
+the near-term MVP no longer assumes large-scale human curation is available. The
+current product direction is to discover candidate documents, resolve identity,
+enrich metadata, acquire source text, prepare classification-ready corpora, and
+generate provenance-aware AI classification candidates that can later be reviewed
+by humans.
 
 The repository is public. The maintainer's original legacy exports are private
 and intentionally absent from the repository. They are used locally as a trusted
@@ -22,23 +29,24 @@ The project is inspired by CannaKeys-style metadata but is broader in scope. It 
 - human review workflows.
 
 The current phase is moving from source-specific POCs into a local-first MVP for
-review and curation. The MVP should stay conservative: it validates and enriches
-scientific evidence metadata, but it does not provide medical advice or treatment
-recommendations.
+source intelligence and candidate classification. The MVP should stay
+conservative: it validates and enriches scientific evidence metadata and source
+text, but it does not provide medical advice or treatment recommendations.
 
 ## Current Objective
 
 Build a local-first MVP that validates the maintainer's private legacy bootstrap,
 discovers PubMed candidate publications from January 2024 onward, enriches
-candidates with validated source flows, and lets reviewers approve, correct, or
-reject records and field-level evidence.
+candidates with validated source flows, prepares classification-ready corpora,
+and produces candidate study classifications with explicit provenance and trust
+levels.
 
-The first MVP milestone is not a production crawler. It is a reviewable evidence
-curation workflow that can answer:
+The first MVP milestone is not a production crawler. It is a reviewable source
+intelligence workflow that can answer:
 
-> Which bootstrap records and new candidate publications are reliable enough to
-> enter a reviewed cannabinoid evidence knowledge base, with what provenance and
-> review state?
+> Which bootstrap records and new candidate publications have enough identity,
+> metadata, and source text to support candidate classification, with what
+> provenance, quality gates, and trust state?
 
 The current publication-source plan treats PubMed as the primary publication
 identity and metadata hub, then uses PMC, Europe PMC, Unpaywall, DOI, and publisher
@@ -51,7 +59,9 @@ normalization, then access enrichment, then targeted full-text/XML extraction on
 when needed. Priority should be dominated by `cannabinoid_focus`; study design,
 access, recency, and citation metrics are secondary signals.
 
-See [MVP Plan](mvp_plan.md) for the current product direction.
+See [MVP Plan](mvp_plan.md) and
+[Classification Dataset Plan](classification_dataset_plan.md) for the current
+product direction.
 
 The first MVP implementation milestone is complete for the maintainer workflow:
 `uv run marygenai initial-load run` loads private legacy Cannadocs studies and
@@ -63,7 +73,7 @@ reviewed snapshots are exported.
 
 - No user-facing medical tool.
 - No clinical recommendation engine.
-- No large-scale PDF ingestion pipeline.
+- No claim that AI-classified records are human-reviewed knowledge.
 - No final commitment to PostgreSQL, NoSQL, graph databases, or search infrastructure.
 - No citation-first ranking.
 - No broad publisher crawler.

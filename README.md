@@ -1,17 +1,31 @@
 # MaryGenAI
 
-MaryGenAI is a research and engineering lab for scientific data sources,
-ontology design, and human-reviewed curation of cannabinoid therapy evidence.
+MaryGenAI is a research and engineering lab for cannabinoid scientific source
+intelligence: publication discovery, identity resolution, metadata enrichment,
+source-text acquisition, classification-ready corpus preparation, and
+provenance-aware candidate study classification.
 
 Parts of this project were developed using AI development tools and will still be reviewed by a human.
 
 ## Current Goal
 
-The project has moved from isolated source POCs toward an MVP plan for a local review and curation platform.
+The project has pivoted from a review-first knowledge-base MVP toward a
+source-intelligence and candidate-classification engine. The near-term product is
+an auditable pipeline that can discover scientific documents related to
+cannabinoid medicine, enrich them with trusted identifiers and metadata, acquire
+usable source text when allowed, and prepare candidate classifications for later
+human review.
 
-The maintainer workflow currently discovers PubMed candidate publications, enriches selected candidates with validated source flows, and preserves field-level human review provenance.
+The maintainer workflow currently discovers PubMed candidate publications,
+enriches selected candidates with validated source flows, evaluates whether real
+source text is available for classification, and keeps generated outputs separate
+from reviewed knowledge.
 
-The MVP is not a medical advice product. It catalogs evidence and metadata for human-reviewed scientific curation.
+The MVP is not a medical advice product. It catalogs scientific documents,
+source provenance, and candidate evidence for downstream AI-assisted discovery,
+classification, and later human curation. A future read-only MCP server may
+expose discovered, enriched, and candidate-classified scientific documents to AI
+tools.
 
 ## Structure
 
@@ -56,10 +70,12 @@ uv run marygenai review-ui serve --host 127.0.0.1 --port 8000
 
 - [Project brief](docs/project_brief.md)
 - [MVP plan](docs/mvp_plan.md)
+- [Classification dataset and schema plan](docs/classification_dataset_plan.md)
 - [Architecture approach](docs/architecture.md)
 - [MVP architecture requirements](docs/mvp_architecture_requirements.md)
 - [Roadmap](docs/roadmap.md)
 - [Data sources](docs/data_sources.md)
+- [Source availability assessment](docs/source_availability_assessment.md)
 - [PubMed source plan](docs/pubmed_source_plan.md)
 - [Ontology notes](docs/ontology.md)
 - [Legacy dataset notes](docs/legacy_dataset.md)
@@ -111,11 +127,22 @@ legacy identity decisions, and PubMed candidate identity status.
 
 ## MVP Direction
 
-The MVP review queue should be dominated by `cannabinoid_focus`. Records with
-direct cannabinoid evidence in title or indexed metadata belong in the primary
-review queue. Abstract-only records require more caution, and records without a
-cannabinoid signal should not be automatically promoted by citation metrics or
-general publication influence.
+The MVP should first produce a classification substrate: a deduplicated
+classification-ready corpus rollup, a strict classification schema, and a small
+stratified candidate-classification POC. `cannabinoid_focus` remains the dominant
+prioritization signal. Records with direct cannabinoid evidence in title,
+indexed metadata, or usable source text belong in the primary queue. Abstract-only
+records require caution, and records without a cannabinoid signal should not be
+automatically promoted by citation metrics or general publication influence.
+
+Trust levels must remain explicit:
+
+- `source_discovered`: metadata or identity exists, source text not necessarily
+  available.
+- `metadata_enriched`: identifiers and source metadata were enriched.
+- `source_text_available`: real source text exists and passed quality gates.
+- `ai_classified_candidate`: an AI/model output exists and is candidate evidence.
+- `human_reviewed`: a reviewer promoted or corrected the candidate record.
 
 ## MVP Initial Load, Maintainer Bootstrap
 

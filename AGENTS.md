@@ -4,12 +4,19 @@ Guidance for AI agents working on MaryGenAI.
 
 ## Project Mission
 
-MaryGenAI is a public research and engineering lab for building a reliable,
-human-reviewed cannabinoid evidence knowledge base. The near-term goal is not to
+MaryGenAI is a public research and engineering lab for building a reliable
+cannabinoid scientific source-intelligence engine. The near-term goal is not to
 ship a user-facing medical tool. The near-term goal is to build a reproducible
-MVP for validating a trusted maintainer bootstrap dataset, discovering new
-candidate publications, enriching them through validated source flows, and
-preserving review provenance.
+MVP for discovering candidate publications, resolving publication identity,
+enriching metadata, acquiring source text when lawful and technically feasible,
+preparing classification-ready corpora, and preserving provenance for automated
+and human review layers.
+
+The project may later expose classified scientific-document candidates through a
+read-only MCP server so AI tools can find documents related to cannabinoid
+medicine. AI classification outputs are candidate evidence only. They must not
+be presented as reviewed clinical truth unless a human review workflow has
+explicitly reviewed and promoted them.
 
 The maintainer has private legacy exports that are used locally as a trusted
 bootstrap and validation anchor. Those files are not part of the public
@@ -26,8 +33,9 @@ files.
 - Keep `data/` and `temp/` ignored by Git.
 - Preserve legacy files in `temp/legacy/` unless the user explicitly asks to delete them.
 - Do not document private legacy data as if it is publicly available.
-- Keep public documentation clear that generated reviewed snapshots will become
-  the public starting point for new users.
+- Keep public documentation clear that generated source-intelligence snapshots,
+  candidate classifications, and future reviewed snapshots have different trust
+  levels. Public users should not assume AI-classified records are human-reviewed.
 - Prefer small POCs over production abstractions until a source has been evaluated.
 - Record architecture decisions in `docs/decisions.md` when a meaningful choice is made.
 - Keep MVP planning aligned with `docs/mvp_plan.md`.
@@ -134,8 +142,14 @@ structured identity decisions, and PubMed candidate identity status separate.
 - Treat iCite and other citation metrics as secondary audit/enrichment signals,
   not as primary ranking inputs.
 - Semantic Scholar is a later enrichment source, not a blocker for MVP design.
-- The first MVP surface is a review and curation workflow, not a clinical
-  recommendation interface.
+- The first MVP surface is a source discovery, source acquisition, candidate
+  classification, and provenance workflow. Human curation remains required for
+  reviewed knowledge, but it is no longer a blocker for building the source and
+  AI-classification substrate.
+- The first public-facing integration target is a read-only retrieval surface,
+  potentially an MCP server over discovered, enriched, classification-ready, and
+  candidate-classified scientific documents. It is not a clinical recommendation
+  interface.
 
 ## Data Modeling Principles
 
@@ -147,7 +161,12 @@ structured identity decisions, and PubMed candidate identity status separate.
 
 ## Human Review
 
-Human review is a project requirement, but Label Studio is not yet a fixed choice. Any review workflow must preserve:
+Human review is required before candidate evidence becomes reviewed knowledge,
+but large-scale human curation is not a near-term assumption. Until reviewers are
+available, automated classification should be clearly marked as candidate
+evidence with extraction provenance and model/prompt version.
+
+Label Studio is not yet a fixed choice. Any review workflow must preserve:
 
 - reviewer identity;
 - reviewed field;
