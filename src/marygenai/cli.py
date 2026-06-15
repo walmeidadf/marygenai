@@ -4,6 +4,8 @@ from rich.console import Console
 from marygenai import __version__
 from marygenai.access_enrichment.cli import app as access_enrichment_app
 from marygenai.analytics.cli import app as analytics_app
+from marygenai.classification.cli import app as classification_app
+from marygenai.classification_corpus.cli import app as classification_corpus_app
 from marygenai.initial_load.cli import app as initial_load_app
 from marygenai.persistence.cli import app as db_app
 from marygenai.pubmed_discovery.cli import app as pubmed_discovery_app
@@ -18,6 +20,8 @@ app.add_typer(initial_load_app, name="initial-load")
 app.add_typer(db_app, name="db")
 app.add_typer(pubmed_discovery_app, name="pubmed-discovery")
 app.add_typer(access_enrichment_app, name="access-enrichment")
+app.add_typer(classification_corpus_app, name="classification-corpus")
+app.add_typer(classification_app, name="classification")
 app.add_typer(analytics_app, name="analytics")
 app.add_typer(review_app, name="review")
 app.add_typer(review_api_app, name="review-api")

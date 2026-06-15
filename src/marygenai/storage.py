@@ -41,6 +41,8 @@ LOCAL_DATA_DIRECTORIES = (
     "normalized/publication_enrichments/access_enrichment",
     "normalized/publication_enrichments/pubmed",
     "normalized/review_items",
+    "normalized/classification_corpus",
+    "normalized/classification_runs",
     "reviewed/snapshots",
     "reviewed/reviewed_fields",
     "reviewed/knowledge_exports",

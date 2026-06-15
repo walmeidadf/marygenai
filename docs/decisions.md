@@ -258,6 +258,21 @@ run a small stratified AI-classification POC, and later expose discovered,
 enriched, source-ready, and candidate-classified scientific documents through
 read-only retrieval surfaces such as an MCP server.
 
+## 2026-06-15: Define Candidate Study Classification Schema V1
+
+The first AI classification contract is `candidate_study_classification.v1`.
+It is a strict Pydantic schema for candidate evidence only, not reviewed
+knowledge. It requires run/model/prompt/source-text provenance, a SHA-256 hash
+for the source text, coarse study-design and evidence-context classifications,
+condition and cannabinoid candidate labels, population/model, outcome domains,
+overall direction, confidence, evidence spans, warnings, and uncertainty notes.
+
+The schema keeps `requires_human_review=true` and `review_state=needs_review`.
+Outputs that use `cannot_determine` must explain the uncertainty in
+`missing_or_uncertain_fields`. This keeps the first LLM POC focused on
+structured, reviewable scientific triage while preventing automated promotion to
+reviewed knowledge.
+
 AI classification outputs are candidate evidence only. They must preserve
 source, model, prompt, schema, confidence, and evidence-span provenance, and must
 not be described as human-reviewed knowledge unless a human review workflow has
