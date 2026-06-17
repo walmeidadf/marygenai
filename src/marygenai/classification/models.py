@@ -5,19 +5,15 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-CANDIDATE_STUDY_CLASSIFICATION_SCHEMA_VERSION = "candidate_study_classification.v1"
+CANDIDATE_STUDY_CLASSIFICATION_SCHEMA_VERSION = "candidate_study_classification.v2"
 
 StudyDesignCategory = Literal[
-    "systematic_review",
     "meta_analysis",
-    "randomized_controlled_trial",
+    "clinical_meta_analysis",
     "clinical_trial",
-    "observational_human",
-    "case_report_or_series",
-    "animal_in_vivo",
-    "in_vitro",
-    "mechanistic_review",
-    "narrative_review",
+    "double_blind_clinical_trial",
+    "animal_study",
+    "laboratory_study",
     "other",
     "cannot_determine",
 ]
@@ -112,7 +108,7 @@ class CandidateStudyClassification(BaseModel):
     classification_id: str
     document_id: str
     classification_run_id: str
-    schema_version: Literal["candidate_study_classification.v1"] = (
+    schema_version: Literal["candidate_study_classification.v2"] = (
         CANDIDATE_STUDY_CLASSIFICATION_SCHEMA_VERSION
     )
     extractor_name: str
@@ -174,7 +170,7 @@ class CandidateClassificationPromptPacket(BaseModel):
     packet_id: str
     prompt_packet_run_id: str
     document_id: str
-    schema_version: Literal["candidate_study_classification.v1"] = (
+    schema_version: Literal["candidate_study_classification.v2"] = (
         CANDIDATE_STUDY_CLASSIFICATION_SCHEMA_VERSION
     )
     prompt_version: str

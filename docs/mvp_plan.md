@@ -229,7 +229,10 @@ should not start unattended mass classification until a 100-document stratified
 gate measures validation pass rate, retry rate, cost per document, latency,
 classification distribution drift, and evidence-span quality. Evaluation should
 compare against English legacy context first, not Portuguese legacy labels, when
-the English context is available.
+the English context is available. The principal classification
+`study_design_category` should use the English legacy `type_of_study` domain;
+more granular labels such as mechanistic or narrative review belong in a later
+subtype field if needed.
 
 ### 1. Private Bootstrap Initial Load
 

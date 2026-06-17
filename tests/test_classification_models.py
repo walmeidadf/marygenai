@@ -27,7 +27,7 @@ def valid_classification_payload() -> dict:
         "source_text_path": "data/processed/source.txt",
         "source_text_sha256": "a" * 64,
         "created_at": datetime(2026, 6, 15, tzinfo=UTC),
-        "study_design_category": "randomized_controlled_trial",
+        "study_design_category": "double_blind_clinical_trial",
         "evidence_context": "human_clinical",
         "medical_conditions": [
             {

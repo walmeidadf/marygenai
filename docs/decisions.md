@@ -26,6 +26,25 @@ English list fields. Portuguese bootstrap fields remain traceability/fallback
 fields, not the preferred analytic baseline. Outputs remain candidate evidence
 for human review and must not mutate SQLite review state or reviewed knowledge.
 
+## 2026-06-17: Align Study Design Classification To English Legacy Domain
+
+The 100-document `gpt-5.4-mini` gate exposed a schema problem: the original
+candidate classification schema allowed interpretive study-design values such as
+`narrative_review` and `mechanistic_review`, while the trusted human-curated
+legacy baseline uses the English `type_of_study` domain: `Meta-analysis`,
+`Clinical Meta-analysis`, `Clinical Trial`, `Double Blind Clinical Trial`,
+`Animal Study`, and `Laboratory Study`. This made model outputs look discordant
+even when the model was selecting a permitted but non-comparable category.
+
+The classification contract is therefore advanced to
+`candidate_study_classification.v2`. Its principal `study_design_category` field
+must use the legacy-compatible enum values `meta_analysis`,
+`clinical_meta_analysis`, `clinical_trial`, `double_blind_clinical_trial`,
+`animal_study`, `laboratory_study`, `other`, or `cannot_determine`. More granular
+interpretive distinctions such as mechanistic or narrative review may be added
+later only as separate subtype fields, not as replacements for the principal
+legacy-comparable category.
+
 ## 2026-05-10: Use English Throughout The Project
 
 All code, variables, filenames, comments, schemas, documentation, and CLI output should be written in English.
@@ -286,7 +305,11 @@ read-only retrieval surfaces such as an MCP server.
 
 ## 2026-06-15: Define Candidate Study Classification Schema V1
 
-The first AI classification contract is `candidate_study_classification.v1`.
+Superseded for new runs by
+`candidate_study_classification.v2`, which aligns the principal study-design
+field to the English legacy domain.
+
+The first AI classification contract was `candidate_study_classification.v1`.
 It is a strict Pydantic schema for candidate evidence only, not reviewed
 knowledge. It requires run/model/prompt/source-text provenance, a SHA-256 hash
 for the source text, coarse study-design and evidence-context classifications,

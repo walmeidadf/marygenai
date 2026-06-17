@@ -117,10 +117,10 @@ Recommended record identity fields:
 
 Recommended classification fields:
 
-- `study_design_category`: one of `systematic_review`, `meta_analysis`,
-  `randomized_controlled_trial`, `clinical_trial`, `observational_human`,
-  `case_report_or_series`, `animal_in_vivo`, `in_vitro`, `mechanistic_review`,
-  `narrative_review`, `other`, `cannot_determine`;
+- `study_design_category`: one of the English legacy study-type domain values
+  `meta_analysis`, `clinical_meta_analysis`, `clinical_trial`,
+  `double_blind_clinical_trial`, `animal_study`, `laboratory_study`, `other`,
+  `cannot_determine`;
 - `evidence_context`: one of `human_clinical`, `human_observational`,
   `animal_preclinical`, `in_vitro_or_cellular`, `review_or_synthesis`,
   `mixed`, `cannot_determine`;
@@ -152,6 +152,13 @@ Recommended evidence fields:
 
 The first schema should require the model to return `cannot_determine` instead
 of guessing when source text is insufficient.
+
+The principal `study_design_category` field should stay aligned to the English
+legacy `type_of_study` domain. Interpretive labels such as `narrative_review`,
+`mechanistic_review`, `systematic_review`, `animal_in_vivo`, or `in_vitro` must
+not replace the principal legacy-compatible category. If those distinctions are
+useful later, add a separate subtype field instead of changing the main
+comparison axis.
 
 ## First POC Sample
 
@@ -240,8 +247,8 @@ Current default POC choice:
 
 The prompt should explicitly reinforce enum discipline. In particular:
 
-- `study_design_category` must describe the study or publication design, not the
-  evidence setting;
+- `study_design_category` must use the English legacy study-type domain, not a
+  free-form or PubMed-style publication subtype;
 - `evidence_context` should use `review_or_synthesis` for review articles;
 - `outcome_domains` must use only supported enum values. Unsupported domains
   such as cognition or behavior should be mapped only when the source text

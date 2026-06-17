@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 from pydantic import ValidationError
 
 from marygenai.classification.models import (
+    CANDIDATE_STUDY_CLASSIFICATION_SCHEMA_VERSION,
     CandidateClassificationLabel,
     CandidateClassificationPromptPacket,
     CandidateStudyClassification,
@@ -28,7 +29,7 @@ from marygenai.classification_corpus.models import (
 from marygenai.initial_load.files import file_sha256
 from marygenai.storage import LocalStorage
 
-PROMPT_VERSION = "candidate_study_classification_prompt.v1"
+PROMPT_VERSION = "candidate_study_classification_prompt.v2"
 EXTRACTOR_NAME = "marygenai_candidate_classifier"
 EXTRACTOR_VERSION = "0.1.0"
 DRY_RUN_PROVIDER = "dry_run"
@@ -105,52 +106,108 @@ def load_smoke_corpus_records(
     return records, path
 
 
+def normalize_lookup_text(value: str | None) -> str:
+    if not value:
+        return ""
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", value.lower())).strip()
+
+
+def clean_doi(value: str | None) -> str:
+    return (value or "").lower().removeprefix("https://doi.org/").strip()
+
+
+def latest_legacy_english_context_path(data_dir: Path) -> Path | None:
+    paths = sorted(data_dir.glob("normalized/legacy_english_context/*_records.jsonl"))
+    return paths[-1] if paths else None
+
+
+def load_legacy_english_context_index(data_dir: Path) -> dict[str, dict[str, dict[str, Any]]]:
+    path = latest_legacy_english_context_path(data_dir)
+    indexes: dict[str, dict[str, dict[str, Any]]] = {
+        "document_id": {},
+        "pmid": {},
+        "pmcid": {},
+        "doi": {},
+        "title_year": {},
+    }
+    if path is None or not path.exists():
+        return indexes
+    for row in read_jsonl(path):
+        for match in row.get("document_matches") or []:
+            document_id = match.get("document_id")
+            if document_id and document_id not in indexes["document_id"]:
+                indexes["document_id"][document_id] = row
+        if row.get("pmid"):
+            indexes["pmid"][str(row["pmid"])] = row
+        if row.get("pmcid"):
+            indexes["pmcid"][str(row["pmcid"])] = row
+        if row.get("doi"):
+            indexes["doi"][clean_doi(row["doi"])] = row
+        if row.get("normalized_title") and row.get("publication_year"):
+            key = f"{row['normalized_title']}|{row['publication_year']}"
+            indexes["title_year"][key] = row
+    return indexes
+
+
+def legacy_english_context_for_record(
+    record: ClassificationCorpusRecord,
+    indexes: dict[str, dict[str, dict[str, Any]]] | None,
+) -> dict[str, Any] | None:
+    if not indexes:
+        return None
+    if record.document_id in indexes["document_id"]:
+        return indexes["document_id"][record.document_id]
+    if record.pmid and record.pmid in indexes["pmid"]:
+        return indexes["pmid"][record.pmid]
+    if record.pmcid and record.pmcid in indexes["pmcid"]:
+        return indexes["pmcid"][record.pmcid]
+    doi = clean_doi(record.doi)
+    if doi and doi in indexes["doi"]:
+        return indexes["doi"][doi]
+    title_key = f"{normalize_lookup_text(record.primary_title)}|{record.publication_year}"
+    return indexes["title_year"].get(title_key)
+
+
 def infer_study_design_category(legacy_study_type: str | None) -> str:
     value = (legacy_study_type or "").lower()
-    if "duplo-cego" in value or "double" in value:
-        return "randomized_controlled_trial"
-    if "ensaio clínico" in value or "clinical trial" in value:
-        return "clinical_trial"
-    if "metanálise" in value or "meta" in value:
+    if "double blind clinical trial" in value or "duplo-cego" in value:
+        return "double_blind_clinical_trial"
+    if "clinical meta-analysis" in value:
+        return "clinical_meta_analysis"
+    if value.strip() == "meta-analysis" or "metanálise" in value or "meta" in value:
         return "meta_analysis"
+    if "clinical trial" in value or "ensaio clínico" in value:
+        return "clinical_trial"
     if "animal" in value:
-        return "animal_in_vivo"
-    if "laboratorial" in value or "laboratory" in value or "in vitro" in value:
-        return "in_vitro"
+        return "animal_study"
+    if "laboratorial" in value or "laboratory" in value:
+        return "laboratory_study"
     return "cannot_determine"
 
 
 def infer_evidence_context(study_design_category: str) -> str:
     if study_design_category in {
-        "randomized_controlled_trial",
         "clinical_trial",
-        "case_report_or_series",
+        "double_blind_clinical_trial",
     }:
         return "human_clinical"
-    if study_design_category == "observational_human":
-        return "human_observational"
-    if study_design_category == "animal_in_vivo":
+    if study_design_category == "animal_study":
         return "animal_preclinical"
-    if study_design_category == "in_vitro":
+    if study_design_category == "laboratory_study":
         return "in_vitro_or_cellular"
-    if study_design_category in {
-        "systematic_review",
-        "meta_analysis",
-        "mechanistic_review",
-        "narrative_review",
-    }:
+    if study_design_category in {"meta_analysis", "clinical_meta_analysis"}:
         return "review_or_synthesis"
     return "cannot_determine"
 
 
 def infer_population_or_model(study_design_category: str) -> PopulationOrModel:
-    if study_design_category in {"randomized_controlled_trial", "clinical_trial"}:
+    if study_design_category in {"clinical_trial", "double_blind_clinical_trial"}:
         return PopulationOrModel(category="adult_humans", description="Dry-run inferred humans.")
-    if study_design_category == "animal_in_vivo":
+    if study_design_category == "animal_study":
         return PopulationOrModel(category="animals", description="Dry-run inferred animal model.")
-    if study_design_category == "in_vitro":
+    if study_design_category == "laboratory_study":
         return PopulationOrModel(category="cells", description="Dry-run inferred cellular model.")
-    if study_design_category == "meta_analysis":
+    if study_design_category in {"meta_analysis", "clinical_meta_analysis"}:
         return PopulationOrModel(category="mixed", description="Dry-run inferred synthesis record.")
     return PopulationOrModel(category="cannot_determine", description=None)
 
@@ -287,7 +344,25 @@ def build_system_prompt() -> str:
     )
 
 
-def corpus_metadata_for_prompt(record: ClassificationCorpusRecord) -> dict[str, Any]:
+def legacy_english_prompt_metadata(context: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not context:
+        return None
+    list_fields = context.get("list_fields") or {}
+    return {
+        "context_id": context.get("context_id"),
+        "type_of_study": context.get("type_of_study"),
+        "study_result": context.get("study_result"),
+        "key_findings": context.get("key_findings") or [],
+        "cannabinoids_studied": list_fields.get("Cannabinoids Studied") or [],
+        "study_sample_size": context.get("study_sample_size"),
+        "source_row_count": context.get("source_row_count"),
+    }
+
+
+def corpus_metadata_for_prompt(
+    record: ClassificationCorpusRecord,
+    legacy_english_context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     return {
         "document_id": record.document_id,
         "legacy_study_id": record.legacy_study_id,
@@ -305,6 +380,7 @@ def corpus_metadata_for_prompt(record: ClassificationCorpusRecord) -> dict[str, 
         "source_strategy": record.source_strategy,
         "classification_dataset_split": record.classification_dataset_split,
         "trust_level": record.trust_level,
+        "legacy_english_context": legacy_english_prompt_metadata(legacy_english_context),
     }
 
 
@@ -316,8 +392,9 @@ def build_user_prompt(
     source_text_sha256: str,
     source_text_excerpt: str,
     response_json_schema: dict[str, Any],
+    legacy_english_context: dict[str, Any] | None,
 ) -> str:
-    metadata = corpus_metadata_for_prompt(record)
+    metadata = corpus_metadata_for_prompt(record, legacy_english_context)
     output_identity = {
         "classification_id": f"classification:{run_id}:{safe_id_fragment(record.document_id)}",
         "document_id": record.document_id,
@@ -335,13 +412,20 @@ def build_user_prompt(
         "- Set requires_human_review to true and review_state to needs_review.\n"
         "- Include short evidence_spans copied from the source text for important claims.\n"
         "- Do not infer exact protocol details, dosage, or treatment recommendations.\n"
+        "- Use English legacy context as the preferred baseline when it is provided.\n"
         "- If a field is not supported, use cannot_determine and list it in "
         "missing_or_uncertain_fields.\n"
+        "- missing_or_uncertain_fields may only name scientific classification fields; "
+        "never list technical identity or provenance fields such as model_provider, "
+        "model_name, classification_id, source_text_sha256, char_start, or char_end.\n"
         "- Do not add keys that are not present in the schema.\n\n"
         "Enum discipline:\n"
         "- Use only enum values that appear in the JSON schema.\n"
-        "- study_design_category describes the publication/study design; do not use "
-        "evidence_context values such as review_or_synthesis there.\n"
+        "- study_design_category must use the English legacy study-type domain: "
+        "meta_analysis, clinical_meta_analysis, clinical_trial, "
+        "double_blind_clinical_trial, animal_study, laboratory_study, other, or "
+        "cannot_determine. Do not output narrative_review, mechanistic_review, "
+        "systematic_review, randomized_controlled_trial, animal_in_vivo, or in_vitro.\n"
         "- evidence_context describes the evidence setting; use review_or_synthesis "
         "there for review articles.\n"
         "- outcome_domains must use only efficacy, safety, adverse_events, biomarker, "
@@ -367,6 +451,7 @@ def build_prompt_packet(
     max_source_chars: int,
     target_model_provider: str | None,
     target_model_name: str | None,
+    legacy_english_indexes: dict[str, dict[str, dict[str, Any]]] | None = None,
 ) -> CandidateClassificationPromptPacket:
     source_text_path = resolve_data_path(data_dir, record.source_text_path)
     if source_text_path is None or not source_text_path.exists():
@@ -375,6 +460,7 @@ def build_prompt_packet(
     source_text_sha256 = file_sha256(source_text_path)
     source_text_excerpt = load_source_text_for_prompt(source_text_path, max_chars=max_source_chars)
     response_json_schema = CandidateStudyClassification.model_json_schema()
+    legacy_english_context = legacy_english_context_for_record(record, legacy_english_indexes)
     return CandidateClassificationPromptPacket(
         packet_id=f"prompt_packet:{run_id}:{safe_id_fragment(record.document_id)}",
         prompt_packet_run_id=run_id,
@@ -394,13 +480,15 @@ def build_prompt_packet(
             source_text_sha256=source_text_sha256,
             source_text_excerpt=source_text_excerpt,
             response_json_schema=response_json_schema,
+            legacy_english_context=legacy_english_context,
         ),
         response_json_schema=response_json_schema,
-        corpus_metadata=corpus_metadata_for_prompt(record),
+        corpus_metadata=corpus_metadata_for_prompt(record, legacy_english_context),
         created_at=created_at,
         provenance={
             "method": "candidate_classification_prompt_packet_build",
             "corpus_record_provenance": record.provenance,
+            "uses_legacy_english_context": legacy_english_context is not None,
             "does_not_call_llm": True,
             "does_not_mutate_sqlite": True,
             "review_boundary": "prompt_preparation_not_reviewed_knowledge",
@@ -468,6 +556,7 @@ def build_classification_prompt_packets(
         input_path=input_path,
         limit=limit,
     )
+    legacy_english_indexes = load_legacy_english_context_index(storage.root)
     packets: list[CandidateClassificationPromptPacket] = []
     errors: list[ClassificationRunError] = []
     for corpus_record in corpus_records:
@@ -481,6 +570,7 @@ def build_classification_prompt_packets(
                     max_source_chars=max_source_chars,
                     target_model_provider=target_model_provider,
                     target_model_name=target_model_name,
+                    legacy_english_indexes=legacy_english_indexes,
                 )
             )
         except (FileNotFoundError, ValidationError, ValueError) as exc:
@@ -659,7 +749,7 @@ def normalize_model_payload(
             "classification_id": f"classification:{run_id}:{safe_id_fragment(packet.document_id)}",
             "document_id": packet.document_id,
             "classification_run_id": run_id,
-            "schema_version": "candidate_study_classification.v1",
+            "schema_version": CANDIDATE_STUDY_CLASSIFICATION_SCHEMA_VERSION,
             "extractor_name": EXTRACTOR_NAME,
             "extractor_version": EXTRACTOR_VERSION,
             "model_provider": model_provider,
@@ -860,6 +950,7 @@ def run_classification_smoke(
         input_path=input_path,
         limit=limit,
     )
+    legacy_english_indexes = load_legacy_english_context_index(storage.root)
     records: list[CandidateStudyClassification] = []
     errors: list[ClassificationRunError] = []
     raw_responses: list[dict[str, Any]] = []
@@ -905,6 +996,7 @@ def run_classification_smoke(
                     max_source_chars=max_source_chars,
                     target_model_provider=provider,
                     target_model_name=model,
+                    legacy_english_indexes=legacy_english_indexes,
                 )
             except (FileNotFoundError, ValidationError, ValueError) as exc:
                 errors.append(

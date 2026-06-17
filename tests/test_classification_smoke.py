@@ -161,9 +161,29 @@ def test_build_classification_prompt_packets_writes_prompt_and_schema(tmp_path: 
         data_dir
         / "normalized/classification_runs/20260615T120000Z_classification_sample_records.jsonl"
     )
+    legacy_english_path = (
+        data_dir
+        / "normalized/legacy_english_context/20260615T110000Z_legacy_english_context_records.jsonl"
+    )
     write_jsonl(
         input_path,
         [sample_record(data_dir, document_id="publication:pmid:1", text_path=text_path)],
+    )
+    write_jsonl(
+        legacy_english_path,
+        [
+            {
+                "context_id": "legacy_english_context:test",
+                "document_matches": [{"document_id": "publication:pmid:1"}],
+                "key_findings": ["CBD improved a candidate endpoint."],
+                "list_fields": {"Cannabinoids Studied": ["Cannabidiol (CBD)"]},
+                "pmid": "1",
+                "source_row_count": 1,
+                "study_result": "Positive",
+                "study_sample_size": None,
+                "type_of_study": "Clinical Trial",
+            }
+        ],
     )
 
     result = build_classification_prompt_packets(
@@ -186,13 +206,19 @@ def test_build_classification_prompt_packets_writes_prompt_and_schema(tmp_path: 
     assert errors == []
     assert packets[0]["target_model_provider"] == "openai"
     assert packets[0]["target_model_name"] == "gpt-test"
+    assert packets[0]["schema_version"] == "candidate_study_classification.v2"
     assert "Do not provide medical advice" in packets[0]["system_prompt"]
     assert "Return one JSON object only" in packets[0]["user_prompt"]
     assert "Enum discipline" in packets[0]["user_prompt"]
+    assert "English legacy context as the preferred baseline" in packets[0]["user_prompt"]
+    assert "Do not output narrative_review" in packets[0]["user_prompt"]
     assert "outcome_domains must use only" in packets[0]["user_prompt"]
     assert "source_text_sha256" in packets[0]["user_prompt"]
     assert packets[0]["response_json_schema"]["properties"]["review_state"]
     assert packets[0]["corpus_metadata"]["document_id"] == "publication:pmid:1"
+    assert packets[0]["corpus_metadata"]["legacy_english_context"]["type_of_study"] == (
+        "Clinical Trial"
+    )
     assert summary["counts"]["prompt_packets"] == 1
     assert summary["source_excerpt_chars"]["total"] > 0
 

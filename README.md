@@ -133,8 +133,9 @@ stratified candidate-classification POC. Current local provider tests favor
 OpenAI `gpt-5.4-mini` for the next 100-document cost and quality gate before any
 full-corpus classification run. Classification evaluation should use the
 maintainer-local English legacy context first when present, rather than
-Portuguese legacy labels. `cannabinoid_focus` remains the dominant
-prioritization signal. Records with direct cannabinoid evidence in title,
+Portuguese legacy labels. The principal study-design category should stay
+aligned to the English legacy `type_of_study` domain. `cannabinoid_focus`
+remains the dominant prioritization signal. Records with direct cannabinoid evidence in title,
 indexed metadata, or usable source text belong in the primary queue. Abstract-only
 records require caution, and records without a cannabinoid signal should not be
 automatically promoted by citation metrics or general publication influence.
