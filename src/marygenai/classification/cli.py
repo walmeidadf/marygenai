@@ -29,7 +29,7 @@ def main() -> None:
 def run_smoke(
     limit: Annotated[
         int,
-        typer.Option("--limit", min=1, max=30, help="Maximum sample records to validate."),
+        typer.Option("--limit", min=1, max=100, help="Maximum sample records to validate."),
     ] = 5,
     input_path: Annotated[
         Path | None,
@@ -75,7 +75,7 @@ def run_smoke(
 def build_prompt_packets(
     limit: Annotated[
         int,
-        typer.Option("--limit", min=1, max=30, help="Maximum sample records to packetize."),
+        typer.Option("--limit", min=1, max=100, help="Maximum sample records to packetize."),
     ] = 5,
     input_path: Annotated[
         Path | None,
