@@ -36,7 +36,7 @@ DRY_RUN_MODEL = "deterministic_mock_classifier"
 DEFAULT_PROMPT_SOURCE_CHARS = 12_000
 OPENAI_CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions"
 DEFAULT_OPENAI_MODEL = "gpt-4.1"
-DEFAULT_MAX_COMPLETION_TOKENS = 1800
+DEFAULT_MAX_COMPLETION_TOKENS = 3000
 
 
 def new_run_id() -> str:
@@ -338,6 +338,17 @@ def build_user_prompt(
         "- If a field is not supported, use cannot_determine and list it in "
         "missing_or_uncertain_fields.\n"
         "- Do not add keys that are not present in the schema.\n\n"
+        "Enum discipline:\n"
+        "- Use only enum values that appear in the JSON schema.\n"
+        "- study_design_category describes the publication/study design; do not use "
+        "evidence_context values such as review_or_synthesis there.\n"
+        "- evidence_context describes the evidence setting; use review_or_synthesis "
+        "there for review articles.\n"
+        "- outcome_domains must use only efficacy, safety, adverse_events, biomarker, "
+        "mechanism, pharmacokinetics, public_health, or use_pattern. Map unsupported "
+        "domains such as cognition or behavior to the closest supported domain only "
+        "when the source text supports that mapping; otherwise omit the domain or use "
+        "cannot_determine in the relevant central field.\n\n"
         "Output identity defaults:\n"
         f"{json.dumps(output_identity, ensure_ascii=False, indent=2)}\n\n"
         "Response JSON schema:\n"

@@ -156,8 +156,14 @@ The first POC should classify a stratified sample, not the whole corpus.
 
 Recommended size:
 
-- 120 documents for the first full prompt/schema validation;
-- optional 30-document smoke test before the 120-document run.
+- 5 difficult documents for fast provider/schema validation;
+- 30 documents for a model-comparison smoke test;
+- 100 documents for the next cost, retry, and quality estimate before any
+  corpus-scale classification run.
+
+The earlier 120-document target is superseded by the 100-document gate. A
+100-document run is large enough to expose enum mistakes, truncation, retry
+rates, latency, and per-document token behavior while keeping spend bounded.
 
 Recommended strata:
 
@@ -195,6 +201,52 @@ The POC should measure:
 
 The POC should not mutate SQLite or mark records as reviewed.
 
+## Provider And Model Findings
+
+The first provider-backed classification tests used the same source-ready
+documents and strict Pydantic validation to compare models. Generated outputs
+remain candidate evidence only.
+
+Observed local POC results:
+
+- `gpt-4.1` classified the 30-document smoke sample successfully after retrying
+  five records with a larger completion-token budget. The clean 30-document
+  estimate was about 168,658 tokens and about USD 0.60 at then-current pricing.
+- `gpt-5.4-mini` passed the same five difficult documents with no errors, then
+  classified the same 30-document smoke sample successfully after one retry.
+  The clean 30-document estimate was about 166,315 tokens and about USD 0.28.
+- `gpt-5.4-nano` was much cheaper, but failed two of five difficult documents by
+  confusing `study_design_category` and `evidence_context`. It should not be the
+  default classifier until prompt/schema hardening proves it can pass the same
+  comparison set reliably.
+
+Current default POC choice:
+
+- provider: OpenAI;
+- model: `gpt-5.4-mini`;
+- `max_source_chars`: `6000`;
+- `max_completion_tokens`: `3000`.
+
+The prompt should explicitly reinforce enum discipline. In particular:
+
+- `study_design_category` must describe the study or publication design, not the
+  evidence setting;
+- `evidence_context` should use `review_or_synthesis` for review articles;
+- `outcome_domains` must use only supported enum values. Unsupported domains
+  such as cognition or behavior should be mapped only when the source text
+  supports a supported domain, otherwise omitted or treated as uncertainty.
+
+The project is not ready for an unattended full classification run yet. Before
+mass classification, run the 100-document gate and summarize:
+
+- valid JSON and strict Pydantic pass rates;
+- retry rate and retry reasons;
+- token and dollar cost per document;
+- latency per document;
+- distribution drift versus the 30-document `gpt-4.1` baseline;
+- evidence-span presence and obvious grounding failures;
+- source-quality and source-sufficiency failure modes.
+
 ## Next Sequence
 
 1. Implement a classification corpus rollup command.
@@ -202,11 +254,15 @@ The POC should not mutate SQLite or mark records as reviewed.
 3. Generate the first corpus rollup from current local acquisition artifacts.
 4. Produce a 30-document smoke-test sample packet.
 5. Run one model/prompt over the smoke test.
-6. Refine prompts and schema only if validation or evidence grounding fails.
-7. Run a 120-document stratified classification POC.
-8. Summarize quality, cost, latency, and classification distributions.
-9. Decide whether to run a larger batch or first add PubMed-discovery expansion.
-10. Design a read-only MCP surface over source-ready and candidate-classified
+6. Compare `gpt-4.1`, `gpt-5.4-mini`, and cheaper alternatives on the same
+   documents.
+7. Use `gpt-5.4-mini` as the default next POC model and keep `gpt-5.4-nano`
+   out of the default path until it passes the difficult comparison set.
+8. Run a 100-document stratified classification POC.
+9. Summarize quality, cost, latency, retry reasons, and classification
+   distributions.
+10. Decide whether to run a larger batch or first add PubMed-discovery expansion.
+11. Design a read-only MCP surface over source-ready and candidate-classified
     documents after the classification output shape stabilizes.
 
 ## Safety Boundary

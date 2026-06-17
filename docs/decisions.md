@@ -1,5 +1,28 @@
 # Decision Log
 
+## 2026-06-17: Use GPT-5.4 Mini For The Next Classification POC Gate
+
+Same-document provider tests showed that `gpt-5.4-mini` is the best current
+cost-quality default for candidate study classification POCs. On the difficult
+5-document set, `gpt-5.4-mini` produced 5/5 strict Pydantic-valid records, while
+`gpt-5.4-nano` produced only 3/5 valid records and confused
+`study_design_category` with `evidence_context`. On the 30-document comparison
+set, `gpt-5.4-mini` reached 30/30 valid records after one retry, with an
+estimated clean cost of about USD 0.28 versus about USD 0.60 for the prior
+`gpt-4.1` baseline.
+
+The default POC settings should therefore be OpenAI `gpt-5.4-mini`,
+`max_source_chars=6000`, and `max_completion_tokens=3000`. The prompt should
+reinforce strict enum discipline, especially for `study_design_category`,
+`evidence_context`, and `outcome_domains`.
+
+The project is not ready for an unattended full-corpus classification run yet.
+Before mass classification, run a 100-document stratified gate and evaluate
+valid JSON rate, strict schema pass rate, retry reasons, cost per document,
+latency, evidence-span quality, and classification distribution drift. Outputs
+remain candidate evidence for human review and must not mutate SQLite review
+state or reviewed knowledge.
+
 ## 2026-05-10: Use English Throughout The Project
 
 All code, variables, filenames, comments, schemas, documentation, and CLI output should be written in English.

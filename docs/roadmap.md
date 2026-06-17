@@ -38,7 +38,8 @@ The pipeline shape should be:
    PMC OAI-PMH and digital PDF extraction ahead of publisher-page scraping.
 7. Build a deduplicated classification corpus rollup with source quality,
    provenance, ontology links, study type, and condition labels.
-8. Run a small stratified AI classification POC on source-ready documents.
+8. Run stratified AI classification POCs on source-ready documents, using a
+   100-document cost and quality gate before any corpus-scale run.
 9. Expose candidate-classified scientific documents through read-only retrieval
    surfaces, potentially an MCP server, while keeping human-reviewed knowledge as
    a higher trust layer.
@@ -81,9 +82,13 @@ The next workstream is defined in
   documents as the first working dataset;
 - keep a broader source-ready set of about 3,374 documents as a secondary queue
   for prompt/schema validation and detector tuning;
-- prioritize an initial stratified POC across high-coverage condition areas such
-  as pain, addiction/cannabis, epilepsy, anxiety, depression, psychosis,
-  cancer, and inflammation;
+- use `gpt-5.4-mini` as the current default POC classifier after same-document
+  comparisons against `gpt-4.1` and `gpt-5.4-nano`;
+- discard `gpt-5.4-nano` from the default path for now because it confused
+  nearby schema fields in difficult records;
+- run a 100-document stratified cost and quality gate across high-coverage
+  condition areas such as pain, addiction/cannabis, epilepsy, anxiety,
+  depression, psychosis, cancer, and inflammation before mass classification;
 - define candidate classification outputs as reviewable evidence, not final
   knowledge.
 
@@ -174,8 +179,8 @@ SQLite, review queues, review decisions, or reviewed knowledge.
 
 ## MVP Implementation Progress
 
-Current operational focus: define the classification corpus rollup and schema,
-then run a small stratified AI-classification POC over source-ready documents.
+Current operational focus: harden the classification corpus rollup, strict
+schema, and provider-backed classifier around a 100-document validation gate.
 PubMed discovery remains the main route for growing beyond the legacy-only
 ceiling.
 

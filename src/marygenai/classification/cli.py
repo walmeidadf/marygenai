@@ -7,6 +7,7 @@ import typer
 from rich.console import Console
 
 from marygenai.classification.pipeline import (
+    DEFAULT_MAX_COMPLETION_TOKENS,
     DEFAULT_OPENAI_MODEL,
     DEFAULT_PROMPT_SOURCE_CHARS,
     build_classification_prompt_packets,
@@ -53,7 +54,7 @@ def run_smoke(
     max_completion_tokens: Annotated[
         int,
         typer.Option("--max-completion-tokens", min=500, max=8_000),
-    ] = 1_800,
+    ] = DEFAULT_MAX_COMPLETION_TOKENS,
 ) -> None:
     """Validate candidate classification schema on a tiny local sample."""
     settings = get_settings()

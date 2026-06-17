@@ -43,12 +43,13 @@ near the boundary can be classified instead of missed.
 
 ## Current Environment Status
 
-As of 2026-06-15, the active implementation contains the first local review
+As of 2026-06-17, the active implementation contains the first local review
 surface, structured identity decisions for legacy identity review, the first
 operational PubMed candidate discovery slice, access-enrichment quality audits,
-and source acquisition POCs for PMC OAI-PMH, Unpaywall PDFs, NCBI ELink/OpenAlex
-augmentation, and filtered augmented links. The active local environment is
-still single-maintainer and local-first:
+source acquisition POCs for PMC OAI-PMH, Unpaywall PDFs, NCBI ELink/OpenAlex
+augmentation and filtered augmented links, plus the first classification corpus
+rollup and provider-backed candidate-classification smoke tests. The active
+local environment is still single-maintainer and local-first:
 
 - package version: `0.1.0`;
 - default data directory: `data`;
@@ -168,7 +169,7 @@ The June 2026 source-acquisition POCs showed that official and source-declared
 routes can materially expand the real-text corpus, but the legacy-only ceiling is
 probably below 4,000 high-confidence classification-ready documents. The next MVP
 step is therefore classification substrate work: corpus rollup, schema, and a
-small stratified AI-classification POC.
+100-document stratified AI-classification gate before any corpus-scale run.
 
 ## Prioritization Principle
 
@@ -199,11 +200,11 @@ Citation metrics must never override weak cannabinoid focus.
 
 ### 0. Classification Substrate
 
-Status: next active workstream.
+Status: active POC workstream.
 
-This workstream should create a reproducible ignored local corpus rollup before
-running broad AI classification. It should read existing source-acquisition and
-access-quality artifacts, deduplicate by `document_id`, and write a
+This workstream creates a reproducible ignored local corpus rollup before
+running broad AI classification. It reads existing source-acquisition and
+access-quality artifacts, deduplicates by `document_id`, and writes a
 classification-candidate index with:
 
 - document identity: `document_id`, PMID, PMCID, DOI, canonical URL;
@@ -217,6 +218,14 @@ classification-candidate index with:
 
 The first schema and POC sequence are documented in
 [Classification Dataset Plan](classification_dataset_plan.md).
+
+The current provider-backed smoke tests support using OpenAI `gpt-5.4-mini` as
+the default POC classifier with `max_source_chars=6000` and
+`max_completion_tokens=3000`. `gpt-5.4-nano` is not the default because it failed
+the difficult same-document comparison by confusing schema fields. The project
+should not start unattended mass classification until a 100-document stratified
+gate measures validation pass rate, retry rate, cost per document, latency,
+classification distribution drift, and evidence-span quality.
 
 ### 1. Private Bootstrap Initial Load
 
