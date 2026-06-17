@@ -210,6 +210,8 @@ classification-candidate index with:
 - document identity: `document_id`, PMID, PMCID, DOI, canonical URL;
 - title and publication year;
 - legacy study type and legacy result when available;
+- English legacy `type_of_study`, `study_result`, key findings, and list fields
+  when matched from the maintainer-local English legacy context;
 - ontology labels for medical conditions, organ systems, and cannabinoids;
 - selected source text path and acquisition strategy;
 - source quality metrics: extracted characters, section signal, cannabinoid term
@@ -225,7 +227,9 @@ the default POC classifier with `max_source_chars=6000` and
 the difficult same-document comparison by confusing schema fields. The project
 should not start unattended mass classification until a 100-document stratified
 gate measures validation pass rate, retry rate, cost per document, latency,
-classification distribution drift, and evidence-span quality.
+classification distribution drift, and evidence-span quality. Evaluation should
+compare against English legacy context first, not Portuguese legacy labels, when
+the English context is available.
 
 ### 1. Private Bootstrap Initial Load
 

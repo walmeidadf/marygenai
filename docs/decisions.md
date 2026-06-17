@@ -19,9 +19,12 @@ reinforce strict enum discipline, especially for `study_design_category`,
 The project is not ready for an unattended full-corpus classification run yet.
 Before mass classification, run a 100-document stratified gate and evaluate
 valid JSON rate, strict schema pass rate, retry reasons, cost per document,
-latency, evidence-span quality, and classification distribution drift. Outputs
-remain candidate evidence for human review and must not mutate SQLite review
-state or reviewed knowledge.
+latency, evidence-span quality, and classification distribution drift. The
+evaluation baseline should be the normalized English legacy context when it is
+available, especially `type_of_study`, `study_result`, `key_findings`, and
+English list fields. Portuguese bootstrap fields remain traceability/fallback
+fields, not the preferred analytic baseline. Outputs remain candidate evidence
+for human review and must not mutate SQLite review state or reviewed knowledge.
 
 ## 2026-05-10: Use English Throughout The Project
 

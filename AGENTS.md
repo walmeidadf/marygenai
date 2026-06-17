@@ -39,6 +39,14 @@ files.
 - Prefer small POCs over production abstractions until a source has been evaluated.
 - Record architecture decisions in `docs/decisions.md` when a meaningful choice is made.
 - Keep MVP planning aligned with `docs/mvp_plan.md`.
+- When comparing, evaluating, prompting from, or reporting against the legacy
+  bootstrap for classification work, use normalized English legacy context first
+  when it is available, especially `type_of_study`, `study_result`,
+  `key_findings`, and English list fields from
+  `data/normalized/legacy_english_context/`. Portuguese legacy fields such as
+  `legacy_study_type` and `legacy_result` may remain operational fallback fields,
+  but they should not be the primary analytic baseline when English legacy
+  context exists.
 
 ## Common Commands
 
@@ -100,6 +108,11 @@ For the maintainer's local environment, the private legacy bootstrap currently
 loads thousands of publication records. The `legacy_identity_review` queue is
 only the subset that lacks PMID, PMCID, and DOI; it is not the full amount of
 useful legacy information.
+
+The maintainer-local English legacy context is the preferred legacy reference
+for classification prompts, model evaluation, and analysis reports when present.
+Use it to avoid translating Portuguese legacy labels during scientific
+classification comparisons.
 
 For public users, Initial Load is useful as a reproducible import pathway and as
 documentation of the private bootstrap process. Until public reviewed snapshots

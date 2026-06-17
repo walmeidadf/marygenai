@@ -64,6 +64,9 @@ Each rollup record should include:
 - `canonical_url`;
 - `legacy_study_type`;
 - `legacy_result`;
+- `legacy_type_of_study`;
+- `legacy_study_result`;
+- `legacy_key_findings`;
 - `medical_condition_labels`;
 - `organ_system_labels`;
 - `cannabinoid_labels`;
@@ -197,7 +200,15 @@ The POC should measure:
 - latency;
 - provider errors and retries;
 - classification distribution by condition and study type;
-- disagreement with legacy study type, if the field is available.
+- disagreement with English legacy `type_of_study` and `study_result`, when the
+  maintainer-local English legacy context is available.
+
+Use normalized English legacy context as the preferred evaluation baseline.
+Portuguese bootstrap fields such as `legacy_study_type` and `legacy_result` may
+remain in corpus records for traceability and fallback, but model evaluation,
+prompt construction, and reported classification comparisons should use
+`data/normalized/legacy_english_context/` fields first when they can be matched
+to a document.
 
 The POC should not mutate SQLite or mark records as reviewed.
 
