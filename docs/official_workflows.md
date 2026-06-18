@@ -92,7 +92,9 @@ The evaluation writes ignored reports, disagreements, exact and
 extraction-tolerant evidence-grounding checks, documents requiring rerun, and a
 targeted rerun input under
 `data/normalized/classification_evaluations/`. It separates technical validity,
-retrieval utility, and inference quality.
+retrieval utility, and inference quality. It also writes versioned
+`retrieval_confidence.v1` records with base, broad-recall, and high-precision
+heuristic ranking scores.
 
 Run a bounded provider-backed validation:
 

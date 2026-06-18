@@ -12,10 +12,10 @@ prerequisite for useful candidate retrieval.
 
 ## Now: Classification Reliability
 
-1. Define a useful computed retrieval-confidence signal beyond model-declared
-   confidence.
-2. Test that confidence signal on the targeted records and realistic broad versus
-   narrow retrieval queries.
+1. Test `retrieval_confidence.v1` on realistic broad versus narrow retrieval
+   queries and a small broader-source-ready contrast set.
+2. Perform weight sensitivity analysis before adding retrieval confidence to a
+   public schema.
 3. Use the repeatable evaluation command for English legacy alignment, evidence
    coverage, unsupported labels, and retrieval utility.
 4. Define confidence semantics:

@@ -1,5 +1,23 @@
 # Decision Log
 
+## 2026-06-18: Start Retrieval Confidence As A Deterministic Evaluator Signal
+
+`retrieval_confidence.v1` is computed deterministically in Python from technical
+integrity, source quality, evidence grounding, metadata consistency, retrieval
+completeness, and declared uncertainty. Model-declared
+`classification_confidence` is not an input.
+
+The v1 score remains an ignored evaluator artifact rather than a field in the
+candidate-classification schema. It exposes component values, weights, reasons,
+a base band, a broad-recall score, and a high-precision score. This permits
+weight and threshold experiments before making the signal a public retrieval
+contract.
+
+The score is not a calibrated probability, clinical evidence strength, or human
+review status. Source-supported overrides are not penalized as model errors,
+while unresolved disagreements and source-explicit structured contradictions
+receive material penalties.
+
 ## 2026-06-18: Separate Descriptive Outcomes From Null Effects
 
 Classification prompt v4 reserves `null` for a tested effect or association with

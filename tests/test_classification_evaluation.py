@@ -3,8 +3,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from marygenai.classification.confidence import compute_retrieval_confidence
 from marygenai.classification.evaluation import (
     evaluate_classification_run,
+    structured_source_contradiction,
     study_design_disagreement_status,
     token_ngram_grounding_score,
 )
@@ -178,6 +180,8 @@ def test_evaluate_classification_run_separates_metrics_and_builds_rerun_input(
     assert report["inference_quality"]["study_design_disagreement_status_counts"] == {
         "unresolved_disagreement": 1
     }
+    assert report["retrieval_confidence"]["records"] == 1
+    assert report["retrieval_confidence"]["band_counts"] == {"low": 1}
     assert report["rerun_document_count"] == 1
     assert targeted_rows == [sample_row]
 
@@ -212,3 +216,220 @@ def test_study_design_disagreement_status_distinguishes_resolved_conflicts() -> 
 
     assert survey_status == "source_supported_override"
     assert refinement_status == "compatible_refinement"
+
+
+def test_structured_contradiction_uses_document_title_not_included_studies() -> None:
+    assert (
+        structured_source_contradiction(
+            predicted_subtype=None,
+            title="A scoping review of medical cannabis",
+        )
+        is False
+    )
+    assert (
+        structured_source_contradiction(
+            predicted_subtype="systematic_review",
+            title="A systematic review and meta-analysis of observational studies",
+        )
+        is False
+    )
+    assert (
+        structured_source_contradiction(
+            predicted_subtype="systematic_review",
+            title="A scoping review of medical cannabis",
+        )
+        is True
+    )
+
+
+def test_retrieval_confidence_ranks_grounded_consistent_record_higher() -> None:
+    base_record = {
+        "document_id": "publication:pmid:1",
+        "schema_version": "candidate_study_classification.v3",
+        "model_provider": "openai",
+        "model_name": "test-model",
+        "prompt_version": "test-prompt",
+        "source_text_path": "data/source.txt",
+        "source_text_sha256": "a" * 64,
+        "provenance": {"method": "test"},
+        "study_design_category": "meta_analysis",
+        "study_design_subtype": "systematic_review",
+        "evidence_context": "review_or_synthesis",
+        "medical_conditions": [{"free_text_label": "Pain"}],
+        "cannabinoids_or_exposures": [{"free_text_label": "CBD"}],
+        "intervention_or_exposure_role": "therapeutic_intervention",
+        "population_or_model": {"category": "adult_humans"},
+        "outcome_domains": ["efficacy"],
+        "overall_direction": "beneficial",
+        "classification_confidence": "medium",
+        "missing_or_uncertain_fields": [],
+    }
+    source_record = {
+        "classification_ready": True,
+        "source_ready": True,
+        "scientific_section_hit_count": 5,
+        "extracted_text_chars": 12_000,
+    }
+    raw_response = {
+        "status_code": 200,
+        "attempts": [{"attempt": 1, "status_code": 200}],
+    }
+    strong = compute_retrieval_confidence(
+        record=base_record,
+        source_record=source_record,
+        raw_response=raw_response,
+        exact_grounded=3,
+        tolerant_grounded=3,
+        total_spans=3,
+        disagreement_status="exact_match",
+        structured_contradiction=False,
+        uncertainty_is_machine_readable=True,
+    )
+    weak_record = {
+        **base_record,
+        "document_id": "publication:pmid:2",
+        "cannabinoids_or_exposures": [],
+        "outcome_domains": [],
+        "missing_or_uncertain_fields": [
+            "cannabinoids_or_exposures",
+            "outcome_domains",
+        ],
+    }
+    weak = compute_retrieval_confidence(
+        record=weak_record,
+        source_record={
+            "classification_ready": False,
+            "source_ready": True,
+            "scientific_section_hit_count": 1,
+            "extracted_text_chars": 1_000,
+        },
+        raw_response={
+            "status_code": 200,
+            "attempts": [
+                {"attempt": 1, "error": "timeout"},
+                {"attempt": 2, "status_code": 200},
+            ],
+        },
+        exact_grounded=0,
+        tolerant_grounded=1,
+        total_spans=3,
+        disagreement_status="unresolved_disagreement",
+        structured_contradiction=True,
+        uncertainty_is_machine_readable=True,
+    )
+
+    assert strong["score"] > weak["score"]
+    assert strong["high_precision_score"] > weak["high_precision_score"]
+    assert weak["broad_recall_score"] > weak["high_precision_score"]
+    assert "structured_source_contradiction" in weak["reasons"]
+
+
+def test_retrieval_confidence_is_sensitive_to_source_readiness() -> None:
+    record = {
+        "document_id": "publication:pmid:1",
+        "schema_version": "candidate_study_classification.v3",
+        "model_provider": "openai",
+        "model_name": "test-model",
+        "prompt_version": "test-prompt",
+        "source_text_path": "data/source.txt",
+        "source_text_sha256": "a" * 64,
+        "provenance": {"method": "test"},
+        "study_design_category": "meta_analysis",
+        "study_design_subtype": "systematic_review",
+        "evidence_context": "review_or_synthesis",
+        "medical_conditions": [{"free_text_label": "Pain"}],
+        "cannabinoids_or_exposures": [{"free_text_label": "CBD"}],
+        "intervention_or_exposure_role": "therapeutic_intervention",
+        "population_or_model": {"category": "adult_humans"},
+        "outcome_domains": ["efficacy"],
+        "overall_direction": "beneficial",
+        "classification_confidence": "medium",
+        "missing_or_uncertain_fields": [],
+    }
+    common = {
+        "record": record,
+        "raw_response": {
+            "status_code": 200,
+            "attempts": [{"attempt": 1, "status_code": 200}],
+        },
+        "exact_grounded": 2,
+        "tolerant_grounded": 2,
+        "total_spans": 2,
+        "disagreement_status": "exact_match",
+        "structured_contradiction": False,
+        "uncertainty_is_machine_readable": True,
+    }
+    strict = compute_retrieval_confidence(
+        **common,
+        source_record={
+            "classification_ready": True,
+            "source_ready": True,
+            "scientific_section_hit_count": 4,
+            "extracted_text_chars": 8_000,
+        },
+    )
+    broad_only = compute_retrieval_confidence(
+        **common,
+        source_record={
+            "classification_ready": False,
+            "source_ready": True,
+            "scientific_section_hit_count": 1,
+            "extracted_text_chars": 2_000,
+        },
+    )
+
+    assert strict["score"] > broad_only["score"]
+    assert "source_not_strict_classification_ready" in broad_only["reasons"]
+
+
+def test_model_declared_confidence_does_not_change_computed_score() -> None:
+    record = {
+        "document_id": "publication:pmid:1",
+        "schema_version": "candidate_study_classification.v3",
+        "model_provider": "openai",
+        "model_name": "test-model",
+        "prompt_version": "test-prompt",
+        "source_text_path": "data/source.txt",
+        "source_text_sha256": "a" * 64,
+        "provenance": {"method": "test"},
+        "study_design_category": "meta_analysis",
+        "study_design_subtype": "systematic_review",
+        "evidence_context": "review_or_synthesis",
+        "medical_conditions": [{"free_text_label": "Pain"}],
+        "cannabinoids_or_exposures": [{"free_text_label": "CBD"}],
+        "intervention_or_exposure_role": "therapeutic_intervention",
+        "population_or_model": {"category": "adult_humans"},
+        "outcome_domains": ["efficacy"],
+        "overall_direction": "beneficial",
+        "missing_or_uncertain_fields": [],
+    }
+    common = {
+        "source_record": {
+            "classification_ready": True,
+            "source_ready": True,
+            "scientific_section_hit_count": 4,
+            "extracted_text_chars": 8_000,
+        },
+        "raw_response": {
+            "status_code": 200,
+            "attempts": [{"attempt": 1, "status_code": 200}],
+        },
+        "exact_grounded": 2,
+        "tolerant_grounded": 2,
+        "total_spans": 2,
+        "disagreement_status": "exact_match",
+        "structured_contradiction": False,
+        "uncertainty_is_machine_readable": True,
+    }
+    low = compute_retrieval_confidence(
+        record={**record, "classification_confidence": "low"},
+        **common,
+    )
+    high = compute_retrieval_confidence(
+        record={**record, "classification_confidence": "high"},
+        **common,
+    )
+
+    assert low["score"] == high["score"]
+    assert low["model_declared_classification_confidence"] == "low"
+    assert high["model_declared_classification_confidence"] == "high"

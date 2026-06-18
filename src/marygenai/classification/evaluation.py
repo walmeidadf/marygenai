@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from marygenai.classification.confidence import compute_retrieval_confidence
 from marygenai.classification.pipeline import (
     clean_doi,
     latest_legacy_english_context_path,
@@ -304,6 +305,29 @@ def study_design_disagreement_status(
     return "unresolved_disagreement"
 
 
+def structured_source_contradiction(
+    *,
+    predicted_subtype: str | None,
+    title: str | None,
+) -> bool:
+    if predicted_subtype is None:
+        return False
+    source_text = normalize_lookup_text(title)
+    title_rules = (
+        ("scoping_review", "scoping review"),
+        ("systematic_review", "systematic review"),
+        ("case_report_or_series", "case report"),
+        ("case_report_or_series", "case series"),
+        ("pilot_study", "pilot study"),
+        ("survey", "survey"),
+        ("observational_study", "observational study"),
+    )
+    for expected_subtype, phrase in title_rules:
+        if phrase in source_text:
+            return predicted_subtype != expected_subtype
+    return False
+
+
 def evaluate_classification_run(
     *,
     storage: LocalStorage,
@@ -413,6 +437,10 @@ def evaluate_classification_run(
     evidence_spans_total = 0
     evidence_spans_requiring_grounding_review: list[dict[str, Any]] = []
     filter_coverage: Counter[str] = Counter()
+    record_signals: dict[str, dict[str, Any]] = {}
+    raw_by_document_id = {
+        str(raw.get("document_id")): raw for raw in raw_responses if raw.get("document_id")
+    }
     for record in records:
         is_machine_readable, invalid, missing = machine_readable_uncertainty(record)
         machine_readable_count += is_machine_readable
@@ -441,6 +469,12 @@ def evaluate_classification_run(
         evidence_spans_ngram_grounded += ngram_supported
         evidence_spans_total += total
         evidence_spans_requiring_grounding_review.extend(grounding_review)
+        record_signals[record["document_id"]] = {
+            "uncertainty_is_machine_readable": is_machine_readable,
+            "exact_grounded": exact_supported,
+            "tolerant_grounded": ngram_supported,
+            "total_spans": total,
+        }
         for field in (
             "study_design_category",
             "evidence_context",
@@ -464,11 +498,14 @@ def evaluate_classification_run(
     study_design_disagreement_status_counts: Counter[str] = Counter()
     legacy_result_proxy_reference_count = 0
     legacy_result_proxy_compatible_count = 0
+    disagreement_status_by_document_id: dict[str, str] = {}
+    source_record_by_document_id: dict[str, dict[str, Any]] = {}
     for record in records:
         sample_row = sample_by_document_id.get(record["document_id"])
         if sample_row is None:
             continue
         source_record = corpus_row(sample_row)
+        source_record_by_document_id[record["document_id"]] = source_record
         context, match_method = find_legacy_context(source_record, legacy_indexes)
         if context is None:
             continue
@@ -479,6 +516,7 @@ def evaluate_classification_run(
             study_design_reference_count += 1
             if record.get("study_design_category") == expected_design:
                 study_design_exact_count += 1
+                disagreement_status_by_document_id[record["document_id"]] = "exact_match"
             else:
                 disagreement_status = study_design_disagreement_status(
                     expected_design=expected_design,
@@ -488,6 +526,9 @@ def evaluate_classification_run(
                     evidence_spans=record.get("evidence_spans") or [],
                 )
                 study_design_disagreement_status_counts[disagreement_status] += 1
+                disagreement_status_by_document_id[record["document_id"]] = (
+                    disagreement_status
+                )
                 disagreements.append(
                     {
                         "document_id": record["document_id"],
@@ -517,6 +558,33 @@ def evaluate_classification_run(
                 record.get("overall_direction"),
             )
 
+    retrieval_confidence_records = []
+    for record in records:
+        document_id = record["document_id"]
+        signals = record_signals[document_id]
+        source_record = source_record_by_document_id.get(document_id)
+        retrieval_confidence_records.append(
+            compute_retrieval_confidence(
+                record=record,
+                source_record=source_record,
+                raw_response=raw_by_document_id.get(document_id),
+                exact_grounded=signals["exact_grounded"],
+                tolerant_grounded=signals["tolerant_grounded"],
+                total_spans=signals["total_spans"],
+                disagreement_status=disagreement_status_by_document_id.get(document_id),
+                structured_contradiction=structured_source_contradiction(
+                    predicted_subtype=record.get("study_design_subtype"),
+                    title=(source_record or {}).get("primary_title"),
+                ),
+                uncertainty_is_machine_readable=signals[
+                    "uncertainty_is_machine_readable"
+                ],
+            )
+        )
+    retrieval_confidence_records.sort(
+        key=lambda item: (-item["score"], str(item["document_id"]))
+    )
+
     rerun_reasons: dict[str, set[str]] = {}
     for error in errors:
         document_id = error.get("document_id")
@@ -540,7 +608,7 @@ def evaluate_classification_run(
     ]
 
     resolved_evaluation_run_id = evaluation_run_id or datetime.now(UTC).strftime(
-        "%Y%m%dT%H%M%SZ"
+        "%Y%m%dT%H%M%S%fZ"
     )
     output_dir = storage.path("normalized/classification_evaluations")
     disagreements_path = write_jsonl(
@@ -559,6 +627,14 @@ def evaluate_classification_run(
         output_dir
         / f"{resolved_evaluation_run_id}_evidence_spans_requiring_grounding_review.jsonl",
         evidence_spans_requiring_grounding_review,
+    )
+    retrieval_confidence_path = write_jsonl(
+        output_dir
+        / f"{resolved_evaluation_run_id}_retrieval_confidence_records.jsonl",
+        retrieval_confidence_records,
+    )
+    confidence_band_counts = Counter(
+        record["band"] for record in retrieval_confidence_records
     )
     report = {
         "evaluation_run_id": resolved_evaluation_run_id,
@@ -643,6 +719,30 @@ def evaluate_classification_run(
                 "Categorical model assessment; not a calibrated probability."
             ),
         },
+        "retrieval_confidence": {
+            "version": "retrieval_confidence.v1",
+            "records": len(retrieval_confidence_records),
+            "band_counts": dict(confidence_band_counts),
+            "score_min": min(
+                (record["score"] for record in retrieval_confidence_records),
+                default=0,
+            ),
+            "score_max": max(
+                (record["score"] for record in retrieval_confidence_records),
+                default=0,
+            ),
+            "score_mean": round(
+                sum(record["score"] for record in retrieval_confidence_records)
+                / len(retrieval_confidence_records),
+                4,
+            )
+            if retrieval_confidence_records
+            else 0,
+            "semantics": (
+                "Deterministic heuristic ranking signal; not a calibrated "
+                "probability and not clinical evidence strength."
+            ),
+        },
         "outputs": {
             "study_design_disagreements_path": str(disagreements_path),
             "documents_requiring_rerun_path": str(rerun_documents_path),
@@ -650,6 +750,7 @@ def evaluate_classification_run(
             "evidence_spans_requiring_grounding_review_path": str(
                 grounding_review_path
             ),
+            "retrieval_confidence_records_path": str(retrieval_confidence_path),
         },
         "rerun_document_count": len(rerun_documents),
         "notes": [
@@ -684,5 +785,6 @@ def evaluate_classification_run(
         "technical_validity": report["technical_validity"],
         "retrieval_utility": report["retrieval_utility"],
         "inference_quality": report["inference_quality"],
+        "retrieval_confidence": report["retrieval_confidence"],
         "rerun_document_count": report["rerun_document_count"],
     }

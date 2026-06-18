@@ -114,6 +114,37 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
 - Model-declared confidence showed limited but non-zero variation in the final
   set: six `medium` records and one `high` survey record. A computed retrieval
   confidence remains necessary.
+- `retrieval_confidence.v1` was tested without new provider calls on the
+  10-record targeted run, the 7-record prompt-v4 run, the one-record prompt-v5
+  correction, and synthetic contrast cases.
+- On the 10-record run, model confidence was uniformly `medium`, while computed
+  confidence produced four `high` and six `medium` records with scores from
+  0.8630 to 1.0000. This supports independence from model self-assessment.
+- Declared uncertainty produced lower high-precision scores than broad-recall
+  scores, preserving uncertain records for recall while lowering narrow-query
+  rank.
+- The inconsistent prompt-v4 scoping-review record scored 0.8340 (`medium`);
+  its coherent prompt-v5 replacement scored 0.9700 (`high`). This supports the
+  metadata-consistency penalty.
+- Synthetic contrasts confirmed that strict source readiness outranks broader
+  source readiness when other signals are held constant, and that grounded,
+  consistent records outrank records with weak grounding, incomplete filters,
+  retries, and unresolved contradictions.
+- The 100-document historical run contained one real broader-source-ready valid
+  record. After removing a schema-v2 subtype penalty that did not apply to that
+  historical contract, it scored 0.8875 (`medium`), versus a run median of
+  0.9000. Its broad-recall score was 0.9325 and high-precision score was 0.8425.
+  This supports a modest source-readiness penalty rather than excluding useful
+  broader-source records.
+- A direct invariance test confirmed that changing model-declared confidence
+  from `low` to `high` does not change the computed score.
+- One initial contradiction heuristic was rejected: scanning all evidence text
+  confused a systematic review of observational studies with an observational
+  study. The corrected rule uses explicit document-title design phrases with
+  precedence.
+- The first band threshold was also rejected as too permissive: a `high`
+  threshold of 0.85 labeled nine of ten targeted records high. V1 now requires
+  0.95 for `high` and 0.75 for `medium`.
 - The run produced 40 evidence spans. Seventeen were exact normalized
   substrings; all 40 passed token-bigram grounding with extraction-artifact
   tolerance, leaving no spans for grounding review. Extracted PDFs and page text

@@ -112,9 +112,10 @@ Candidate outputs preserve:
 - token usage and latency;
 - trust and review boundaries.
 
-Current confidence is model-declared and categorical. A future calibrated
-retrieval score should be computed separately from deterministic and empirical
-signals.
+Candidate confidence is model-declared and categorical. The experimental
+`retrieval_confidence.v1` evaluator computes a separate deterministic heuristic
+ranking signal. It is not calibrated and remains outside the candidate schema
+while weights and retrieval behavior are validated.
 
 ## Retrieval Surface
 

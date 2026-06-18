@@ -126,6 +126,32 @@ source and pipeline signals. It must remain distinct from:
 - clinical effect certainty;
 - human review status.
 
+The first evaluator-only implementation is `retrieval_confidence.v1`. It does
+not change the candidate-classification schema. It combines deterministic,
+auditable components:
+
+- technical integrity: required provenance and final provider execution;
+- source quality: strict readiness, source length, and scientific-section
+  signal;
+- evidence grounding: exact spans and extraction-tolerant spans;
+- metadata consistency: exact match, compatible refinement, source-supported
+  override, or unresolved disagreement;
+- retrieval completeness: populated filter fields.
+
+Weights are versioned in code. Model-declared `classification_confidence` is
+reported alongside the computed score but is not an input.
+
+The evaluator writes one record per document with:
+
+- a base heuristic score and `high`, `medium`, or `low` band;
+- a less punitive `broad_recall_score`;
+- a more uncertainty-sensitive `high_precision_score`;
+- component values, weights, uncertainty fields, and machine-readable reasons.
+
+These scores are experimental ranking signals, not calibrated probabilities.
+They remain outside reviewed knowledge and must not be interpreted as clinical
+evidence strength.
+
 ## Overall Direction
 
 `overall_direction` describes a source-supported effect or association relevant

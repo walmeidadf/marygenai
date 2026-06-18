@@ -96,8 +96,8 @@ the three historical schema failures and seven study-design disagreements.
 
 1. Stabilize classification schema and uncertainty representation.
 2. Add repeatable legacy-alignment and retrieval-utility evaluation.
-3. Define a computed retrieval confidence contract distinct from model
-   self-assessment and study evidence strength.
+3. Validate and tune the evaluator-only `retrieval_confidence.v1` signal before
+   promoting it into a public retrieval contract.
 4. Run a larger bounded classification batch after known defects are corrected.
 5. Continue PubMed discovery and source acquisition using supported commands.
 6. Design a read-only MCP retrieval contract.

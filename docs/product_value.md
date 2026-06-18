@@ -56,20 +56,22 @@ Each classification should preserve:
 - run and source provenance;
 - a trust level that distinguishes AI output from human review.
 
-Current confidence values are categorical model assessments. They must not be
-presented as calibrated probabilities.
+Candidate `classification_confidence` values are categorical model assessments.
+They must not be presented as calibrated probabilities.
 
-A future retrieval confidence score may combine:
+The experimental evaluator computes `retrieval_confidence.v1` separately from:
 
 - source-text quality and completeness;
 - directness of evidence support;
 - agreement with deterministic metadata;
 - schema and grounding validation;
-- consistency across runs or models;
-- calibration against trusted reviewed references.
+- declared field uncertainty.
 
-That score should describe confidence in a retrieval label, not the clinical
-strength of the study or the truth of a treatment claim.
+It is currently a deterministic heuristic ranking signal, not a calibrated
+probability. Future versions may add repeated-run consistency and calibration
+against trusted reviewed references. Retrieval confidence describes confidence
+in a retrieval label, not the clinical strength of the study or the truth of a
+treatment claim.
 
 ## Interpreting Uncertainty
 
