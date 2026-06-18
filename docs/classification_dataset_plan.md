@@ -40,7 +40,7 @@ Each corpus record should preserve:
 Current schema:
 
 ```text
-candidate_study_classification.v2
+candidate_study_classification.v3
 ```
 
 Required identity and provenance:
@@ -59,6 +59,7 @@ Required identity and provenance:
 Retrieval fields:
 
 - `study_design_category`;
+- `study_design_subtype`;
 - `evidence_context`;
 - `medical_conditions`;
 - `cannabinoids_or_exposures`;
@@ -92,8 +93,20 @@ The principal field uses the normalized English legacy-compatible domain:
 
 This field is primarily a retrieval filter. More specific labels such as case
 report, survey, observational study, narrative review, or mechanistic review
-should become separate subtype metadata instead of replacing the principal
-comparison axis.
+belong in `study_design_subtype` instead of replacing the principal comparison
+axis. Surveys, case reports or series, and observational studies that do not fit
+the legacy-compatible principal categories use `study_design_category=other`.
+
+## Outcome Domain
+
+`cognition` is an official retrieval domain for memory, attention, executive
+function, neurocognitive performance, and cognitive impairment. Behavioral
+outcomes are not automatically cognition and should map only when the source
+supports that interpretation.
+
+`cannot_determine` is not valid inside `outcome_domains` or another list enum.
+When no defensible list value is available, the list is empty and its canonical
+field name appears in `missing_or_uncertain_fields`.
 
 ## Confidence Semantics
 
@@ -115,8 +128,8 @@ source and pipeline signals. It must remain distinct from:
 
 ## Uncertainty Semantics
 
-`missing_or_uncertain_fields` should contain canonical field names only. Detailed
-rationale belongs in warnings or a future structured uncertainty object.
+`missing_or_uncertain_fields` is a strict enum of canonical classification field
+names. Detailed rationale belongs in `warnings`.
 
 For list fields, absence of a defensible label should produce an empty list and
 the field name in uncertainty. `cannot_determine` should not be inserted into a
@@ -178,15 +191,26 @@ The 2026-06-18 100-document schema-v2 run produced:
 Estimated cost was about USD 0.92, or USD 0.0092 per input document at the pricing
 used for the estimate.
 
-The run supports further development but exposes known work before mass
-classification:
+Schema v3 and the official evaluator address the localized contract defects:
 
-1. define or map cognition-related outcomes;
-2. keep `cannot_determine` out of unsupported list enums;
-3. improve `other` and future subtype handling for surveys, case reports, and
+1. cognition is an official outcome domain;
+2. `cannot_determine` remains outside list enums;
+3. `other` works with subtype handling for surveys, case reports, and
    observational designs;
-4. enforce field-only uncertainty entries;
-5. add repeatable evaluation instead of ad hoc analysis.
+4. uncertainty entries are strict canonical field names;
+5. evaluation is repeatable rather than ad hoc.
+
+The official local evaluator is:
+
+```bash
+uv run marygenai classification evaluate
+```
+
+It writes ignored reports under
+`data/normalized/classification_evaluations/`, including metrics grouped by
+technical validity, retrieval utility, and inference quality; study-design
+disagreements; unsupported evidence-span checks; documents requiring rerun; and
+a targeted rerun input.
 
 ## Scaling Sequence
 

@@ -1,5 +1,37 @@
 # Decision Log
 
+## 2026-06-18: Advance Candidate Classification To Schema V3
+
+`candidate_study_classification.v3` makes `cognition` an official outcome domain
+for memory, attention, executive function, neurocognitive performance, and
+cognitive impairment. This preserves a useful retrieval dimension that could
+not be represented faithfully in schema v2.
+
+List fields never accept `cannot_determine`. An unsupported list is empty and
+its canonical field name is required in `missing_or_uncertain_fields`.
+Uncertainty entries are now a strict field-name enum; explanatory text belongs
+in `warnings`. This prevents free-text normalization from hiding model contract
+errors.
+
+The principal English legacy-compatible study-design domain remains unchanged.
+Schema v3 adds `study_design_subtype` for systematic, scoping, narrative, and
+mechanistic reviews; surveys; case reports or series; observational studies; and
+pilot studies. Surveys, case reports or series, and observational studies that
+do not fit a principal legacy category use `study_design_category=other`.
+
+## 2026-06-18: Make Classification Evaluation An Official Local Workflow
+
+`marygenai classification evaluate` is the supported reproducible evaluator. It
+reads ignored candidate artifacts, normalized English legacy context, and source
+text without calling a model or mutating SQLite. Reports separate technical
+validity, retrieval utility, and inference quality and preserve disagreement as
+an evaluation signal rather than automatically treating the legacy label as
+truth.
+
+The evaluator writes ignored reports, study-design disagreements, source
+grounding checks, documents requiring rerun, and a targeted rerun input under
+`data/normalized/classification_evaluations/`.
+
 ## 2026-06-18: Define MaryGenAI As A Retrieval-Oriented Source-Intelligence Product
 
 MaryGenAI's primary value is to make cannabinoid medical literature easier to

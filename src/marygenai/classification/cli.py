@@ -6,6 +6,7 @@ from typing import Annotated
 import typer
 from rich.console import Console
 
+from marygenai.classification.evaluation import evaluate_classification_run
 from marygenai.classification.pipeline import (
     DEFAULT_MAX_COMPLETION_TOKENS,
     DEFAULT_OPENAI_MODEL,
@@ -103,5 +104,58 @@ def build_prompt_packets(
         max_source_chars=max_source_chars,
         target_model_provider=target_model_provider,
         target_model_name=target_model_name,
+    )
+    console.print(result)
+
+
+@app.command("evaluate")
+def evaluate(
+    records_path: Annotated[
+        Path | None,
+        typer.Option("--records-path", help="Candidate classification records JSONL."),
+    ] = None,
+    errors_path: Annotated[
+        Path | None,
+        typer.Option("--errors-path", help="Candidate classification errors JSONL."),
+    ] = None,
+    raw_responses_path: Annotated[
+        Path | None,
+        typer.Option("--raw-responses-path", help="Provider raw responses JSONL."),
+    ] = None,
+    summary_path: Annotated[
+        Path | None,
+        typer.Option("--summary-path", help="Candidate classification run summary JSON."),
+    ] = None,
+    input_path: Annotated[
+        Path | None,
+        typer.Option("--input-path", help="Original classification sample or corpus JSONL."),
+    ] = None,
+    legacy_context_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--legacy-context-path",
+            help="Normalized English legacy context JSONL.",
+        ),
+    ] = None,
+    estimated_cost_usd: Annotated[
+        float | None,
+        typer.Option(
+            "--estimated-cost-usd",
+            min=0,
+            help="Optional externally calculated run cost for reporting.",
+        ),
+    ] = None,
+) -> None:
+    """Evaluate a candidate classification run without calling a model."""
+    settings = get_settings()
+    result = evaluate_classification_run(
+        storage=LocalStorage(settings.data_dir),
+        records_path=records_path,
+        errors_path=errors_path,
+        raw_responses_path=raw_responses_path,
+        summary_path=summary_path,
+        input_path=input_path,
+        legacy_context_path=legacy_context_path,
+        estimated_cost_usd=estimated_cost_usd,
     )
     console.print(result)

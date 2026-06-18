@@ -66,11 +66,17 @@ Classification preparation and validation:
 uv run marygenai classification-corpus rollup --sample-size 30
 uv run marygenai classification build-prompt-packets --limit 5
 uv run marygenai classification run-smoke --limit 5
+uv run marygenai classification evaluate
 ```
 
 `classification run-smoke` defaults to deterministic mock output. A provider call
 requires `--no-dry-run`, a configured `OPENAI_API_KEY`, and an explicit model.
 All outputs remain candidate evidence.
+
+`classification evaluate` is local-only. It separates technical validity,
+retrieval utility, and inference quality, compares against normalized English
+legacy context when available, and writes ignored reports plus a targeted rerun
+input under `data/normalized/classification_evaluations/`.
 
 Maintainer-only private bootstrap:
 

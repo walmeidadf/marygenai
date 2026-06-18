@@ -206,12 +206,15 @@ def test_build_classification_prompt_packets_writes_prompt_and_schema(tmp_path: 
     assert errors == []
     assert packets[0]["target_model_provider"] == "openai"
     assert packets[0]["target_model_name"] == "gpt-test"
-    assert packets[0]["schema_version"] == "candidate_study_classification.v2"
+    assert packets[0]["schema_version"] == "candidate_study_classification.v3"
     assert "Do not provide medical advice" in packets[0]["system_prompt"]
     assert "Return one JSON object only" in packets[0]["user_prompt"]
     assert "Enum discipline" in packets[0]["user_prompt"]
     assert "English legacy context as the preferred baseline" in packets[0]["user_prompt"]
     assert "Do not output narrative_review" in packets[0]["user_prompt"]
+    assert "Use study_design_category=other for surveys" in packets[0]["user_prompt"]
+    assert "Never put cannot_determine inside a list" in packets[0]["user_prompt"]
+    assert "Use cognition" in packets[0]["user_prompt"]
     assert "outcome_domains must use only" in packets[0]["user_prompt"]
     assert "source_text_sha256" in packets[0]["user_prompt"]
     assert packets[0]["response_json_schema"]["properties"]["review_state"]

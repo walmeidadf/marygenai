@@ -54,10 +54,16 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
   responses, 97 strict-valid records, and evidence spans for every valid record.
 - The three validation failures shared a correctable `outcome_domains` enum
   issue rather than a provider or source failure.
+- Cognition appeared consistently enough in the failed records to justify a
+  first-class retrieval domain rather than lossy mapping to efficacy, safety, or
+  mechanism.
 - Among valid records, 90 of 97 principal study-design labels exactly matched
   the normalized English legacy type.
 - Declared uncertainty was common, but technical fields were no longer
   incorrectly reported as scientific uncertainty.
+- Six valid records still used free-text uncertainty entries and three omitted
+  required field-scoped uncertainty markers. Strict schema-v3 field names expose
+  these as contract defects instead of silently interpreting them.
 
 ## Product Interpretation
 

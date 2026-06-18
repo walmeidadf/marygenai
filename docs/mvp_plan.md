@@ -86,6 +86,12 @@ This supports the product direction but does not yet justify an unattended
 full-corpus run. The remaining work is localized schema/prompt hardening,
 repeatable evaluation, and confidence semantics.
 
+Schema v3 makes cognition an explicit outcome domain, keeps unsupported list
+values empty rather than inserting `cannot_determine`, adds granular
+study-design subtype metadata, and makes uncertainty field-scoped and
+machine-readable. The official local evaluator produces a targeted input for
+the three historical schema failures and seven study-design disagreements.
+
 ## MVP Workstreams
 
 1. Stabilize classification schema and uncertainty representation.

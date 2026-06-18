@@ -29,14 +29,14 @@ from marygenai.classification_corpus.models import (
 from marygenai.initial_load.files import file_sha256
 from marygenai.storage import LocalStorage
 
-PROMPT_VERSION = "candidate_study_classification_prompt.v2"
+PROMPT_VERSION = "candidate_study_classification_prompt.v3"
 EXTRACTOR_NAME = "marygenai_candidate_classifier"
 EXTRACTOR_VERSION = "0.1.0"
 DRY_RUN_PROVIDER = "dry_run"
 DRY_RUN_MODEL = "deterministic_mock_classifier"
 DEFAULT_PROMPT_SOURCE_CHARS = 12_000
 OPENAI_CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions"
-DEFAULT_OPENAI_MODEL = "gpt-4.1"
+DEFAULT_OPENAI_MODEL = "gpt-5.4-mini"
 DEFAULT_MAX_COMPLETION_TOKENS = 3000
 
 
@@ -200,6 +200,12 @@ def infer_evidence_context(study_design_category: str) -> str:
     return "cannot_determine"
 
 
+def infer_study_design_subtype(study_design_category: str) -> str:
+    if study_design_category in {"meta_analysis", "clinical_meta_analysis"}:
+        return "systematic_review"
+    return "cannot_determine"
+
+
 def infer_population_or_model(study_design_category: str) -> PopulationOrModel:
     if study_design_category in {"clinical_trial", "double_blind_clinical_trial"}:
         return PopulationOrModel(category="adult_humans", description="Dry-run inferred humans.")
@@ -270,6 +276,7 @@ def build_mock_classification(
         raise FileNotFoundError(msg)
 
     study_design_category = infer_study_design_category(record.legacy_study_type)
+    study_design_subtype = infer_study_design_subtype(study_design_category)
     evidence_context = infer_evidence_context(study_design_category)
     population_or_model = infer_population_or_model(study_design_category)
     intervention_or_exposure_role = infer_intervention_or_exposure_role(record)
@@ -277,12 +284,23 @@ def build_mock_classification(
     missing_or_uncertain_fields = []
     for field_name, value in (
         ("study_design_category", study_design_category),
+        ("study_design_subtype", study_design_subtype),
         ("evidence_context", evidence_context),
         ("intervention_or_exposure_role", intervention_or_exposure_role),
         ("population_or_model", population_or_model.category),
         ("overall_direction", overall_direction),
     ):
         if value == "cannot_determine":
+            missing_or_uncertain_fields.append(field_name)
+    for field_name, values in (
+        ("medical_conditions", record.medical_condition_labels),
+        ("cannabinoids_or_exposures", record.cannabinoid_labels),
+        (
+            "outcome_domains",
+            ["efficacy"] if overall_direction == "beneficial" else [],
+        ),
+    ):
+        if not values:
             missing_or_uncertain_fields.append(field_name)
 
     evidence_text = load_source_text_excerpt(source_text_path)
@@ -310,6 +328,7 @@ def build_mock_classification(
         source_text_sha256=file_sha256(source_text_path),
         created_at=created_at,
         study_design_category=study_design_category,  # type: ignore[arg-type]
+        study_design_subtype=study_design_subtype,  # type: ignore[arg-type]
         evidence_context=evidence_context,  # type: ignore[arg-type]
         medical_conditions=candidate_labels(record.medical_condition_labels, confidence="medium"),
         cannabinoids_or_exposures=candidate_labels(record.cannabinoid_labels, confidence="medium"),
@@ -339,8 +358,9 @@ def build_system_prompt() -> str:
         "You classify scientific source text for cannabinoid medicine source intelligence. "
         "Return only valid JSON matching the provided schema. Do not provide medical advice, "
         "treatment recommendations, or reviewed clinical conclusions. Treat the output as "
-        "candidate evidence for human review. Use cannot_determine when the source text does "
-        "not support a field, and explain uncertainty in missing_or_uncertain_fields."
+        "candidate evidence for human review. Use cannot_determine only for scalar fields "
+        "whose enums support it. For unsupported list fields, return an empty list and add "
+        "the canonical field name to missing_or_uncertain_fields."
     )
 
 
@@ -413,11 +433,14 @@ def build_user_prompt(
         "- Include short evidence_spans copied from the source text for important claims.\n"
         "- Do not infer exact protocol details, dosage, or treatment recommendations.\n"
         "- Use English legacy context as the preferred baseline when it is provided.\n"
-        "- If a field is not supported, use cannot_determine and list it in "
-        "missing_or_uncertain_fields.\n"
-        "- missing_or_uncertain_fields may only name scientific classification fields; "
-        "never list technical identity or provenance fields such as model_provider, "
-        "model_name, classification_id, source_text_sha256, char_start, or char_end.\n"
+        "- If a scalar field is not supported and its enum permits cannot_determine, use "
+        "cannot_determine and list that exact field name in missing_or_uncertain_fields.\n"
+        "- If medical_conditions, cannabinoids_or_exposures, or outcome_domains has no "
+        "defensible value, return an empty list and list that exact field name in "
+        "missing_or_uncertain_fields. Never put cannot_determine inside a list.\n"
+        "- missing_or_uncertain_fields is machine-readable and may contain only canonical "
+        "field names from its schema enum. Put explanations in warnings, not in field names. "
+        "Never list technical identity, evidence-offset, or provenance fields.\n"
         "- Do not add keys that are not present in the schema.\n\n"
         "Enum discipline:\n"
         "- Use only enum values that appear in the JSON schema.\n"
@@ -426,13 +449,21 @@ def build_user_prompt(
         "double_blind_clinical_trial, animal_study, laboratory_study, other, or "
         "cannot_determine. Do not output narrative_review, mechanistic_review, "
         "systematic_review, randomized_controlled_trial, animal_in_vivo, or in_vitro.\n"
+        "- Use study_design_category=other for surveys, case reports or series, and "
+        "observational studies that do not fit the legacy-compatible principal categories. "
+        "Record the specific form in study_design_subtype. Do not relabel these designs as "
+        "clinical_trial solely because humans were observed.\n"
+        "- study_design_subtype carries the granular design. Use systematic_review, "
+        "scoping_review, narrative_review, mechanistic_review, survey, "
+        "case_report_or_series, observational_study, pilot_study, other, or "
+        "cannot_determine.\n"
         "- evidence_context describes the evidence setting; use review_or_synthesis "
         "there for review articles.\n"
         "- outcome_domains must use only efficacy, safety, adverse_events, biomarker, "
-        "mechanism, pharmacokinetics, public_health, or use_pattern. Map unsupported "
-        "domains such as cognition or behavior to the closest supported domain only "
-        "when the source text supports that mapping; otherwise omit the domain or use "
-        "cannot_determine in the relevant central field.\n\n"
+        "cognition, mechanism, pharmacokinetics, public_health, or use_pattern. Use cognition "
+        "for memory, attention, executive function, neurocognitive performance, or cognitive "
+        "impairment. Behavior is not automatically cognition; omit unsupported domains and "
+        "mark outcome_domains uncertain when no permitted value is defensible.\n\n"
         "Output identity defaults:\n"
         f"{json.dumps(output_identity, ensure_ascii=False, indent=2)}\n\n"
         "Response JSON schema:\n"

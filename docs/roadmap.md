@@ -12,9 +12,9 @@ prerequisite for useful candidate retrieval.
 
 ## Now: Classification Reliability
 
-1. Correct known schema/prompt defects from the 100-document schema-v2 run.
-2. Make uncertainty machine-readable and field-scoped.
-3. Add a repeatable evaluation command for English legacy alignment, evidence
+1. Validate schema-v3 prompt packets against the targeted 10-document rerun set.
+2. Re-run only the three schema failures and seven study-design disagreements.
+3. Use the repeatable evaluation command for English legacy alignment, evidence
    coverage, unsupported labels, and retrieval utility.
 4. Define confidence semantics:
    - model-declared classification confidence;

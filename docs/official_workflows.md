@@ -76,6 +76,23 @@ Validate the schema with deterministic mock output:
 uv run marygenai classification run-smoke --limit 5
 ```
 
+Evaluate an existing run without calling a model:
+
+```bash
+uv run marygenai classification evaluate \
+  --records-path <candidate_classification_records.jsonl> \
+  --errors-path <candidate_classification_errors.jsonl> \
+  --raw-responses-path <candidate_classification_raw_responses.jsonl> \
+  --summary-path <candidate_classification_summary.json> \
+  --input-path <classification_sample_records.jsonl> \
+  --legacy-context-path <legacy_english_context_records.jsonl>
+```
+
+The evaluation writes ignored reports, disagreements, unsupported evidence-span
+checks, documents requiring rerun, and a targeted rerun input under
+`data/normalized/classification_evaluations/`. It separates technical validity,
+retrieval utility, and inference quality.
+
 Run a bounded provider-backed validation:
 
 ```bash
