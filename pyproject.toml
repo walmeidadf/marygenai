@@ -1,7 +1,7 @@
 [project]
 name = "marygenai"
 version = "0.1.0"
-description = "POC lab for cannabinoid scientific metadata sources and ontology experiments."
+description = "Scientific source intelligence and candidate classification for cannabinoid medicine."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [

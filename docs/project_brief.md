@@ -1,79 +1,61 @@
 # Project Brief
 
-MaryGenAI aims to build a structured, continuously updated scientific
-source-intelligence engine for studies and related documents about cannabinoid
-therapy in human and veterinary contexts.
+MaryGenAI is an open-source scientific source-intelligence and
+candidate-classification engine for cannabinoid medicine.
 
-The project still values human-reviewed evidence as the highest trust layer, but
-the near-term MVP no longer assumes large-scale human curation is available. The
-current product direction is to discover candidate documents, resolve identity,
-enrich metadata, acquire source text, prepare classification-ready corpora, and
-generate provenance-aware AI classification candidates that can later be reviewed
-by humans.
+## Problem
 
-The repository is public. The maintainer's original legacy exports are private
-and intentionally absent from the repository. They are used locally as a trusted
-bootstrap and validation anchor while the project produces public reviewed
-snapshots that future users can treat as the baseline.
+Relevant literature is distributed across publication indexes, repositories,
+publisher pages, PDFs, and inconsistent metadata. Physicians and researchers
+spend time locating studies before they can assess them. General-purpose AI tools
+can help search, but they need a structured, provenance-aware scientific source
+layer.
 
-The project is inspired by CannaKeys-style metadata but is broader in scope. It will explore:
+## Proposed Solution
 
-- human and veterinary evidence;
-- clinical trial records;
-- publication metadata;
-- cannabinoid and terpene ontology;
-- medical condition mappings;
-- routes of administration;
-- dosing and protocol extraction;
-- drug interaction evidence;
-- human review workflows.
+MaryGenAI continuously:
 
-The current phase is moving from source-specific POCs into a local-first MVP for
-source intelligence and candidate classification. The MVP should stay
-conservative: it validates and enriches scientific evidence metadata and source
-text, but it does not provide medical advice or treatment recommendations.
+1. discovers candidate documents;
+2. resolves publication identity;
+3. enriches metadata and source-access paths;
+4. prepares usable source text;
+5. adds evidence-backed candidate classifications;
+6. exposes structured records for retrieval by humans and AI tools.
 
-## Current Objective
+The intended first external product is a read-only MCP interface. It should let a
+research assistant filter and rank studies by condition, cannabinoid, study type,
+population, outcomes, source quality, and classification confidence, while
+linking every result back to the original publication and supporting evidence.
 
-Build a local-first MVP that validates the maintainer's private legacy bootstrap,
-discovers PubMed candidate publications from January 2024 onward, enriches
-candidates with validated source flows, prepares classification-ready corpora,
-and produces candidate study classifications with explicit provenance and trust
-levels.
+## Trust Boundary
 
-The first MVP milestone is not a production crawler. It is a reviewable source
-intelligence workflow that can answer:
+AI classifications are probabilistic retrieval metadata. Human-reviewed
+knowledge remains a separate, higher trust level. MaryGenAI does not provide
+medical advice or treatment recommendations.
 
-> Which bootstrap records and new candidate publications have enough identity,
-> metadata, and source text to support candidate classification, with what
-> provenance, quality gates, and trust state?
+The private maintainer bootstrap is used locally as a trusted validation anchor.
+It is not distributed publicly. Future reviewed public snapshots should become
+the reproducible baseline for contributors.
 
-The current publication-source plan treats PubMed as the primary publication
-identity and metadata hub, then uses PMC, Europe PMC, Unpaywall, DOI, and publisher
-links to classify full-text availability before any broad download or crawler
-strategy. See [PubMed Source Plan](pubmed_source_plan.md).
+## Current Milestone
 
-For ongoing publication discovery, PubMed is the current primary source of new
-study detection. The preferred pipeline is PubMed discovery first, then identifier
-normalization, then access enrichment, then targeted full-text/XML extraction only
-when needed. Priority should be dominated by `cannabinoid_focus`; study design,
-access, recency, and citation metrics are secondary signals.
+The current milestone is to stabilize:
 
-See [MVP Plan](mvp_plan.md) and
-[Classification Dataset Plan](classification_dataset_plan.md) for the current
-product direction.
+- the deduplicated classification corpus;
+- candidate-classification schema and prompt;
+- confidence and uncertainty semantics;
+- evaluation metrics for technical validity, retrieval utility, and inference
+  quality;
+- a repeatable path from PubMed discovery to source-ready candidate records.
 
-The first MVP implementation milestone is complete for the maintainer workflow:
-`uv run marygenai initial-load run` loads private legacy Cannadocs studies and
-ontology CSVs into auditable JSONL snapshots and run manifests under ignored
-`data/` paths. The public project should not require those private CSVs once
-reviewed snapshots are exported.
+See [Product Value](product_value.md), [MVP Plan](mvp_plan.md), and
+[Roadmap](roadmap.md).
 
-## Non-Goals For Now
+## Non-Goals
 
-- No user-facing medical tool.
-- No clinical recommendation engine.
-- No claim that AI-classified records are human-reviewed knowledge.
-- No final commitment to PostgreSQL, NoSQL, graph databases, or search infrastructure.
-- No citation-first ranking.
-- No broad publisher crawler.
+- diagnosis or treatment recommendation;
+- replacing clinical appraisal of source studies;
+- claiming that model confidence is a calibrated probability;
+- presenting AI-classified records as human-reviewed;
+- supporting historical standalone POC commands as public APIs;
+- committing private inputs or generated source artifacts.

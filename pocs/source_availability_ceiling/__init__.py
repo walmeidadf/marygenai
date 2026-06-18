@@ -1,2 +1,0 @@
-"""Source availability ceiling POC."""
-

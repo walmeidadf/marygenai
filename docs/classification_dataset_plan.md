@@ -1,289 +1,203 @@
-# Classification Dataset Plan
+# Classification Dataset And Contract
 
-This document defines the next MaryGenAI workstream after the June 2026 source
-acquisition campaign. The goal is not to run broad classification immediately.
-The goal is to freeze the classification substrate, define the output schema, and
-run a small stratified candidate-classification POC over real source text.
+## Purpose
 
-## Product Direction
+Classification adds structured retrieval metadata to source-ready scientific
+documents. It helps downstream users and AI assistants filter, rank, and inspect
+studies. It does not determine clinical truth.
 
-MaryGenAI is now framed as a cannabinoid scientific source-intelligence and
-candidate-classification engine. The first useful product is a reproducible
-pipeline that can:
+## Corpus Rollup
 
-- discover scientific documents;
-- resolve publication identity;
-- enrich metadata and access signals;
-- acquire source text when allowed;
-- determine whether a document is classification-ready;
-- generate AI classification candidates with provenance;
-- later expose discovered, enriched, source-ready, and candidate-classified
-  documents through read-only retrieval surfaces, potentially an MCP server.
+The official command is:
 
-Human review remains the highest trust layer, but large-scale human curation is
-not assumed for the next milestone. AI outputs are candidate evidence only.
+```bash
+uv run marygenai classification-corpus rollup --sample-size 30
+```
 
-## Working Dataset
+It reads ignored local artifacts, deduplicates by `document_id`, and must not
+mutate SQLite, review queues, decisions, or reviewed knowledge.
 
-The first classification dataset should be a deduplicated rollup of the current
-legacy-core source acquisition results.
-
-Primary dataset:
-
-- universe: operational legacy-core documents;
-- count: 6,491 documents;
-- strict classification-ready count: about 3,149 documents;
-- source-ready count without requiring the simple cannabinoid term detector:
-  about 3,374 documents.
-
-Use the strict classification-ready set as the first default dataset. Keep the
-broader source-ready set as a secondary queue for detector tuning and prompt
-validation.
-
-The corpus rollup should read ignored local artifacts only and must not mutate
-SQLite, review queues, review decisions, or reviewed knowledge.
-
-Recommended output path:
+Outputs:
 
 ```text
 data/normalized/classification_corpus/<run_id>_classification_corpus_records.jsonl
 data/normalized/classification_corpus/<run_id>_classification_corpus_summary.json
+data/normalized/classification_runs/<run_id>_classification_sample_records.jsonl
+data/normalized/classification_runs/<run_id>_classification_sample_summary.json
 ```
 
-## Corpus Rollup Fields
+Each corpus record should preserve:
 
-Each rollup record should include:
-
-- `document_id`;
-- `legacy_study_id`;
-- `primary_title`;
-- `publication_year`;
-- `pmid`;
-- `pmcid`;
-- `doi`;
-- `canonical_url`;
-- `legacy_study_type`;
-- `legacy_result`;
-- `legacy_type_of_study`;
-- `legacy_study_result`;
-- `legacy_key_findings`;
-- `medical_condition_labels`;
-- `organ_system_labels`;
-- `cannabinoid_labels`;
-- `source_strategy`;
-- `source_url`;
-- `source_text_path`;
-- `raw_payload_path`;
-- `extracted_text_chars`;
-- `scientific_section_hit_count`;
-- `cannabinoid_term_hit_count`;
-- `source_ready`;
-- `classification_ready`;
-- `classification_dataset_split`;
-- `trust_level`;
-- `provenance`.
-
-Recommended `trust_level` values:
-
-- `source_discovered`;
-- `metadata_enriched`;
-- `source_text_available`;
-- `ai_classified_candidate`;
-- `human_reviewed`.
-
-The initial rollup should assign source-ready records to
-`source_text_available`, not `ai_classified_candidate`.
+- document identity, title, year, PMID, PMCID, DOI, and canonical URL;
+- legacy traceability and normalized English legacy context when available;
+- condition, organ-system, and cannabinoid labels;
+- source strategy, URL, text path, raw payload path, and content quality;
+- source-ready and classification-ready state;
+- dataset split, trust level, and provenance.
 
 ## Candidate Classification Schema
 
-The first AI classification output should be coarse, provenance-heavy, and
-designed for later review. It should avoid fields that require table extraction,
-figure interpretation, or exact protocol reconstruction.
+Current schema:
 
-Recommended record identity fields:
+```text
+candidate_study_classification.v2
+```
+
+Required identity and provenance:
 
 - `classification_id`;
 - `document_id`;
 - `classification_run_id`;
 - `schema_version`;
-- `extractor_name`;
-- `extractor_version`;
-- `model_provider`;
-- `model_name`;
+- `extractor_name` and `extractor_version`;
+- `model_provider` and `model_name`;
 - `prompt_version`;
-- `source_text_path`;
-- `source_text_sha256`;
-- `created_at`.
+- `source_text_path` and `source_text_sha256`;
+- `created_at`;
+- run and source provenance.
 
-Recommended classification fields:
+Retrieval fields:
 
-- `study_design_category`: one of the English legacy study-type domain values
-  `meta_analysis`, `clinical_meta_analysis`, `clinical_trial`,
-  `double_blind_clinical_trial`, `animal_study`, `laboratory_study`, `other`,
-  `cannot_determine`;
-- `evidence_context`: one of `human_clinical`, `human_observational`,
-  `animal_preclinical`, `in_vitro_or_cellular`, `review_or_synthesis`,
-  `mixed`, `cannot_determine`;
-- `medical_conditions`: candidate normalized labels and free-text labels;
-- `cannabinoids_or_exposures`: candidate normalized labels and free-text labels;
-- `intervention_or_exposure_role`: one of `therapeutic_intervention`,
-  `recreational_or_nonmedical_exposure`, `endocannabinoid_system_mechanism`,
-  `synthetic_or_pharmaceutical_cannabinoid`, `cannabis_use_or_dependence`,
-  `cannot_determine`;
-- `population_or_model`: short text plus category such as `adult_humans`,
-  `pediatric_humans`, `animals`, `cells`, `mixed`, `cannot_determine`;
-- `outcome_domains`: list of domains such as `efficacy`, `safety`,
-  `adverse_events`, `biomarker`, `mechanism`, `pharmacokinetics`,
-  `public_health`, `use_pattern`;
-- `overall_direction`: one of `beneficial`, `harmful`, `mixed`, `null`,
-  `not_applicable`, `cannot_determine`;
-- `classification_confidence`: one of `high`, `medium`, `low`;
-- `requires_human_review`: boolean, initially always true;
-- `review_state`: initially `needs_review`.
+- `study_design_category`;
+- `evidence_context`;
+- `medical_conditions`;
+- `cannabinoids_or_exposures`;
+- `intervention_or_exposure_role`;
+- `population_or_model`;
+- `outcome_domains`;
+- `overall_direction`;
+- `classification_confidence`.
 
-Recommended evidence fields:
+Evidence and uncertainty:
 
-- `evidence_spans`: list of source snippets with `section`, `text`,
-  `char_start`, `char_end` when available;
+- `evidence_spans`;
 - `supporting_sections`;
 - `missing_or_uncertain_fields`;
 - `warnings`;
-- `provenance`.
+- `requires_human_review=true`;
+- `review_state=needs_review`.
 
-The first schema should require the model to return `cannot_determine` instead
-of guessing when source text is insufficient.
+## Study Design Domain
 
-The principal `study_design_category` field should stay aligned to the English
-legacy `type_of_study` domain. Interpretive labels such as `narrative_review`,
-`mechanistic_review`, `systematic_review`, `animal_in_vivo`, or `in_vitro` must
-not replace the principal legacy-compatible category. If those distinctions are
-useful later, add a separate subtype field instead of changing the main
+The principal field uses the normalized English legacy-compatible domain:
+
+- `meta_analysis`;
+- `clinical_meta_analysis`;
+- `clinical_trial`;
+- `double_blind_clinical_trial`;
+- `animal_study`;
+- `laboratory_study`;
+- `other`;
+- `cannot_determine`.
+
+This field is primarily a retrieval filter. More specific labels such as case
+report, survey, observational study, narrative review, or mechanistic review
+should become separate subtype metadata instead of replacing the principal
 comparison axis.
 
-## First POC Sample
+## Confidence Semantics
 
-The first POC should classify a stratified sample, not the whole corpus.
+`classification_confidence` is currently a model-declared categorical assessment:
 
-Recommended size:
+- `high`;
+- `medium`;
+- `low`.
 
-- 5 difficult documents for fast provider/schema validation;
-- 30 documents for a model-comparison smoke test;
-- 100 documents for the next cost, retry, and quality estimate before any
-  corpus-scale classification run.
+It is not a calibrated probability and must not be described as one.
 
-The earlier 120-document target is superseded by the 100-document gate. A
-100-document run is large enough to expose enum mistakes, truncation, retry
-rates, latency, and per-document token behavior while keeping spend bounded.
+Future retrieval confidence should be a separately computed field combining
+source and pipeline signals. It must remain distinct from:
 
-Recommended strata:
+- the model's self-assessment;
+- scientific evidence hierarchy;
+- clinical effect certainty;
+- human review status.
 
-- condition coverage: pain, addiction/cannabis, epilepsy, anxiety, depression,
-  psychosis, cancer, inflammation;
-- study-type coverage: meta-analysis, animal study, laboratory study, clinical
-  trial, double-blind clinical trial, clinical meta-analysis;
-- source strategy coverage: PMC OAI-PMH, Unpaywall PDF, augmented links;
-- source quality coverage: strict classification-ready and broader source-ready
-  records.
+## Uncertainty Semantics
 
-Recommended sample output paths:
+`missing_or_uncertain_fields` should contain canonical field names only. Detailed
+rationale belongs in warnings or a future structured uncertainty object.
 
-```text
-data/normalized/classification_runs/<run_id>_classification_sample_records.jsonl
-data/normalized/classification_runs/<run_id>_classification_sample_summary.json
-data/normalized/classification_runs/<run_id>_classification_errors.jsonl
-```
+For list fields, absence of a defensible label should produce an empty list and
+the field name in uncertainty. `cannot_determine` should not be inserted into a
+list enum unless the schema explicitly supports it.
 
-## Evaluation Metrics
+Declared uncertainty is acceptable when it reflects science or source
+limitations. Invalid enum values, inconsistent field usage, or avoidable prompt
+ambiguity are correctable defects.
 
-The POC should measure:
+## Evaluation
 
-- valid JSON rate;
-- schema validation pass rate;
-- `cannot_determine` rate by field;
-- evidence span presence rate;
-- unsupported evidence or hallucination flags;
-- average input tokens and output tokens;
-- cost estimate by provider/model;
-- latency;
-- provider errors and retries;
-- classification distribution by condition and study type;
-- disagreement with English legacy `type_of_study` and `study_result`, when the
-  maintainer-local English legacy context is available.
+### Technical Validity
 
-Use normalized English legacy context as the preferred evaluation baseline.
-Portuguese bootstrap fields such as `legacy_study_type` and `legacy_result` may
-remain in corpus records for traceability and fallback, but model evaluation,
-prompt construction, and reported classification comparisons should use
-`data/normalized/legacy_english_context/` fields first when they can be matched
-to a document.
+- provider success;
+- valid JSON;
+- strict Pydantic pass rate;
+- retries and errors;
+- token use, cost, and latency;
+- output and provenance completeness.
 
-The POC should not mutate SQLite or mark records as reviewed.
+### Retrieval Utility
 
-## Provider And Model Findings
+- evidence-span presence;
+- coverage of filterable fields;
+- broad-recall behavior under uncertainty;
+- high-confidence ranking behavior;
+- source traceability;
+- condition, cannabinoid, study-type, and outcome coverage.
 
-The first provider-backed classification tests used the same source-ready
-documents and strict Pydantic validation to compare models. Generated outputs
-remain candidate evidence only.
+### Inference Quality
 
-Observed local POC results:
+- exact and compatible agreement with normalized English legacy context;
+- source-supported disagreements;
+- unsupported evidence or labels;
+- systematic errors by source, type, or condition;
+- uncertainty precision;
+- confidence calibration.
 
-- `gpt-4.1` classified the 30-document smoke sample successfully after retrying
-  five records with a larger completion-token budget. The clean 30-document
-  estimate was about 168,658 tokens and about USD 0.60 at then-current pricing.
-- `gpt-5.4-mini` passed the same five difficult documents with no errors, then
-  classified the same 30-document smoke sample successfully after one retry.
-  The clean 30-document estimate was about 166,315 tokens and about USD 0.28.
-- `gpt-5.4-nano` was much cheaper, but failed two of five difficult documents by
-  confusing `study_design_category` and `evidence_context`. It should not be the
-  default classifier until prompt/schema hardening proves it can pass the same
-  comparison set reliably.
+Legacy comparison uses normalized English context first. Portuguese fields remain
+fallback and traceability only.
 
-Current default POC choice:
+## Provider Validation Results
 
-- provider: OpenAI;
-- model: `gpt-5.4-mini`;
-- `max_source_chars`: `6000`;
-- `max_completion_tokens`: `3000`.
+Current bounded tests favor OpenAI `gpt-5.4-mini` with:
 
-The prompt should explicitly reinforce enum discipline. In particular:
+- `max_source_chars=6000`;
+- `max_completion_tokens=3000`.
 
-- `study_design_category` must use the English legacy study-type domain, not a
-  free-form or PubMed-style publication subtype;
-- `evidence_context` should use `review_or_synthesis` for review articles;
-- `outcome_domains` must use only supported enum values. Unsupported domains
-  such as cognition or behavior should be mapped only when the source text
-  supports a supported domain, otherwise omitted or treated as uncertainty.
+The 2026-06-18 100-document schema-v2 run produced:
 
-The project is not ready for an unattended full classification run yet. Before
-mass classification, run the 100-document gate and summarize:
+- 100/100 successful HTTP responses;
+- no retries;
+- 97/100 strict-valid classification records;
+- evidence spans for 97/97 valid records;
+- 90/97 exact principal study-design matches with English legacy context;
+- no result-direction opposites under the current broad comparison;
+- three validation failures caused by unsupported `outcome_domains` values.
 
-- valid JSON and strict Pydantic pass rates;
-- retry rate and retry reasons;
-- token and dollar cost per document;
-- latency per document;
-- distribution drift versus the 30-document `gpt-4.1` baseline;
-- evidence-span presence and obvious grounding failures;
-- source-quality and source-sufficiency failure modes.
+Estimated cost was about USD 0.92, or USD 0.0092 per input document at the pricing
+used for the estimate.
 
-## Next Sequence
+The run supports further development but exposes known work before mass
+classification:
 
-1. Implement a classification corpus rollup command.
-2. Add a strict Pydantic schema for candidate classification outputs.
-3. Generate the first corpus rollup from current local acquisition artifacts.
-4. Produce a 30-document smoke-test sample packet.
-5. Run one model/prompt over the smoke test.
-6. Compare `gpt-4.1`, `gpt-5.4-mini`, and cheaper alternatives on the same
-   documents.
-7. Use `gpt-5.4-mini` as the default next POC model and keep `gpt-5.4-nano`
-   out of the default path until it passes the difficult comparison set.
-8. Run a 100-document stratified classification POC.
-9. Summarize quality, cost, latency, retry reasons, and classification
-   distributions.
-10. Decide whether to run a larger batch or first add PubMed-discovery expansion.
-11. Design a read-only MCP surface over source-ready and candidate-classified
-    documents after the classification output shape stabilizes.
+1. define or map cognition-related outcomes;
+2. keep `cannot_determine` out of unsupported list enums;
+3. improve `other` and future subtype handling for surveys, case reports, and
+   observational designs;
+4. enforce field-only uncertainty entries;
+5. add repeatable evaluation instead of ad hoc analysis.
+
+## Scaling Sequence
+
+1. Correct known schema and prompt defects.
+2. Re-run affected failures and disagreement records.
+3. Add an official evaluation command.
+4. Test retrieval behavior with representative physician questions.
+5. Run a larger stratified batch.
+6. Add resumable batch execution before full-corpus classification.
 
 ## Safety Boundary
 
-Candidate classifications are scientific retrieval and curation aids. They are
-not medical advice, treatment recommendations, or reviewed clinical conclusions.
+Classification artifacts are candidate evidence. They are retrieval and curation
+aids, not medical advice, reviewed knowledge, or treatment recommendations.

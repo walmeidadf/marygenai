@@ -1,6 +1,5 @@
-"""MaryGenAI POC utilities."""
+"""MaryGenAI scientific source-intelligence and candidate-classification package."""
 
 __all__ = ["__version__"]
 
 __version__ = "0.1.0"
-

@@ -25,11 +25,16 @@ MaryGenAI uses several related but separate status fields.
 | Document review state | `document.review_state` | Publications and other documents | Marks whether the document still needs review before it can be treated as curated. |
 | PubMed-baseline identity | `publication_candidate_discovery.identity_status` | PubMed candidate discoveries | Classifies the candidate's relationship to the baseline/legacy index. |
 | Structured identity decision | `review_decision.decision` | Identity review tasks | Stores a reviewer decision separately from queue workflow status. |
+| Candidate classification confidence | `classification_confidence` | AI candidate classifications | Records the model's categorical confidence in an inferred retrieval label. |
 
 Do not treat a queue item becoming `resolved` as proof that the publication is
 fully curated knowledge. For PubMed candidates, `resolved` usually means the
 candidate-review task has been handled, not that downstream enrichment fields
 have been extracted, validated, and exported.
+
+`classification_confidence` is also separate from every review status. It is a
+model-declared `high`, `medium`, or `low` assessment, not a calibrated
+probability, reviewer approval, or measure of clinical evidence strength.
 
 ## Queue Workflow Status
 

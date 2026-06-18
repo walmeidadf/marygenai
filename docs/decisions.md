@@ -1,5 +1,48 @@
 # Decision Log
 
+## 2026-06-18: Define MaryGenAI As A Retrieval-Oriented Source-Intelligence Product
+
+MaryGenAI's primary value is to make cannabinoid medical literature easier to
+discover, filter, inspect, and verify. Candidate classifications are structured
+retrieval metadata for physicians, researchers, and downstream AI assistants.
+They are not clinical truth or treatment recommendations.
+
+Classification quality must be evaluated in three separate groups: technical
+validity, retrieval utility, and inference quality. Declared scientific or
+source-related uncertainty can remain useful when it is evidence-backed and
+visible. Known schema, prompt, source-routing, or pipeline defects should be
+corrected rather than accepted as unavoidable uncertainty.
+
+Current model confidence is categorical self-assessment, not a calibrated
+probability. A future retrieval confidence score must be computed separately and
+must remain distinct from clinical evidence strength and human review status.
+
+## 2026-06-18: Keep Only Supported Package Workflows In The Public Surface
+
+The public repository should expose supported workflows through
+`src/marygenai/` and the `marygenai` CLI. Historical standalone POC
+implementations, POC-only tests, and local batch runners are no longer supported
+public APIs. They may be preserved locally under ignored
+`temp/project_archive/`, while durable findings remain public in
+`docs/experimental_findings.md` and this decision log.
+
+This is an archival boundary, not a rejection of the experiments. Git history
+preserves their implementation, and validated capabilities should be promoted
+into package modules with focused tests and official command documentation.
+
+## 2026-06-18: Interpret The 100-Document Schema-V2 Gate By Metric Type
+
+The second 100-document `gpt-5.4-mini` gate produced 100 successful provider
+responses without retries, 97 strict-valid records, and evidence spans for every
+valid record. Among valid records, 90 of 97 principal study-design labels
+exactly matched normalized English legacy context. The three validation failures
+shared a correctable `outcome_domains` enum issue.
+
+These results should not be collapsed into one accuracy number. Provider success
+and Pydantic validity are technical metrics. Evidence-span and filter-field
+coverage are retrieval-utility metrics. Legacy agreement, source-supported
+disagreement, and uncertainty quality are inference metrics.
+
 ## 2026-06-17: Use GPT-5.4 Mini For The Next Classification POC Gate
 
 Same-document provider tests showed that `gpt-5.4-mini` is the best current

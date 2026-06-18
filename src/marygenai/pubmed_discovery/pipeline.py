@@ -317,8 +317,8 @@ def candidate_from_pubmed_record(
             "fetched_at": fetched_at,
             "window": window.model_dump(mode="json"),
             "query_names": query_names,
-            "parser": "pocs.pubmed.validate_pubmed.parse_pubmed_xml",
-            "scoring": "pocs.pubmed_discovery.discover_pubmed",
+            "parser": "marygenai.pubmed_discovery.pubmed.parse_pubmed_xml",
+            "scoring": "marygenai.pubmed_discovery.pipeline",
         },
     )
 

@@ -19,7 +19,7 @@ htmlcov/
 .venv/
 venv/
 
-# Project data and scratch space
+# Project data, private inputs, archived experiments, and scratch space
 data/
 temp/
 outputs/

@@ -53,10 +53,16 @@ description, for example, is an enrichment candidate until reviewed.
 
 ## Important Modeling Notes
 
-The legacy `Type of Study` field mixes publication type and study design. Future modeling should split these concepts:
+The principal candidate-classification field currently preserves the normalized
+English legacy-compatible domain because it is a useful and validated retrieval
+filter. Future modeling should add separate publication-type and design-subtype
+fields instead of silently changing that principal domain:
 
 - `publication_type`: review, systematic review, meta-analysis, clinical trial article, case report, preclinical paper;
 - `study_design`: RCT, double-blind RCT, cohort, animal model, in vitro, observational, survey.
+
+Ontology confidence is confidence in a label or mapping. It is not clinical
+evidence strength, a treatment recommendation, or human review status.
 
 Dosing fields are sparse in the private bootstrap data and should be treated as a
 specialized extraction track rather than a default field for every record.
