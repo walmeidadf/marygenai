@@ -12,9 +12,10 @@ prerequisite for useful candidate retrieval.
 
 ## Now: Classification Reliability
 
-1. Inspect the seven remaining source-versus-legacy study-design disagreements.
-2. Refine overall-direction semantics for descriptive outcomes such as dropout
-   rates and survey perceptions.
+1. Define a useful computed retrieval-confidence signal beyond model-declared
+   confidence.
+2. Test that confidence signal on the targeted records and realistic broad versus
+   narrow retrieval queries.
 3. Use the repeatable evaluation command for English legacy alignment, evidence
    coverage, unsupported labels, and retrieval utility.
 4. Define confidence semantics:

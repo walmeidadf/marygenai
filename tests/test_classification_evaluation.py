@@ -5,6 +5,7 @@ from pathlib import Path
 
 from marygenai.classification.evaluation import (
     evaluate_classification_run,
+    study_design_disagreement_status,
     token_ngram_grounding_score,
 )
 from marygenai.storage import LocalStorage
@@ -174,6 +175,9 @@ def test_evaluate_classification_run_separates_metrics_and_builds_rerun_input(
     )
     assert report["retrieval_utility"]["machine_readable_uncertainty_records"] == 0
     assert report["inference_quality"]["study_design_disagreements"] == 1
+    assert report["inference_quality"]["study_design_disagreement_status_counts"] == {
+        "unresolved_disagreement": 1
+    }
     assert report["rerun_document_count"] == 1
     assert targeted_rows == [sample_row]
 
@@ -188,3 +192,23 @@ def test_token_ngram_grounding_tolerates_extraction_artifacts() -> None:
     )
 
     assert token_ngram_grounding_score(source_text, evidence_text) >= 0.8
+
+
+def test_study_design_disagreement_status_distinguishes_resolved_conflicts() -> None:
+    survey_status = study_design_disagreement_status(
+        expected_design="meta_analysis",
+        predicted_design="other",
+        predicted_subtype="survey",
+        title="A national survey of clinician perceptions",
+        evidence_spans=[],
+    )
+    refinement_status = study_design_disagreement_status(
+        expected_design="meta_analysis",
+        predicted_design="clinical_meta_analysis",
+        predicted_subtype="systematic_review",
+        title="Systematic review and meta-analysis of clinical trials",
+        evidence_spans=[],
+    )
+
+    assert survey_status == "source_supported_override"
+    assert refinement_status == "compatible_refinement"

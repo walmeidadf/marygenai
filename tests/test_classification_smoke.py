@@ -216,6 +216,10 @@ def test_build_classification_prompt_packets_writes_prompt_and_schema(tmp_path: 
     assert "Never put cannot_determine inside a list" in packets[0]["user_prompt"]
     assert "Use cognition" in packets[0]["user_prompt"]
     assert "outcome_domains must use only" in packets[0]["user_prompt"]
+    assert "Use not_applicable for descriptive surveys" in packets[0]["user_prompt"]
+    assert "Use null only when an effect or association was evaluated" in packets[0]["user_prompt"]
+    assert "a scoping review is scoping_review" in packets[0]["user_prompt"]
+    assert "must not contradict each other" in packets[0]["user_prompt"]
     assert "source_text_sha256" in packets[0]["user_prompt"]
     assert packets[0]["response_json_schema"]["properties"]["review_state"]
     assert packets[0]["corpus_metadata"]["document_id"] == "publication:pmid:1"

@@ -47,6 +47,19 @@ SCHEMA_V2_OUTCOME_DOMAINS = {
 CURRENT_OUTCOME_DOMAINS = SCHEMA_V2_OUTCOME_DOMAINS | {"cognition"}
 EVIDENCE_NGRAM_GROUNDING_THRESHOLD = 0.8
 EVIDENCE_NGRAM_MIN_TOKENS = 6
+SOURCE_EXPLICIT_SUBTYPE_TERMS = {
+    "survey": ("survey", "questionnaire"),
+    "case_report_or_series": ("case report", "case series", "case presentation"),
+    "observational_study": (
+        "observational",
+        "prospective",
+        "retrospective",
+        "longitudinal",
+        "cohort",
+    ),
+    "pilot_study": ("pilot study", "exploratory"),
+    "scoping_review": ("scoping review",),
+}
 
 
 def read_json(path: Path) -> dict[str, Any]:
@@ -260,6 +273,37 @@ def compatible_direction(legacy_result: str | None, predicted: str | None) -> bo
     return predicted in compatible.get(legacy_result or "", set())
 
 
+def study_design_disagreement_status(
+    *,
+    expected_design: str,
+    predicted_design: str | None,
+    predicted_subtype: str | None,
+    title: str | None,
+    evidence_spans: list[dict[str, Any]],
+) -> str:
+    if expected_design == predicted_design:
+        return "exact_match"
+    if {expected_design, predicted_design} == {
+        "meta_analysis",
+        "clinical_meta_analysis",
+    }:
+        return "compatible_refinement"
+    source_text = normalize_lookup_text(
+        " ".join(
+            [
+                title or "",
+                *(str(span.get("text") or "") for span in evidence_spans),
+            ]
+        )
+    )
+    subtype_terms = SOURCE_EXPLICIT_SUBTYPE_TERMS.get(predicted_subtype or "", ())
+    if predicted_design == "other" and any(
+        normalize_lookup_text(term) in source_text for term in subtype_terms
+    ):
+        return "source_supported_override"
+    return "unresolved_disagreement"
+
+
 def evaluate_classification_run(
     *,
     storage: LocalStorage,
@@ -417,8 +461,9 @@ def evaluate_classification_run(
     legacy_match_methods: Counter[str] = Counter()
     study_design_reference_count = 0
     study_design_exact_count = 0
-    direction_reference_count = 0
-    direction_compatible_count = 0
+    study_design_disagreement_status_counts: Counter[str] = Counter()
+    legacy_result_proxy_reference_count = 0
+    legacy_result_proxy_compatible_count = 0
     for record in records:
         sample_row = sample_by_document_id.get(record["document_id"])
         if sample_row is None:
@@ -435,6 +480,14 @@ def evaluate_classification_run(
             if record.get("study_design_category") == expected_design:
                 study_design_exact_count += 1
             else:
+                disagreement_status = study_design_disagreement_status(
+                    expected_design=expected_design,
+                    predicted_design=record.get("study_design_category"),
+                    predicted_subtype=record.get("study_design_subtype"),
+                    title=source_record.get("primary_title"),
+                    evidence_spans=record.get("evidence_spans") or [],
+                )
+                study_design_disagreement_status_counts[disagreement_status] += 1
                 disagreements.append(
                     {
                         "document_id": record["document_id"],
@@ -448,6 +501,7 @@ def evaluate_classification_run(
                         "predicted_study_design_subtype": record.get(
                             "study_design_subtype"
                         ),
+                        "disagreement_status": disagreement_status,
                         "classification_confidence": record.get(
                             "classification_confidence"
                         ),
@@ -457,8 +511,8 @@ def evaluate_classification_run(
                 )
         legacy_result = context.get("study_result")
         if legacy_result:
-            direction_reference_count += 1
-            direction_compatible_count += compatible_direction(
+            legacy_result_proxy_reference_count += 1
+            legacy_result_proxy_compatible_count += compatible_direction(
                 legacy_result,
                 record.get("overall_direction"),
             )
@@ -469,9 +523,10 @@ def evaluate_classification_run(
         if document_id:
             rerun_reasons.setdefault(document_id, set()).add("technical_validation_error")
     for disagreement in disagreements:
-        rerun_reasons.setdefault(disagreement["document_id"], set()).add(
-            "study_design_disagreement"
-        )
+        if disagreement["disagreement_status"] == "unresolved_disagreement":
+            rerun_reasons.setdefault(disagreement["document_id"], set()).add(
+                "unresolved_study_design_disagreement"
+            )
     rerun_documents = [
         {
             "document_id": document_id,
@@ -571,8 +626,19 @@ def evaluate_classification_run(
             "study_design_reference_records": study_design_reference_count,
             "study_design_exact_matches": study_design_exact_count,
             "study_design_disagreements": len(disagreements),
-            "direction_reference_records": direction_reference_count,
-            "direction_compatible_matches": direction_compatible_count,
+            "study_design_disagreement_status_counts": dict(
+                study_design_disagreement_status_counts
+            ),
+            "legacy_result_proxy_reference_records": (
+                legacy_result_proxy_reference_count
+            ),
+            "legacy_result_proxy_compatible_matches": (
+                legacy_result_proxy_compatible_count
+            ),
+            "legacy_result_proxy_semantics": (
+                "Heuristic only: legacy Positive/Negative/Inconclusive does not "
+                "consistently encode beneficial/harmful/null clinical direction."
+            ),
             "classification_confidence_semantics": (
                 "Categorical model assessment; not a calibrated probability."
             ),

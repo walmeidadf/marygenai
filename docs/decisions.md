@@ -1,5 +1,29 @@
 # Decision Log
 
+## 2026-06-18: Separate Descriptive Outcomes From Null Effects
+
+Classification prompt v4 reserves `null` for a tested effect or association with
+no meaningful difference or association. Descriptive surveys, prevalence or rate
+estimates, knowledge or perception studies, methodological reports, and other
+records without a beneficial/harmful effect question use `not_applicable`.
+
+The evaluator also distinguishes study-design disagreements as
+`source_supported_override`, `compatible_refinement`, or
+`unresolved_disagreement`. Only unresolved disagreements automatically enter the
+targeted rerun input. Legacy disagreement remains visible, but an explicit
+source-supported subtype is not treated as a model failure merely to increase
+exact agreement.
+
+Legacy `study_result` comparison is retained only as a named proxy. Values such
+as `Positive` and `Negative` are not assumed to be equivalent to
+`beneficial` and `harmful`; descriptive surveys, rates, and evidence findings
+demonstrate that the semantics differ.
+
+Prompt v5 also requires an explicitly named source subtype to control
+`study_design_subtype`. A source titled as a scoping review must use
+`scoping_review`, even when its principal retrieval category remains
+`clinical_meta_analysis`. Warnings must not contradict structured fields.
+
 ## 2026-06-18: Advance Candidate Classification To Schema V3
 
 `candidate_study_classification.v3` makes `cognition` an official outcome domain

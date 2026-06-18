@@ -126,6 +126,23 @@ source and pipeline signals. It must remain distinct from:
 - clinical effect certainty;
 - human review status.
 
+## Overall Direction
+
+`overall_direction` describes a source-supported effect or association relevant
+to the study question:
+
+- `beneficial`, `harmful`, or `mixed` require a directional effect or
+  association;
+- `null` means that an effect or association was evaluated and no meaningful
+  difference or association was found;
+- `not_applicable` is used for descriptive surveys, prevalence or rate
+  estimates, knowledge or perception studies, methodological reports, and other
+  records without a beneficial/harmful effect question;
+- `cannot_determine` means a directional question exists but the available
+  source is insufficient.
+
+`null` must not be used as a generic neutral label for descriptive findings.
+
 ## Uncertainty Semantics
 
 `missing_or_uncertain_fields` is a strict enum of canonical classification field
@@ -223,15 +240,29 @@ study-design disagreements:
 - 10/10 records with evidence spans;
 - 40/40 evidence spans grounded after extraction-artifact tolerance;
 - 3/10 exact principal study-design matches with English legacy context;
-- 8/10 compatible overall-direction comparisons;
+- 8/10 matches under the legacy-result direction proxy;
 - all three prior outcome-domain failures corrected;
 - estimated cost about USD 0.0849.
 
 The remaining seven study-design disagreements should not be treated as seven
-automatic model errors. Five now use `other` with explicit source-supported
-subtypes, one distinguishes a clinical meta-analysis from a broader legacy
-meta-analysis label, and one scoping review conflicts with a legacy clinical
-meta-analysis label. These records remain candidate evidence for inspection.
+automatic model errors. Six are source-supported overrides with explicit
+subtypes, and one is a compatible refinement from `meta_analysis` to
+`clinical_meta_analysis`. These records remain candidate evidence for
+inspection.
+
+The legacy-result direction comparison is a heuristic proxy only.
+`Positive`, `Negative`, and `Inconclusive` do not consistently encode
+beneficial, harmful, null, or not-applicable clinical direction. It must not be
+used as a calibrated inference-quality score.
+
+Prompt-v4 and prompt-v5 follow-up reduced the seven inspected conflicts to:
+
+- two exact principal legacy-compatible design matches;
+- five source-supported overrides with explicit subtypes;
+- zero unresolved study-design disagreements.
+
+The final seven-record interpretation has 31/31 evidence spans grounded with
+extraction tolerance. The two follow-up runs cost about USD 0.0694 combined.
 
 ## Scaling Sequence
 

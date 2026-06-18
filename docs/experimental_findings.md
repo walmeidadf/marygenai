@@ -77,9 +77,43 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
   `case_report_or_series`), and one used `clinical_meta_analysis` where the
   English legacy reference used the broader `Meta-analysis`.
 - The targeted run had 3/10 exact principal study-design matches and 8/10
-  compatible overall-direction comparisons against English legacy context.
+  matches under a legacy-result direction proxy.
   Exact legacy agreement alone understates source fidelity when the legacy label
   conflicts with explicit document design wording.
+- Deterministic inspection classified the seven study-design disagreements as
+  six source-supported overrides and one compatible refinement. None remained an
+  unresolved design disagreement requiring another run solely for study-design
+  agreement.
+- Two direction disagreements exposed a semantic ambiguity: `null` had been used
+  for a dropout-rate meta-analysis and a veterinarian perception survey even
+  though neither main question represented a null treatment effect. Prompt v4
+  reserves `null` for evaluated effects or associations and uses
+  `not_applicable` for descriptive outcomes.
+- The legacy-result direction proxy is not a trusted direction ground truth.
+  English legacy `Positive`, `Negative`, and `Inconclusive` values do not
+  consistently mean beneficial, harmful, null, or not applicable.
+- Prompt v4 was tested on the seven inspected design disagreements. It produced
+  7/7 strict-valid records and corrected the veterinarian survey from `null` to
+  `not_applicable`. The dropout-rate meta-analysis retained `null` because the
+  source explicitly reported tested moderator associations with no effect.
+- The prompt-v4 run required two retries for one survey record after a connection
+  reset and read timeout. All seven records ultimately succeeded. Total latency
+  was about 234 seconds, dominated by the retried record, and estimated cost was
+  about USD 0.0603.
+- Prompt v4 introduced one structured inconsistency: a source-explicit scoping
+  review was labeled `systematic_review` while its warning said scoping review.
+  Prompt v5 requires explicit source subtype wording to control the subtype and
+  forbids warnings from contradicting structured fields.
+- The one-document prompt-v5 validation produced
+  `clinical_meta_analysis + scoping_review`, `overall_direction=mixed`, no
+  retries, and no unresolved disagreement. Estimated cost was about USD 0.0091.
+- The final seven-record interpretation therefore contains two exact principal
+  legacy-compatible design matches, five source-supported overrides with
+  explicit subtypes, and no unresolved study-design disagreements. All 31
+  evidence spans passed extraction-tolerant grounding.
+- Model-declared confidence showed limited but non-zero variation in the final
+  set: six `medium` records and one `high` survey record. A computed retrieval
+  confidence remains necessary.
 - The run produced 40 evidence spans. Seventeen were exact normalized
   substrings; all 40 passed token-bigram grounding with extraction-artifact
   tolerance, leaving no spans for grounding review. Extracted PDFs and page text
