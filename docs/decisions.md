@@ -1,5 +1,22 @@
 # Decision Log
 
+## 2026-06-18: Treat Auxiliary Classifiers As Experimental Signals
+
+Classical TF-IDF or embedding classifiers trained on current legacy labels are
+legacy-consistency models, not source-truth validators. They may contribute a
+low-weight agreement or margin signal, but they must not override explicit
+source evidence. A source-reviewed training set with `other` and subtype examples
+is required before promoting them into classification validation.
+
+Small NLI models may contribute a semantic-support signal when applied to short,
+selected evidence spans and versioned atomic hypotheses. They must not act as a
+binary gate: neutral is not contradiction, hypothesis wording is material, and
+generic NLI training does not guarantee scientific study-design reliability.
+
+Both signal families remain outside `retrieval_confidence.v1` until evaluated
+against a source-reviewed benchmark. Deterministic schema, provenance,
+grounding, and consistency checks remain the production baseline.
+
 ## 2026-06-18: Start Retrieval Confidence As A Deterministic Evaluator Signal
 
 `retrieval_confidence.v1` is computed deterministically in Python from technical

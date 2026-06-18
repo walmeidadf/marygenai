@@ -145,6 +145,28 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
 - The first band threshold was also rejected as too permissive: a `high`
   threshold of 0.85 labeled nine of ten targeted records high. V1 now requires
   0.95 for `high` and 0.75 for `medium`.
+- A local TF-IDF classification experiment used 4,665 source-text documents
+  after excluding the seven known source-versus-legacy conflicts. Logistic
+  Regression reached 0.7856 accuracy and 0.7208 macro-F1 against normalized
+  English legacy study type. Linear SVM reached 0.7792 accuracy and 0.6934
+  macro-F1.
+- The legacy-trained classical models failed as semantic validators on the
+  conflict set. They confidently repeated `meta_analysis` for source-explicit
+  pilot, case-report, observational, and survey records. The training domain also
+  lacked a reliable `other` class. These models may be useful as a low-weight
+  legacy-consistency signal, but they require a source-reviewed training set
+  before they can validate study design.
+- A local `cross-encoder/nli-deberta-v3-small` experiment tested atomic
+  study-design hypotheses against selected title and design evidence spans. With
+  short premises, it strongly supported pilot study, scoping review,
+  meta-analysis, and survey hypotheses and contradicted several incorrect
+  meta-analysis hypotheses.
+- The same NLI model was not reliable as a gate. Case-report support was weaker
+  than neutral, observational-study judgments were incorrect or neutral, and
+  small hypothesis wording changes materially changed the result. NLI may
+  contribute a calibrated semantic-support feature after template versioning
+  and source-reviewed benchmarking; lack of entailment must not be interpreted
+  automatically as contradiction.
 - The run produced 40 evidence spans. Seventeen were exact normalized
   substrings; all 40 passed token-bigram grounding with extraction-artifact
   tolerance, leaving no spans for grounding review. Extracted PDFs and page text

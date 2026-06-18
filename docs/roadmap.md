@@ -16,14 +16,18 @@ prerequisite for useful candidate retrieval.
    queries and a small broader-source-ready contrast set.
 2. Perform weight sensitivity analysis before adding retrieval confidence to a
    public schema.
-3. Use the repeatable evaluation command for English legacy alignment, evidence
+3. Build a small source-reviewed study-design benchmark containing `other`,
+   survey, pilot, observational, case-report, and review subtypes.
+4. Re-test classical classifiers and NLI semantic support against that benchmark
+   before adding either signal to retrieval confidence.
+5. Use the repeatable evaluation command for English legacy alignment, evidence
    coverage, unsupported labels, and retrieval utility.
-4. Define confidence semantics:
+6. Define confidence semantics:
    - model-declared classification confidence;
    - deterministic pipeline confidence;
    - future calibrated retrieval confidence;
    - clinical evidence strength, which remains a separate concept.
-5. Re-run only affected and disagreement records before another broad paid run.
+7. Re-run only affected and disagreement records before another broad paid run.
 
 ## Next: Bounded Scale
 
