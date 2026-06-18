@@ -64,6 +64,33 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
 - Six valid records still used free-text uncertainty entries and three omitted
   required field-scoped uncertainty markers. Strict schema-v3 field names expose
   these as contract defects instead of silently interpreting them.
+- A targeted schema-v3 rerun on 2026-06-18 covered the three prior validation
+  failures and seven prior study-design disagreements. It produced 10/10 HTTP
+  successes, 10/10 valid JSON responses, 10/10 strict-valid records, no retries,
+  and evidence spans for every record.
+- All three prior `outcome_domains` failures became valid. Cognition appeared in
+  five of the ten records, confirming that it is useful as a first-class
+  retrieval domain.
+- Among the seven original study-design disagreements, one became an exact
+  English legacy match. Five used `other` with source-explicit subtypes
+  (`pilot_study`, `observational_study`, `survey`, or
+  `case_report_or_series`), and one used `clinical_meta_analysis` where the
+  English legacy reference used the broader `Meta-analysis`.
+- The targeted run had 3/10 exact principal study-design matches and 8/10
+  compatible overall-direction comparisons against English legacy context.
+  Exact legacy agreement alone understates source fidelity when the legacy label
+  conflicts with explicit document design wording.
+- The run produced 40 evidence spans. Seventeen were exact normalized
+  substrings; all 40 passed token-bigram grounding with extraction-artifact
+  tolerance, leaving no spans for grounding review. Extracted PDFs and page text
+  can interleave author names, headers, or journal metadata inside otherwise
+  copied sentences, so exact and tolerant grounding must be reported separately.
+- All ten records declared `classification_confidence=medium`. This categorical
+  self-assessment did not discriminate among the targeted cases and remains
+  unsuitable as a calibrated score.
+- The targeted run used 48,239 input tokens and 10,819 output tokens. At the
+  standard `gpt-5.4-mini` rates used on 2026-06-18, estimated cost was about
+  USD 0.0849.
 
 ## Product Interpretation
 

@@ -3,7 +3,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from marygenai.classification.evaluation import evaluate_classification_run
+from marygenai.classification.evaluation import (
+    evaluate_classification_run,
+    token_ngram_grounding_score,
+)
 from marygenai.storage import LocalStorage
 
 
@@ -164,7 +167,24 @@ def test_evaluate_classification_run_separates_metrics_and_builds_rerun_input(
 
     assert report["technical_validity"]["http_200_responses"] == 1
     assert report["retrieval_utility"]["records_with_evidence_spans"] == 1
+    assert report["retrieval_utility"]["evidence_spans_exactly_grounded_in_source_text"] == 1
+    assert (
+        report["retrieval_utility"]["evidence_spans_grounded_with_extraction_tolerance"]
+        == 1
+    )
     assert report["retrieval_utility"]["machine_readable_uncertainty_records"] == 0
     assert report["inference_quality"]["study_design_disagreements"] == 1
     assert report["rerun_document_count"] == 1
     assert targeted_rows == [sample_row]
+
+
+def test_token_ngram_grounding_tolerates_extraction_artifacts() -> None:
+    source_text = (
+        "The study assessed three months of treatment UNIVERSITY OF EXAMPLE "
+        "on executive function and memory."
+    )
+    evidence_text = (
+        "The study assessed three months of treatment on executive function and memory."
+    )
+
+    assert token_ngram_grounding_score(source_text, evidence_text) >= 0.8

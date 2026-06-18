@@ -88,8 +88,9 @@ uv run marygenai classification evaluate \
   --legacy-context-path <legacy_english_context_records.jsonl>
 ```
 
-The evaluation writes ignored reports, disagreements, unsupported evidence-span
-checks, documents requiring rerun, and a targeted rerun input under
+The evaluation writes ignored reports, disagreements, exact and
+extraction-tolerant evidence-grounding checks, documents requiring rerun, and a
+targeted rerun input under
 `data/normalized/classification_evaluations/`. It separates technical validity,
 retrieval utility, and inference quality.
 

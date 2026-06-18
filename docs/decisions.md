@@ -32,6 +32,13 @@ The evaluator writes ignored reports, study-design disagreements, source
 grounding checks, documents requiring rerun, and a targeted rerun input under
 `data/normalized/classification_evaluations/`.
 
+Evidence grounding reports two separate measurements. Exact normalized
+substring grounding is the strict signal. Token-bigram grounding is a secondary
+signal that tolerates source-extraction artifacts such as interleaved author
+names, headers, and journal metadata. A tolerant match does not rewrite or
+normalize the stored evidence span, and spans below the threshold remain visible
+for inspection.
+
 ## 2026-06-18: Define MaryGenAI As A Retrieval-Oriented Source-Intelligence Product
 
 MaryGenAI's primary value is to make cannabinoid medical literature easier to

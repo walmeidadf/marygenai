@@ -209,8 +209,29 @@ uv run marygenai classification evaluate
 It writes ignored reports under
 `data/normalized/classification_evaluations/`, including metrics grouped by
 technical validity, retrieval utility, and inference quality; study-design
-disagreements; unsupported evidence-span checks; documents requiring rerun; and
-a targeted rerun input.
+disagreements; exact and extraction-tolerant evidence grounding checks; documents
+requiring rerun; and a targeted rerun input.
+
+## Targeted Schema-V3 Validation
+
+The 2026-06-18 targeted rerun used the three schema-v2 failures and seven
+study-design disagreements:
+
+- 10/10 provider responses and valid JSON;
+- 10/10 strict-valid schema-v3 records;
+- no retries;
+- 10/10 records with evidence spans;
+- 40/40 evidence spans grounded after extraction-artifact tolerance;
+- 3/10 exact principal study-design matches with English legacy context;
+- 8/10 compatible overall-direction comparisons;
+- all three prior outcome-domain failures corrected;
+- estimated cost about USD 0.0849.
+
+The remaining seven study-design disagreements should not be treated as seven
+automatic model errors. Five now use `other` with explicit source-supported
+subtypes, one distinguishes a clinical meta-analysis from a broader legacy
+meta-analysis label, and one scoping review conflicts with a legacy clinical
+meta-analysis label. These records remain candidate evidence for inspection.
 
 ## Scaling Sequence
 

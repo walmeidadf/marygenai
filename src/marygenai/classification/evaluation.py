@@ -45,6 +45,8 @@ SCHEMA_V2_OUTCOME_DOMAINS = {
     "use_pattern",
 }
 CURRENT_OUTCOME_DOMAINS = SCHEMA_V2_OUTCOME_DOMAINS | {"cognition"}
+EVIDENCE_NGRAM_GROUNDING_THRESHOLD = 0.8
+EVIDENCE_NGRAM_MIN_TOKENS = 6
 
 
 def read_json(path: Path) -> dict[str, Any]:
@@ -140,11 +142,36 @@ def normalized_contains(source_text: str, evidence_text: str) -> bool:
     return normalize_lookup_text(evidence_text) in normalize_lookup_text(source_text)
 
 
+def token_ngram_grounding_score(
+    source_text: str,
+    evidence_text: str,
+    *,
+    ngram_size: int = 2,
+) -> float:
+    source_tokens = normalize_lookup_text(source_text).split()
+    evidence_tokens = normalize_lookup_text(evidence_text).split()
+    if not evidence_tokens:
+        return 0.0
+    if len(evidence_tokens) < ngram_size:
+        return float(all(token in source_tokens for token in evidence_tokens))
+    source_ngrams = {
+        tuple(source_tokens[index : index + ngram_size])
+        for index in range(len(source_tokens) - ngram_size + 1)
+    }
+    evidence_ngrams = [
+        tuple(evidence_tokens[index : index + ngram_size])
+        for index in range(len(evidence_tokens) - ngram_size + 1)
+    ]
+    return sum(ngram in source_ngrams for ngram in evidence_ngrams) / len(
+        evidence_ngrams
+    )
+
+
 def source_grounding_for_record(
     record: dict[str, Any],
     *,
     data_dir: Path,
-) -> tuple[int, int, list[dict[str, Any]]]:
+) -> tuple[int, int, int, list[dict[str, Any]]]:
     source_path = Path(str(record.get("source_text_path") or ""))
     if not source_path.is_absolute():
         source_path = data_dir.parent / source_path if source_path.parts[:1] == ("data",) else (
@@ -155,23 +182,35 @@ def source_grounding_for_record(
         if source_path.exists() and source_path.is_file()
         else ""
     )
-    supported = 0
-    unsupported: list[dict[str, Any]] = []
+    exact_supported = 0
+    ngram_supported = 0
+    grounding_review: list[dict[str, Any]] = []
     spans = record.get("evidence_spans") or []
     for span in spans:
         evidence_text = str(span.get("text") or "")
         if source_text and evidence_text and normalized_contains(source_text, evidence_text):
-            supported += 1
+            exact_supported += 1
+            ngram_supported += 1
         else:
-            unsupported.append(
-                {
-                    "document_id": record.get("document_id"),
-                    "section": span.get("section"),
-                    "text": evidence_text,
-                    "source_text_path": str(source_path),
-                }
-            )
-    return supported, len(spans), unsupported
+            grounding_score = token_ngram_grounding_score(source_text, evidence_text)
+            evidence_token_count = len(normalize_lookup_text(evidence_text).split())
+            if (
+                evidence_token_count >= EVIDENCE_NGRAM_MIN_TOKENS
+                and grounding_score >= EVIDENCE_NGRAM_GROUNDING_THRESHOLD
+            ):
+                ngram_supported += 1
+            else:
+                grounding_review.append(
+                    {
+                        "document_id": record.get("document_id"),
+                        "section": span.get("section"),
+                        "text": evidence_text,
+                        "source_text_path": str(source_path),
+                        "evidence_token_count": evidence_token_count,
+                        "token_bigram_grounding_score": round(grounding_score, 4),
+                    }
+                )
+    return exact_supported, ngram_supported, len(spans), grounding_review
 
 
 def scalar_cannot_determine_fields(record: dict[str, Any]) -> set[str]:
@@ -325,9 +364,10 @@ def evaluate_classification_run(
     machine_readable_count = 0
     records_with_source_traceability = 0
     evidence_span_records = 0
-    evidence_spans_supported = 0
+    evidence_spans_exactly_grounded = 0
+    evidence_spans_ngram_grounded = 0
     evidence_spans_total = 0
-    unsupported_evidence_spans: list[dict[str, Any]] = []
+    evidence_spans_requiring_grounding_review: list[dict[str, Any]] = []
     filter_coverage: Counter[str] = Counter()
     for record in records:
         is_machine_readable, invalid, missing = machine_readable_uncertainty(record)
@@ -347,13 +387,16 @@ def evaluate_classification_run(
             and record.get("provenance")
         )
         evidence_span_records += bool(record.get("evidence_spans"))
-        supported, total, unsupported = source_grounding_for_record(
-            record,
-            data_dir=storage.root,
+        exact_supported, ngram_supported, total, grounding_review = (
+            source_grounding_for_record(
+                record,
+                data_dir=storage.root,
+            )
         )
-        evidence_spans_supported += supported
+        evidence_spans_exactly_grounded += exact_supported
+        evidence_spans_ngram_grounded += ngram_supported
         evidence_spans_total += total
-        unsupported_evidence_spans.extend(unsupported)
+        evidence_spans_requiring_grounding_review.extend(grounding_review)
         for field in (
             "study_design_category",
             "evidence_context",
@@ -457,9 +500,10 @@ def evaluate_classification_run(
         output_dir / f"{resolved_evaluation_run_id}_targeted_rerun_input.jsonl",
         targeted_input_rows,
     )
-    unsupported_evidence_path = write_jsonl(
-        output_dir / f"{resolved_evaluation_run_id}_unsupported_evidence_spans.jsonl",
-        unsupported_evidence_spans,
+    grounding_review_path = write_jsonl(
+        output_dir
+        / f"{resolved_evaluation_run_id}_evidence_spans_requiring_grounding_review.jsonl",
+        evidence_spans_requiring_grounding_review,
     )
     report = {
         "evaluation_run_id": resolved_evaluation_run_id,
@@ -498,8 +542,17 @@ def evaluate_classification_run(
             "valid_records": len(records),
             "records_with_evidence_spans": evidence_span_records,
             "evidence_spans_total": evidence_spans_total,
-            "evidence_spans_exactly_grounded_in_source_text": evidence_spans_supported,
-            "unsupported_evidence_spans": len(unsupported_evidence_spans),
+            "evidence_spans_exactly_grounded_in_source_text": (
+                evidence_spans_exactly_grounded
+            ),
+            "evidence_spans_grounded_with_extraction_tolerance": (
+                evidence_spans_ngram_grounded
+            ),
+            "evidence_ngram_grounding_threshold": EVIDENCE_NGRAM_GROUNDING_THRESHOLD,
+            "evidence_ngram_min_tokens": EVIDENCE_NGRAM_MIN_TOKENS,
+            "evidence_spans_requiring_grounding_review": len(
+                evidence_spans_requiring_grounding_review
+            ),
             "records_with_source_traceability": records_with_source_traceability,
             "machine_readable_uncertainty_records": machine_readable_count,
             "records_with_invalid_uncertainty_entries": len(
@@ -528,7 +581,9 @@ def evaluate_classification_run(
             "study_design_disagreements_path": str(disagreements_path),
             "documents_requiring_rerun_path": str(rerun_documents_path),
             "targeted_rerun_input_path": str(targeted_input_path),
-            "unsupported_evidence_spans_path": str(unsupported_evidence_path),
+            "evidence_spans_requiring_grounding_review_path": str(
+                grounding_review_path
+            ),
         },
         "rerun_document_count": len(rerun_documents),
         "notes": [
@@ -546,8 +601,8 @@ def evaluate_classification_run(
                 "or reviewed knowledge."
             ),
             (
-                "Evidence grounding is an exact normalized-text check; non-matches need "
-                "inspection and are not automatically proof of unsupported inference."
+                "Evidence grounding reports exact normalized substrings separately from "
+                "token-bigram matches that tolerate extraction artifacts."
             ),
         ],
     }

@@ -12,8 +12,9 @@ prerequisite for useful candidate retrieval.
 
 ## Now: Classification Reliability
 
-1. Validate schema-v3 prompt packets against the targeted 10-document rerun set.
-2. Re-run only the three schema failures and seven study-design disagreements.
+1. Inspect the seven remaining source-versus-legacy study-design disagreements.
+2. Refine overall-direction semantics for descriptive outcomes such as dropout
+   rates and survey perceptions.
 3. Use the repeatable evaluation command for English legacy alignment, evidence
    coverage, unsupported labels, and retrieval utility.
 4. Define confidence semantics:
