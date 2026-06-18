@@ -214,6 +214,31 @@ ambiguity are correctable defects.
 Legacy comparison uses normalized English context first. Portuguese fields remain
 fallback and traceability only.
 
+## Study-Design Validation Benchmark
+
+The official local candidate builder is:
+
+```bash
+uv run marygenai classification build-validation-benchmark --sample-size 48
+```
+
+It selects source-ready records using explicit title phrases and round-robin
+stratification across review, trial, animal, laboratory, survey, case,
+observational, and pilot designs. Rule precedence prevents a systematic review
+of trials from being selected as a trial. Animal or laboratory context takes
+precedence over trial wording, while `pilot_study` may refine an explicit
+clinical-trial category as a subtype.
+
+Each candidate preserves source identity and hash, title evidence, normalized
+English legacy context, exact or compatible comparison, and empty human-review
+fields. The artifacts remain ignored files with `review_state=needs_review`.
+They are a review worklist, not reviewed knowledge, and the command does not
+call an LLM or mutate SQLite.
+
+Human-reviewed labels are required before this set can be used to train or
+calibrate auxiliary classifiers. Until then, title rules and legacy agreement
+are candidate signals only.
+
 ## Provider Validation Results
 
 Current bounded tests favor OpenAI `gpt-5.4-mini` with:

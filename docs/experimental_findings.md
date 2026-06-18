@@ -167,6 +167,16 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
   contribute a calibrated semantic-support feature after template versioning
   and source-reviewed benchmarking; lack of entailment must not be interpreted
   automatically as contradiction.
+- The first deterministic benchmark-candidate build found 663 title-explicit
+  records but exposed substring-precedence errors, including a systematic review
+  of randomized trials selected as a clinical trial. That rule set was rejected.
+- The corrected builder found 771 title-explicit candidates and selected 48
+  records across 11 design strata. The sample contained 22 exact normalized
+  English legacy matches, five compatible
+  `meta_analysis`/`clinical_meta_analysis` refinements, and 21 disagreements.
+- The disagreements concentrate useful review cases: surveys, case reports,
+  observational studies, pilot studies, and clinical-trial granularity. These
+  remain candidate labels, not benchmark truth, until source review is recorded.
 - The run produced 40 evidence spans. Seventeen were exact normalized
   substrings; all 40 passed token-bigram grounding with extraction-artifact
   tolerance, leaving no spans for grounding review. Extracted PDFs and page text

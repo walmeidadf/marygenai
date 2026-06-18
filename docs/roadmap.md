@@ -16,10 +16,11 @@ prerequisite for useful candidate retrieval.
    queries and a small broader-source-ready contrast set.
 2. Perform weight sensitivity analysis before adding retrieval confidence to a
    public schema.
-3. Build a small source-reviewed study-design benchmark containing `other`,
-   survey, pilot, observational, case-report, and review subtypes.
-4. Re-test classical classifiers and NLI semantic support against that benchmark
-   before adding either signal to retrieval confidence.
+3. Human-review the generated study-design benchmark candidates containing
+   `other`, survey, pilot, observational, case-report, trial, animal,
+   laboratory, and review subtypes.
+4. Re-test classical classifiers and NLI semantic support against the reviewed
+   benchmark before adding either signal to retrieval confidence.
 5. Use the repeatable evaluation command for English legacy alignment, evidence
    coverage, unsupported labels, and retrieval utility.
 6. Define confidence semantics:

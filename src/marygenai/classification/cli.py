@@ -6,6 +6,9 @@ from typing import Annotated
 import typer
 from rich.console import Console
 
+from marygenai.classification.benchmark import (
+    build_study_design_validation_benchmark,
+)
 from marygenai.classification.evaluation import evaluate_classification_run
 from marygenai.classification.pipeline import (
     DEFAULT_MAX_COMPLETION_TOKENS,
@@ -104,6 +107,32 @@ def build_prompt_packets(
         max_source_chars=max_source_chars,
         target_model_provider=target_model_provider,
         target_model_name=target_model_name,
+    )
+    console.print(result)
+
+
+@app.command("build-validation-benchmark")
+def build_validation_benchmark(
+    sample_size: Annotated[
+        int,
+        typer.Option(
+            "--sample-size",
+            min=1,
+            max=200,
+            help="Maximum title-explicit benchmark candidates to select.",
+        ),
+    ] = 48,
+    input_path: Annotated[
+        Path | None,
+        typer.Option("--input-path", help="Classification corpus records JSONL."),
+    ] = None,
+) -> None:
+    """Build study-design benchmark candidates without calling a model."""
+    settings = get_settings()
+    result = build_study_design_validation_benchmark(
+        storage=LocalStorage(settings.data_dir),
+        input_path=input_path,
+        sample_size=sample_size,
     )
     console.print(result)
 

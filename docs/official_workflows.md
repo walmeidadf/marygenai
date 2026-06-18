@@ -76,6 +76,21 @@ Validate the schema with deterministic mock output:
 uv run marygenai classification run-smoke --limit 5
 ```
 
+Build a deterministic study-design benchmark candidate set:
+
+```bash
+uv run marygenai classification build-validation-benchmark \
+  --sample-size 48 \
+  --input-path <classification_corpus_records.jsonl>
+```
+
+The command uses explicit document-title evidence, stratifies by design rule,
+preserves normalized English legacy comparison and source provenance, and writes
+ignored JSONL and summary artifacts under
+`data/normalized/classification_evaluations/`. Every row remains
+`needs_review`; the output is not reviewed ground truth and the command does not
+call an LLM or mutate SQLite.
+
 Evaluate an existing run without calling a model:
 
 ```bash

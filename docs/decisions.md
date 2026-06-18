@@ -1,5 +1,25 @@
 # Decision Log
 
+## 2026-06-18: Build Review-First Study-Design Benchmark Candidates
+
+`marygenai classification build-validation-benchmark` is the supported
+deterministic builder for a small study-design validation worklist. It uses
+explicit title phrases, source-ready corpus records, source hashes, normalized
+English legacy context, and round-robin design stratification. It does not call
+an LLM or mutate SQLite.
+
+The output is deliberately a candidate benchmark with
+`review_state=needs_review`, empty reviewer fields, and explicit provenance. It
+must not be described as source-reviewed truth until a human reviews the source
+and records a label, rationale, identity, and timestamp.
+
+Rule precedence is part of the versioned candidate contract: reviews dominate
+mentions of included trials; animal and laboratory context dominate trial
+wording; and pilot wording refines an explicit trial as a subtype. Legacy
+comparison separates exact matches, compatible
+`meta_analysis`/`clinical_meta_analysis` refinements, true disagreements, and
+missing references.
+
 ## 2026-06-18: Treat Auxiliary Classifiers As Experimental Signals
 
 Classical TF-IDF or embedding classifiers trained on current legacy labels are

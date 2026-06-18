@@ -66,6 +66,7 @@ Classification preparation and validation:
 uv run marygenai classification-corpus rollup --sample-size 30
 uv run marygenai classification build-prompt-packets --limit 5
 uv run marygenai classification run-smoke --limit 5
+uv run marygenai classification build-validation-benchmark --sample-size 48
 uv run marygenai classification evaluate
 ```
 
@@ -77,6 +78,10 @@ All outputs remain candidate evidence.
 retrieval utility, and inference quality, compares against normalized English
 legacy context when available, and writes ignored reports plus a targeted rerun
 input under `data/normalized/classification_evaluations/`.
+
+`classification build-validation-benchmark` creates a deterministic,
+title-explicit, stratified candidate set for human review. It does not call an
+LLM, mutate SQLite, or create reviewed knowledge.
 
 Maintainer-only private bootstrap:
 

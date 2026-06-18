@@ -91,6 +91,9 @@ values empty rather than inserting `cannot_determine`, adds granular
 study-design subtype metadata, and makes uncertainty field-scoped and
 machine-readable. The official local evaluator produces a targeted input for
 the three historical schema failures and seven study-design disagreements.
+A deterministic command now also prepares a stratified, title-explicit
+study-design benchmark candidate set. Human review is still required before it
+becomes a trusted training or calibration reference.
 
 ## MVP Workstreams
 
@@ -98,10 +101,12 @@ the three historical schema failures and seven study-design disagreements.
 2. Add repeatable legacy-alignment and retrieval-utility evaluation.
 3. Validate and tune the evaluator-only `retrieval_confidence.v1` signal before
    promoting it into a public retrieval contract.
-4. Run a larger bounded classification batch after known defects are corrected.
-5. Continue PubMed discovery and source acquisition using supported commands.
-6. Design a read-only MCP retrieval contract.
-7. Publish a public baseline snapshot when licensing and review boundaries are
+4. Review the study-design benchmark candidates and re-test auxiliary
+   classifiers against the reviewed labels.
+5. Run a larger bounded classification batch after known defects are corrected.
+6. Continue PubMed discovery and source acquisition using supported commands.
+7. Design a read-only MCP retrieval contract.
+8. Publish a public baseline snapshot when licensing and review boundaries are
    ready.
 
 ## Data Safety
