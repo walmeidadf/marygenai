@@ -7,7 +7,9 @@ import typer
 from rich.console import Console
 
 from marygenai.classification.benchmark import (
+    build_study_design_holdout,
     build_study_design_validation_benchmark,
+    evaluate_study_design_benchmark,
 )
 from marygenai.classification.evaluation import evaluate_classification_run
 from marygenai.classification.pipeline import (
@@ -133,6 +135,51 @@ def build_validation_benchmark(
         storage=LocalStorage(settings.data_dir),
         input_path=input_path,
         sample_size=sample_size,
+    )
+    console.print(result)
+
+
+@app.command("build-validation-holdout")
+def build_validation_holdout(
+    exclude_decisions_path: Annotated[
+        Path,
+        typer.Option(
+            "--exclude-decisions-path",
+            help="Reviewed development decisions to exclude from the holdout.",
+        ),
+    ],
+    input_path: Annotated[
+        Path | None,
+        typer.Option("--input-path", help="Classification corpus records JSONL."),
+    ] = None,
+) -> None:
+    """Freeze a 40-record study-design holdout without calling a model."""
+    settings = get_settings()
+    result = build_study_design_holdout(
+        storage=LocalStorage(settings.data_dir),
+        input_path=input_path,
+        exclude_decisions_path=exclude_decisions_path,
+    )
+    console.print(result)
+
+
+@app.command("evaluate-validation-benchmark")
+def evaluate_validation_benchmark(
+    candidates_path: Annotated[
+        Path,
+        typer.Option("--candidates-path", help="Benchmark candidate records JSONL."),
+    ],
+    decisions_path: Annotated[
+        Path,
+        typer.Option("--decisions-path", help="Reviewed benchmark decisions JSONL."),
+    ],
+) -> None:
+    """Evaluate deterministic study-design candidates against reviewed labels."""
+    settings = get_settings()
+    result = evaluate_study_design_benchmark(
+        storage=LocalStorage(settings.data_dir),
+        candidates_path=candidates_path,
+        decisions_path=decisions_path,
     )
     console.print(result)
 

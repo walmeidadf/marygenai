@@ -95,18 +95,25 @@ A deterministic command now also prepares a stratified, title-explicit
 study-design benchmark candidate set. Human review is still required before it
 becomes a trusted training or calibration reference.
 
+The first 21 legacy-disagreement candidates have now been reviewed as the
+development benchmark. A separate 40-record holdout was frozen before
+deterministic rule-v2 work, and an official evaluator measures category,
+subtype, pair, per-label, legacy-reference, and error-pattern metrics.
+
 ## MVP Workstreams
 
 1. Stabilize classification schema and uncertainty representation.
 2. Add repeatable legacy-alignment and retrieval-utility evaluation.
 3. Validate and tune the evaluator-only `retrieval_confidence.v1` signal before
    promoting it into a public retrieval contract.
-4. Review the study-design benchmark candidates and re-test auxiliary
-   classifiers against the reviewed labels.
-5. Run a larger bounded classification batch after known defects are corrected.
-6. Continue PubMed discovery and source acquisition using supported commands.
-7. Design a read-only MCP retrieval contract.
-8. Publish a public baseline snapshot when licensing and review boundaries are
+4. Implement deterministic study-design rule v2 against the development
+   benchmark, then evaluate it on the frozen holdout.
+5. Re-test auxiliary classifiers against reviewed development and holdout
+   labels.
+6. Run a larger bounded classification batch after known defects are corrected.
+7. Continue PubMed discovery and source acquisition using supported commands.
+8. Design a read-only MCP retrieval contract.
+9. Publish a public baseline snapshot when licensing and review boundaries are
    ready.
 
 ## Data Safety

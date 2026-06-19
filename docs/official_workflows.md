@@ -91,6 +91,33 @@ ignored JSONL and summary artifacts under
 `needs_review`; the output is not reviewed ground truth and the command does not
 call an LLM or mutate SQLite.
 
+Evaluate reviewed benchmark decisions:
+
+```bash
+uv run marygenai classification evaluate-validation-benchmark \
+  --candidates-path <study_design_benchmark_candidates.jsonl> \
+  --decisions-path <study_design_benchmark_review_decisions.jsonl>
+```
+
+The evaluator validates candidate identity, source hashes, decision semantics,
+and reviewer provenance. It reports category, subtype, and category-plus-subtype
+accuracy; per-label precision, recall, and F1; legacy-reference agreement; and
+error patterns. Metrics apply only to the reviewed sample and are not
+automatically corpus-wide accuracy estimates.
+
+Freeze a separate 40-document holdout before changing the rules:
+
+```bash
+uv run marygenai classification build-validation-holdout \
+  --input-path <classification_corpus_records.jsonl> \
+  --exclude-decisions-path <reviewed_development_decisions.jsonl>
+```
+
+The default holdout composition is 20 exact rule/legacy agreements, 10 new
+disagreements, five records without normalized English legacy reference, and
+five titles matching multiple design rules. The holdout must remain unreviewed
+until the next rule version is frozen.
+
 Evaluate an existing run without calling a model:
 
 ```bash

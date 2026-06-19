@@ -36,6 +36,28 @@ have been extracted, validated, and exported.
 model-declared `high`, `medium`, or `low` assessment, not a calibrated
 probability, reviewer approval, or measure of clinical evidence strength.
 
+## File-Based Classification Benchmark Review
+
+Study-design benchmark review is an append-only file workflow under ignored
+`data/normalized/classification_evaluations/`. It is intentionally separate from
+SQLite queues, `review_item`, `review_decision`, and document review state.
+
+The deterministic builder proposes a candidate label. Semantic adjudication is a
+human decision, potentially assisted by MaryGenAI, and must preserve evidence,
+reviewer identity, method, timestamp, rationale, source path, source hash, and
+the original candidate.
+
+Use the following reviewer convention for maintainer-confirmed assisted review:
+
+```text
+reviewer=marygenai:maintainer
+review_method=human_confirmed_with_ai_assistance
+```
+
+`marygenai:maintainer` does not mean that the model reviewed the record
+autonomously. It means the maintainer confirmed the decision through the
+MaryGenAI-assisted workflow.
+
 ## Queue Workflow Status
 
 The field `review_item.status` is shared by both `legacy_identity_review` and

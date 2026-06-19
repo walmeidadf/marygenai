@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal, NamedTuple
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from marygenai.classification.models import StudyDesignCategory, StudyDesignSubtype
 from marygenai.classification.pipeline import (
@@ -23,6 +23,8 @@ from marygenai.initial_load.files import file_sha256
 from marygenai.storage import LocalStorage
 
 BENCHMARK_SCHEMA_VERSION = "study_design_validation_benchmark_candidate.v1"
+BENCHMARK_REVIEW_SCHEMA_VERSION = "study_design_benchmark_review_decision.v1"
+BENCHMARK_EVALUATION_SCHEMA_VERSION = "study_design_benchmark_evaluation.v1"
 
 
 class StudyDesignTitleRule(NamedTuple):
@@ -169,26 +171,96 @@ class StudyDesignBenchmarkCandidate(BaseModel):
     provenance: dict[str, Any] = Field(default_factory=dict)
 
 
+class BenchmarkEvidenceSpan(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    scope: str
+    text: str
+
+
+class BenchmarkIdentityWarning(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: str
+    message: str
+
+
+class StudyDesignBenchmarkReviewDecision(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["study_design_benchmark_review_decision.v1"] = (
+        BENCHMARK_REVIEW_SCHEMA_VERSION
+    )
+    benchmark_candidate_id: str
+    benchmark_run_id: str
+    document_id: str
+    candidate_study_design_category: StudyDesignCategory
+    candidate_study_design_subtype: StudyDesignSubtype
+    legacy_english_type_of_study: str | None = None
+    decision: Literal["confirmed", "corrected"]
+    reviewed_study_design_category: StudyDesignCategory
+    reviewed_study_design_subtype: StudyDesignSubtype
+    evidence_spans: list[BenchmarkEvidenceSpan] = Field(min_length=1)
+    identity_warnings: list[BenchmarkIdentityWarning] = Field(default_factory=list)
+    reviewer: str
+    review_method: Literal["human_confirmed_with_ai_assistance"]
+    reviewed_at: datetime
+    review_rationale: str
+    source_text_path: str
+    source_text_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    provenance: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_decision_semantics(self) -> StudyDesignBenchmarkReviewDecision:
+        candidate_pair = (
+            self.candidate_study_design_category,
+            self.candidate_study_design_subtype,
+        )
+        reviewed_pair = (
+            self.reviewed_study_design_category,
+            self.reviewed_study_design_subtype,
+        )
+        if self.decision == "confirmed" and candidate_pair != reviewed_pair:
+            msg = "A confirmed decision must preserve the candidate category and subtype."
+            raise ValueError(msg)
+        if self.decision == "corrected" and candidate_pair == reviewed_pair:
+            msg = "A corrected decision must change the category or subtype."
+            raise ValueError(msg)
+        return self
+
+
+def matching_title_rules(record: ClassificationCorpusRecord) -> list[StudyDesignTitleRule]:
+    title = normalize_lookup_text(record.primary_title)
+    if not title:
+        return []
+    normalized_title = f" {title} "
+    return [
+        rule
+        for rule in TITLE_RULES
+        if any(
+            f" {normalize_lookup_text(phrase)} " in normalized_title
+            for phrase in rule.phrases
+        )
+    ]
+
+
 def title_rule_for_record(
     record: ClassificationCorpusRecord,
 ) -> StudyDesignTitleRule | None:
     title = normalize_lookup_text(record.primary_title)
     if not title:
         return None
-    for rule in TITLE_RULES:
-        if not any(
-            f" {normalize_lookup_text(phrase)} " in f" {title} "
-            for phrase in rule.phrases
-        ):
-            continue
-        subtype = rule.subtype
-        if (
-            rule.name in {"double_blind_trial_title", "clinical_trial_title"}
-            and " pilot " in f" {title} "
-        ):
-            subtype = "pilot_study"
-        return StudyDesignTitleRule(rule.name, rule.phrases, rule.category, subtype)
-    return None
+    rules = matching_title_rules(record)
+    if not rules:
+        return None
+    rule = rules[0]
+    subtype = rule.subtype
+    if (
+        rule.name in {"double_blind_trial_title", "clinical_trial_title"}
+        and " pilot " in f" {title} "
+    ):
+        subtype = "pilot_study"
+    return StudyDesignTitleRule(rule.name, rule.phrases, rule.category, subtype)
 
 
 def stable_candidate_order(document_id: str) -> str:
@@ -311,6 +383,397 @@ def round_robin_sample(
             break
         index += 1
     return selected
+
+
+def reviewed_document_ids(decisions_path: Path | None) -> set[str]:
+    if decisions_path is None:
+        return set()
+    return {
+        StudyDesignBenchmarkReviewDecision.model_validate(row).document_id
+        for row in read_jsonl(decisions_path)
+    }
+
+
+def annotate_holdout_candidate(
+    candidate: StudyDesignBenchmarkCandidate,
+    *,
+    stratum: str,
+    matching_rules: list[StudyDesignTitleRule],
+) -> StudyDesignBenchmarkCandidate:
+    updated = candidate.model_copy(deep=True)
+    updated.provenance.update(
+        {
+            "benchmark_partition": "holdout",
+            "holdout_stratum": stratum,
+            "matching_title_rules": [rule.name for rule in matching_rules],
+            "must_remain_unreviewed_until_rule_v2_is_frozen": True,
+        }
+    )
+    return updated
+
+
+def build_study_design_holdout(
+    *,
+    storage: LocalStorage,
+    input_path: Path | None = None,
+    exclude_decisions_path: Path | None = None,
+    exact_agreement_size: int = 20,
+    disagreement_size: int = 10,
+    no_reference_size: int = 5,
+    ambiguous_size: int = 5,
+    run_id: str | None = None,
+) -> dict[str, Any]:
+    resolved_run_id = run_id or new_run_id()
+    resolved_input_path = input_path or latest_path(
+        storage.root,
+        "normalized/classification_corpus/*_classification_corpus_records.jsonl",
+    )
+    excluded_ids = reviewed_document_ids(exclude_decisions_path)
+    legacy_indexes = load_legacy_english_context_index(storage.root)
+    candidates_by_stratum: dict[
+        str, dict[str, list[StudyDesignBenchmarkCandidate]]
+    ] = defaultdict(lambda: defaultdict(list))
+    rejected_counts: Counter[str] = Counter()
+
+    for row in read_jsonl(resolved_input_path):
+        record = ClassificationCorpusRecord.model_validate(row)
+        if record.document_id in excluded_ids:
+            rejected_counts["excluded_reviewed_development_record"] += 1
+            continue
+        if not record.source_ready:
+            rejected_counts["not_source_ready"] += 1
+            continue
+        matching_rules = matching_title_rules(record)
+        rule = title_rule_for_record(record)
+        if rule is None:
+            rejected_counts["no_explicit_title_rule"] += 1
+            continue
+        legacy_context = legacy_english_context_for_record(record, legacy_indexes)
+        try:
+            candidate = build_benchmark_candidate(
+                record=record,
+                rule=rule,
+                run_id=resolved_run_id,
+                data_dir=storage.root,
+                legacy_context=legacy_context,
+            )
+        except FileNotFoundError:
+            rejected_counts["source_text_unavailable"] += 1
+            continue
+
+        if candidate.legacy_comparison == "no_reference":
+            stratum = "no_legacy_reference"
+            grouping_key = rule.name
+        elif len(matching_rules) > 1:
+            stratum = "multiple_title_rules"
+            grouping_key = "+".join(item.name for item in matching_rules)
+        elif candidate.legacy_comparison == "exact_match":
+            stratum = "exact_legacy_agreement"
+            grouping_key = rule.name
+        elif candidate.legacy_comparison == "disagreement":
+            stratum = "new_legacy_disagreement"
+            grouping_key = rule.name
+        else:
+            rejected_counts["compatible_refinement_not_selected"] += 1
+            continue
+        candidates_by_stratum[stratum][grouping_key].append(
+            annotate_holdout_candidate(
+                candidate,
+                stratum=stratum,
+                matching_rules=matching_rules,
+            )
+        )
+
+    requested_sizes = {
+        "exact_legacy_agreement": exact_agreement_size,
+        "new_legacy_disagreement": disagreement_size,
+        "no_legacy_reference": no_reference_size,
+        "multiple_title_rules": ambiguous_size,
+    }
+    selected: list[StudyDesignBenchmarkCandidate] = []
+    selected_stratum_counts: dict[str, int] = {}
+    candidate_pool_stratum_counts: dict[str, int] = {}
+    for stratum, requested_size in requested_sizes.items():
+        grouped = candidates_by_stratum[stratum]
+        pool_size = sum(len(items) for items in grouped.values())
+        candidate_pool_stratum_counts[stratum] = pool_size
+        if pool_size < requested_size:
+            msg = (
+                f"Holdout stratum {stratum} has {pool_size} candidates, "
+                f"but {requested_size} were requested."
+            )
+            raise ValueError(msg)
+        stratum_selected = round_robin_sample(grouped, sample_size=requested_size)
+        selected.extend(stratum_selected)
+        selected_stratum_counts[stratum] = len(stratum_selected)
+
+    selected.sort(key=lambda item: stable_candidate_order(item.document_id))
+    output_dir = Path("normalized/classification_evaluations")
+    records_path = storage.write_jsonl(
+        output_dir / f"{resolved_run_id}_study_design_holdout_candidates.jsonl",
+        selected,
+    )
+    summary = {
+        "run_id": resolved_run_id,
+        "created_at": datetime.now(UTC).isoformat(),
+        "schema_version": BENCHMARK_SCHEMA_VERSION,
+        "input_path": str(resolved_input_path),
+        "exclude_decisions_path": (
+            str(exclude_decisions_path) if exclude_decisions_path else None
+        ),
+        "records_path": str(records_path),
+        "counts": {
+            "selected_candidates": len(selected),
+            "excluded_reviewed_development_records": len(excluded_ids),
+        },
+        "requested_stratum_counts": requested_sizes,
+        "selected_stratum_counts": selected_stratum_counts,
+        "candidate_pool_stratum_counts": candidate_pool_stratum_counts,
+        "selected_rule_counts": dict(Counter(item.selection_rule for item in selected)),
+        "rejected_counts": dict(rejected_counts),
+        "notes": [
+            "This holdout is frozen before study-design rule v2 changes.",
+            "Holdout records must not be reviewed until rule v2 is frozen.",
+            "The command does not call an LLM or mutate SQLite.",
+            "The holdout is not reviewed knowledge.",
+            (
+                "The no-reference stratum contains every eligible record in that "
+                "small pool and may not be topically diverse."
+            ),
+        ],
+    }
+    summary_path = storage.write_json(
+        output_dir / f"{resolved_run_id}_study_design_holdout_summary.json",
+        summary,
+    )
+    return {
+        "run_id": resolved_run_id,
+        "records_path": str(records_path),
+        "summary_path": str(summary_path),
+        "counts": summary["counts"],
+        "selected_stratum_counts": selected_stratum_counts,
+    }
+
+
+def safe_ratio(numerator: int, denominator: int) -> float | None:
+    return numerator / denominator if denominator else None
+
+
+def classification_metrics(
+    *,
+    predicted: list[str],
+    reviewed: list[str],
+) -> dict[str, Any]:
+    labels = sorted(set(predicted) | set(reviewed))
+    per_label: dict[str, dict[str, Any]] = {}
+    for label in labels:
+        true_positives = sum(
+            prediction == label and reference == label
+            for prediction, reference in zip(predicted, reviewed, strict=True)
+        )
+        false_positives = sum(
+            prediction == label and reference != label
+            for prediction, reference in zip(predicted, reviewed, strict=True)
+        )
+        false_negatives = sum(
+            prediction != label and reference == label
+            for prediction, reference in zip(predicted, reviewed, strict=True)
+        )
+        precision = safe_ratio(true_positives, true_positives + false_positives)
+        recall = safe_ratio(true_positives, true_positives + false_negatives)
+        f1 = (
+            2 * precision * recall / (precision + recall)
+            if precision is not None
+            and recall is not None
+            and precision + recall
+            else 0.0
+        )
+        per_label[label] = {
+            "support": true_positives + false_negatives,
+            "true_positives": true_positives,
+            "false_positives": false_positives,
+            "false_negatives": false_negatives,
+            "precision": precision,
+            "recall": recall,
+            "f1": f1,
+        }
+    return {
+        "accuracy": safe_ratio(
+            sum(
+                prediction == reference
+                for prediction, reference in zip(predicted, reviewed, strict=True)
+            ),
+            len(reviewed),
+        ),
+        "macro_f1": safe_ratio(
+            sum(metrics["f1"] for metrics in per_label.values()),
+            len(per_label),
+        ),
+        "per_label": per_label,
+    }
+
+
+def evaluate_study_design_benchmark(
+    *,
+    storage: LocalStorage,
+    candidates_path: Path,
+    decisions_path: Path,
+    run_id: str | None = None,
+) -> dict[str, Any]:
+    resolved_run_id = run_id or new_run_id()
+    candidates = {
+        candidate.benchmark_candidate_id: candidate
+        for candidate in (
+            StudyDesignBenchmarkCandidate.model_validate(row)
+            for row in read_jsonl(candidates_path)
+        )
+    }
+    decisions = [
+        StudyDesignBenchmarkReviewDecision.model_validate(row)
+        for row in read_jsonl(decisions_path)
+    ]
+    if len({decision.benchmark_candidate_id for decision in decisions}) != len(decisions):
+        msg = "Review decisions contain duplicate benchmark_candidate_id values."
+        raise ValueError(msg)
+
+    evaluated: list[
+        tuple[StudyDesignBenchmarkCandidate, StudyDesignBenchmarkReviewDecision]
+    ] = []
+    for decision in decisions:
+        candidate = candidates.get(decision.benchmark_candidate_id)
+        if candidate is None:
+            msg = (
+                f"Review decision {decision.benchmark_candidate_id} "
+                "does not match a benchmark candidate."
+            )
+            raise ValueError(msg)
+        if candidate.document_id != decision.document_id:
+            msg = f"Document identity mismatch for {decision.benchmark_candidate_id}."
+            raise ValueError(msg)
+        if candidate.source_text_sha256 != decision.source_text_sha256:
+            msg = f"Source hash mismatch for {decision.benchmark_candidate_id}."
+            raise ValueError(msg)
+        evaluated.append((candidate, decision))
+
+    predicted_categories = [
+        candidate.candidate_study_design_category for candidate, _ in evaluated
+    ]
+    reviewed_categories = [
+        decision.reviewed_study_design_category for _, decision in evaluated
+    ]
+    predicted_subtypes = [
+        candidate.candidate_study_design_subtype for candidate, _ in evaluated
+    ]
+    reviewed_subtypes = [
+        decision.reviewed_study_design_subtype for _, decision in evaluated
+    ]
+    pair_correct = sum(
+        (
+            candidate.candidate_study_design_category,
+            candidate.candidate_study_design_subtype,
+        )
+        == (
+            decision.reviewed_study_design_category,
+            decision.reviewed_study_design_subtype,
+        )
+        for candidate, decision in evaluated
+    )
+    legacy_correct = sum(
+        legacy_category(decision.legacy_english_type_of_study)
+        == decision.reviewed_study_design_category
+        for _, decision in evaluated
+    )
+    category_errors = Counter(
+        (
+            candidate.candidate_study_design_category,
+            decision.reviewed_study_design_category,
+        )
+        for candidate, decision in evaluated
+        if candidate.candidate_study_design_category
+        != decision.reviewed_study_design_category
+    )
+    subtype_errors = Counter(
+        (
+            candidate.candidate_study_design_subtype,
+            decision.reviewed_study_design_subtype,
+        )
+        for candidate, decision in evaluated
+        if candidate.candidate_study_design_subtype
+        != decision.reviewed_study_design_subtype
+    )
+    report = {
+        "run_id": resolved_run_id,
+        "created_at": datetime.now(UTC).isoformat(),
+        "schema_version": BENCHMARK_EVALUATION_SCHEMA_VERSION,
+        "candidates_path": str(candidates_path),
+        "decisions_path": str(decisions_path),
+        "scope": {
+            "reviewed_records": len(evaluated),
+            "candidate_records": len(candidates),
+            "is_corpus_accuracy_estimate": False,
+            "interpretation": (
+                "Metrics describe only the reviewed benchmark subset and inherit "
+                "its selection design."
+            ),
+        },
+        "candidate_rule_metrics": {
+            "category": classification_metrics(
+                predicted=predicted_categories,
+                reviewed=reviewed_categories,
+            ),
+            "subtype": classification_metrics(
+                predicted=predicted_subtypes,
+                reviewed=reviewed_subtypes,
+            ),
+            "pair_accuracy": safe_ratio(pair_correct, len(evaluated)),
+            "pair_correct": pair_correct,
+        },
+        "legacy_reference_metrics": {
+            "category_accuracy": safe_ratio(legacy_correct, len(evaluated)),
+            "category_correct": legacy_correct,
+        },
+        "decision_counts": dict(Counter(decision.decision for _, decision in evaluated)),
+        "reviewed_pair_counts": {
+            f"{category}+{subtype}": count
+            for (category, subtype), count in sorted(
+                Counter(
+                    (
+                        decision.reviewed_study_design_category,
+                        decision.reviewed_study_design_subtype,
+                    )
+                    for _, decision in evaluated
+                ).items()
+            )
+        },
+        "category_error_patterns": [
+            {"candidate": candidate, "reviewed": reviewed, "count": count}
+            for (candidate, reviewed), count in sorted(category_errors.items())
+        ],
+        "subtype_error_patterns": [
+            {"candidate": candidate, "reviewed": reviewed, "count": count}
+            for (candidate, reviewed), count in sorted(subtype_errors.items())
+        ],
+        "identity_warning_count": sum(
+            bool(decision.identity_warnings) for _, decision in evaluated
+        ),
+        "notes": [
+            "Review labels are human-confirmed with AI assistance.",
+            "The evaluator does not call an LLM or mutate SQLite.",
+            "Classification confidence is not evaluated as a calibrated probability.",
+        ],
+    }
+    output_path = storage.write_json(
+        Path("normalized/classification_evaluations")
+        / f"{resolved_run_id}_study_design_benchmark_evaluation.json",
+        report,
+    )
+    return {
+        "run_id": resolved_run_id,
+        "output_path": str(output_path),
+        "scope": report["scope"],
+        "candidate_rule_metrics": report["candidate_rule_metrics"],
+        "legacy_reference_metrics": report["legacy_reference_metrics"],
+    }
 
 
 def build_study_design_validation_benchmark(

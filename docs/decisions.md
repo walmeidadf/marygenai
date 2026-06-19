@@ -1,5 +1,36 @@
 # Decision Log
 
+## 2026-06-19: Separate Study-Design Development And Holdout Sets
+
+The 21 source-reviewed legacy-disagreement records are the development benchmark.
+They may guide deterministic rule changes and expose error patterns, but their
+metrics are not corpus-wide accuracy estimates because the records were selected
+for disagreement.
+
+`marygenai classification evaluate-validation-benchmark` is the official local
+evaluator for append-only reviewed decisions. It validates identity, source
+hashes, `confirmed` versus `corrected` semantics, reviewer provenance, and
+reports category, subtype, pair, per-label, legacy-reference, and error-pattern
+metrics without calling an LLM or mutating SQLite.
+
+A separate 40-record holdout is frozen before rule v2 development. It excludes
+all reviewed development records and contains 20 exact rule/legacy agreements,
+10 new disagreements, five records without normalized English legacy reference,
+and five multi-rule titles. The holdout remains unreviewed until rule v2 is
+frozen. This prevents review knowledge from leaking into implementation choices.
+
+The five available no-reference candidates are all canine studies. This is a
+documented corpus limitation, not evidence that the no-reference population is
+generally canine.
+
+## 2026-06-19: Identify Assisted Benchmark Review Explicitly
+
+Maintainer-confirmed study-design decisions use
+`reviewer=marygenai:maintainer` with
+`review_method=human_confirmed_with_ai_assistance`. The reviewer value identifies
+the platform workflow; the method states that a human confirmed the semantic
+decision. It must not be interpreted as autonomous model review.
+
 ## 2026-06-18: Build Review-First Study-Design Benchmark Candidates
 
 `marygenai classification build-validation-benchmark` is the supported

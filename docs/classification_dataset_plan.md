@@ -239,6 +239,43 @@ Human-reviewed labels are required before this set can be used to train or
 calibrate auxiliary classifiers. Until then, title rules and legacy agreement
 are candidate signals only.
 
+### Development And Holdout Separation
+
+The first development benchmark contains 21 reviewed records selected from
+rule-versus-legacy disagreements. Its purpose is diagnosis and rule development,
+not unbiased corpus-wide accuracy estimation.
+
+Review decisions use `study_design_benchmark_review_decision.v1`. Each
+append-only record preserves:
+
+- the candidate and reviewed category/subtype;
+- `confirmed` or `corrected` decision semantics;
+- short source evidence;
+- source path and hash;
+- reviewer, review method, timestamp, and rationale;
+- identity warnings and provenance.
+
+For maintainer-assisted review, the current convention is:
+
+```text
+reviewer=marygenai:maintainer
+review_method=human_confirmed_with_ai_assistance
+```
+
+This identifies the platform-assisted workflow without misrepresenting the
+decision as autonomous model review.
+
+The frozen holdout contains 40 non-overlapping candidates:
+
+- 20 exact rule/legacy agreements;
+- 10 new rule/legacy disagreements;
+- five records without normalized English legacy reference;
+- five titles matching multiple deterministic rules.
+
+The no-reference pool currently contains only five eligible records, all in
+canine contexts. That limitation must remain visible in interpretation. Holdout
+labels are not inspected until the next deterministic rule version is frozen.
+
 ## Provider Validation Results
 
 Current bounded tests favor OpenAI `gpt-5.4-mini` with:

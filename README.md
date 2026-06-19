@@ -67,6 +67,11 @@ uv run marygenai classification-corpus rollup --sample-size 30
 uv run marygenai classification build-prompt-packets --limit 5
 uv run marygenai classification run-smoke --limit 5
 uv run marygenai classification build-validation-benchmark --sample-size 48
+uv run marygenai classification build-validation-holdout \
+  --exclude-decisions-path <reviewed_benchmark_decisions.jsonl>
+uv run marygenai classification evaluate-validation-benchmark \
+  --candidates-path <benchmark_candidates.jsonl> \
+  --decisions-path <reviewed_benchmark_decisions.jsonl>
 uv run marygenai classification evaluate
 ```
 
@@ -82,6 +87,11 @@ input under `data/normalized/classification_evaluations/`.
 `classification build-validation-benchmark` creates a deterministic,
 title-explicit, stratified candidate set for human review. It does not call an
 LLM, mutate SQLite, or create reviewed knowledge.
+
+The benchmark evaluator measures deterministic candidates against append-only,
+human-confirmed review decisions. The holdout builder freezes a separate
+40-document set before rule changes so development cases cannot leak into final
+validation.
 
 Maintainer-only private bootstrap:
 

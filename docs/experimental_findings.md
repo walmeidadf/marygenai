@@ -177,6 +177,21 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
 - The disagreements concentrate useful review cases: surveys, case reports,
   observational studies, pilot studies, and clinical-trial granularity. These
   remain candidate labels, not benchmark truth, until source review is recorded.
+- Human-confirmed review closed all 21 selected legacy-disagreement records:
+  13 deterministic title-rule candidates were confirmed and eight were
+  corrected.
+- On this conflict-enriched development set, title-rule category accuracy was
+  14/21 (0.6667), subtype accuracy was 20/21 (0.9524), and exact
+  category-plus-subtype accuracy was 13/21 (0.6190). Normalized English legacy
+  category accuracy was 7/21 (0.3333).
+- These values are diagnostic benchmark metrics, not corpus-wide accuracy. The
+  dominant title-rule errors were four missed double-blind refinements, three
+  intervention pilots mapped to `other`, and one ecological observational
+  analysis mapped to `survey`.
+- A 40-record holdout was frozen before rule-v2 implementation, excluding all
+  21 development records. It contains 20 exact rule/legacy agreements, 10 new
+  disagreements, five no-reference records, and five multi-rule titles. The
+  no-reference stratum is limited to the five eligible canine records.
 - The run produced 40 evidence spans. Seventeen were exact normalized
   substrings; all 40 passed token-bigram grounding with extraction-artifact
   tolerance, leaving no spans for grounding review. Extracted PDFs and page text
