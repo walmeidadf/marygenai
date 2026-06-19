@@ -1,5 +1,32 @@
 # Decision Log
 
+## 2026-06-19: Promote Explicit Source Signals Into Study-Design Rule V2
+
+`study_design_rules.v2` refines title-rule candidates using only explicit,
+hash-verified source-text signals. It recognizes source-declared double-blind
+trials, distinguishes interventional from observational pilots, and separates
+ecological analyses from studies whose primary method is a participant survey.
+
+The rule remains conservative. Placebo control or randomization alone does not
+imply double blinding, and normalized English legacy labels do not silently
+override missing source evidence. Original labels and every applied rule remain
+in provenance.
+
+On the 21-record conflict-enriched development benchmark, exact
+category-plus-subtype accuracy increased from 13/21 (0.6190) to 20/21 (0.9524).
+Category accuracy increased from 14/21 (0.6667) to 20/21 (0.9524), category
+macro-F1 from 0.3011 to 0.9048, and subtype accuracy from 20/21 (0.9524) to
+21/21 (1.0000).
+
+The remaining miss is a double-blind refinement supported by external PubMed
+indexing but not by the locally persisted source artifact. Rule v2 does not use
+the reviewed label or legacy label to manufacture that source signal.
+
+The rule was then applied to the frozen 40-record holdout without inspecting
+holdout labels. It changed three candidate categories, all through explicit
+double-blind source signals. Holdout quality metrics remain unavailable until
+the rule version is frozen and the holdout is reviewed.
+
 ## 2026-06-19: Separate Study-Design Development And Holdout Sets
 
 The 21 source-reviewed legacy-disagreement records are the development benchmark.

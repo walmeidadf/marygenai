@@ -16,10 +16,11 @@ prerequisite for useful candidate retrieval.
    queries and a small broader-source-ready contrast set.
 2. Perform weight sensitivity analysis before adding retrieval confidence to a
    public schema.
-3. Implement deterministic study-design rule v2 against the reviewed
-   21-record development benchmark without inspecting the frozen holdout labels.
-4. Run rule v2 on the frozen 40-record holdout, then review the holdout and
-   compare v1, v2, and normalized English legacy references.
+3. Review the frozen 40-record holdout now that deterministic
+   `study_design_rules.v2` is frozen and has been applied without label
+   inspection.
+4. Compare v1, v2, and normalized English legacy references on the reviewed
+   holdout, including results by holdout stratum.
 5. Re-test classical classifiers and NLI semantic support against the reviewed
    development and holdout benchmarks before adding either signal to retrieval
    confidence.

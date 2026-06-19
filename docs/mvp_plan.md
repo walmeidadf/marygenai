@@ -100,14 +100,18 @@ development benchmark. A separate 40-record holdout was frozen before
 deterministic rule-v2 work, and an official evaluator measures category,
 subtype, pair, per-label, legacy-reference, and error-pattern metrics.
 
+Deterministic `study_design_rules.v2` now reaches 20/21 exact
+category-plus-subtype matches on the development benchmark and has been applied
+to the frozen holdout without inspecting its labels.
+
 ## MVP Workstreams
 
 1. Stabilize classification schema and uncertainty representation.
 2. Add repeatable legacy-alignment and retrieval-utility evaluation.
 3. Validate and tune the evaluator-only `retrieval_confidence.v1` signal before
    promoting it into a public retrieval contract.
-4. Implement deterministic study-design rule v2 against the development
-   benchmark, then evaluate it on the frozen holdout.
+4. Review the frozen holdout and compare rule v1, rule v2, and normalized
+   English legacy references.
 5. Re-test auxiliary classifiers against reviewed development and holdout
    labels.
 6. Run a larger bounded classification batch after known defects are corrected.

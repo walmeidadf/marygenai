@@ -276,6 +276,27 @@ The no-reference pool currently contains only five eligible records, all in
 canine contexts. That limitation must remain visible in interpretation. Holdout
 labels are not inspected until the next deterministic rule version is frozen.
 
+### Deterministic Study-Design Rule V2
+
+`study_design_rules.v2` starts with the title-rule candidate and reads a
+hash-verified source prefix. It changes a label only when explicit deterministic
+signals are present:
+
+- a clinical trial becomes `double_blind_clinical_trial` when the source
+  explicitly states double-blind or double-masked design;
+- a pilot becomes `clinical_trial + pilot_study` when the source explicitly
+  describes randomized assignment, an interventional trial, or an open-label
+  treatment study;
+- an explicitly observational, non-randomized pilot remains
+  `other + pilot_study`;
+- a title containing `survey` becomes `other + observational_study` when the
+  primary method is explicitly an ecological state-level analysis joining
+  datasets and running regressions.
+
+The rule does not infer missing blinding from placebo control alone. It preserves
+the original candidate, applied rules, source-character limit, source-hash
+verification, and run ID in provenance.
+
 ## Provider Validation Results
 
 Current bounded tests favor OpenAI `gpt-5.4-mini` with:

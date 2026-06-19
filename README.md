@@ -72,6 +72,8 @@ uv run marygenai classification build-validation-holdout \
 uv run marygenai classification evaluate-validation-benchmark \
   --candidates-path <benchmark_candidates.jsonl> \
   --decisions-path <reviewed_benchmark_decisions.jsonl>
+uv run marygenai classification apply-study-design-rules \
+  --input-path <benchmark_or_holdout_candidates.jsonl>
 uv run marygenai classification evaluate
 ```
 
@@ -92,6 +94,10 @@ The benchmark evaluator measures deterministic candidates against append-only,
 human-confirmed review decisions. The holdout builder freezes a separate
 40-document set before rule changes so development cases cannot leak into final
 validation.
+
+`apply-study-design-rules` applies versioned deterministic source-text
+refinements without calling an LLM. Its output preserves candidate IDs, source
+hashes, the original labels, applied rules, and run provenance.
 
 Maintainer-only private bootstrap:
 

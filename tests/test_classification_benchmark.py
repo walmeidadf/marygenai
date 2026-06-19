@@ -4,12 +4,16 @@ import json
 from pathlib import Path
 
 from marygenai.classification.benchmark import (
+    StudyDesignBenchmarkCandidate,
     StudyDesignBenchmarkReviewDecision,
+    apply_study_design_rule_v2,
+    apply_study_design_rules_to_candidates,
     build_study_design_holdout,
     build_study_design_validation_benchmark,
     compare_legacy_category,
     evaluate_study_design_benchmark,
     matching_title_rules,
+    normalized_source_prefix,
     title_rule_for_record,
 )
 from marygenai.classification_corpus.models import ClassificationCorpusRecord
@@ -506,3 +510,168 @@ def test_build_holdout_freezes_requested_strata_and_excludes_reviewed(
         "no_legacy_reference",
         "multiple_title_rules",
     }
+
+
+def candidate_model(
+    tmp_path: Path,
+    *,
+    category: str,
+    subtype: str,
+    source_text: str,
+) -> tuple[dict, Path]:
+    source_path = tmp_path / "source.txt"
+    source_path.write_text(source_text, encoding="utf-8")
+    input_path = (
+        tmp_path
+        / "data/normalized/classification_corpus"
+        / "20260619T000000Z_classification_corpus_records.jsonl"
+    )
+    write_jsonl(
+        input_path,
+        [
+            corpus_record(
+                document_id="publication:pmid:rule-v2",
+                title="A Pilot Study of Cannabidiol",
+                source_path=source_path,
+            )
+        ],
+    )
+    legacy_path = (
+        tmp_path
+        / "data/normalized/legacy_english_context"
+        / "20260619T000000Z_legacy_english_context_records.jsonl"
+    )
+    write_jsonl(
+        legacy_path,
+        [
+            {
+                "context_id": "legacy:rule-v2",
+                "document_matches": [{"document_id": "publication:pmid:rule-v2"}],
+                "type_of_study": "Clinical Trial",
+            }
+        ],
+    )
+    build_result = build_study_design_validation_benchmark(
+        storage=LocalStorage(tmp_path / "data"),
+        input_path=input_path,
+        sample_size=1,
+        run_id="20260619T100000Z",
+    )
+    candidate = json.loads(Path(build_result["records_path"]).read_text().splitlines()[0])
+    candidate["candidate_study_design_category"] = category
+    candidate["candidate_study_design_subtype"] = subtype
+    return candidate, source_path
+
+
+def test_rule_v2_upgrades_source_explicit_double_blind_trial(tmp_path: Path) -> None:
+    candidate, _ = candidate_model(
+        tmp_path,
+        category="clinical_trial",
+        subtype="other",
+        source_text=(
+            "Methods: This double-blind, randomized, placebo-controlled trial "
+            "enrolled 80 participants."
+        ),
+    )
+
+    result = apply_study_design_rule_v2(
+        StudyDesignBenchmarkCandidate.model_validate(candidate),
+        source_text=(
+            " methods this double blind randomized placebo controlled trial "
+        ),
+    )
+
+    assert result.category == "double_blind_clinical_trial"
+    assert result.applied_rules == ("source_explicit_double_blind_trial",)
+
+
+def test_rule_v2_promotes_interventional_pilot_but_not_observational_pilot(
+    tmp_path: Path,
+) -> None:
+    candidate, _ = candidate_model(
+        tmp_path,
+        category="other",
+        subtype="pilot_study",
+        source_text="Source",
+    )
+    model = StudyDesignBenchmarkCandidate.model_validate(candidate)
+
+    interventional = apply_study_design_rule_v2(
+        model,
+        source_text=" methods participants were randomized to three conditions ",
+    )
+    observational = apply_study_design_rule_v2(
+        model,
+        source_text=(
+            " methods this was an exploratory observational non randomized "
+            "open label study "
+        ),
+    )
+
+    assert interventional.category == "clinical_trial"
+    assert interventional.subtype == "pilot_study"
+    assert observational.category == "other"
+    assert observational.applied_rules == ("source_explicit_observational_pilot",)
+
+
+def test_rule_v2_distinguishes_ecological_analysis_from_survey(
+    tmp_path: Path,
+) -> None:
+    candidate, _ = candidate_model(
+        tmp_path,
+        category="other",
+        subtype="survey",
+        source_text="Source",
+    )
+
+    result = apply_study_design_rule_v2(
+        StudyDesignBenchmarkCandidate.model_validate(candidate),
+        source_text=(
+            " methods age standardized state census incidence was joined with "
+            "drug exposure data and linear regression was used "
+        ),
+    )
+
+    assert result.category == "other"
+    assert result.subtype == "observational_study"
+
+
+def test_rule_v2_ignores_design_phrases_in_references(tmp_path: Path) -> None:
+    source_path = tmp_path / "source.txt"
+    source_path.write_text(
+        ("Clinical trial methods and results. " * 100)
+        + "References Double-blind randomized placebo-controlled trial.",
+        encoding="utf-8",
+    )
+
+    normalized = normalized_source_prefix(source_path)
+
+    assert "double blind" not in normalized
+
+
+def test_apply_rule_v2_preserves_ids_and_records_provenance(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    candidate, _ = candidate_model(
+        tmp_path,
+        category="clinical_trial",
+        subtype="other",
+        source_text="Methods: This double-blind randomized trial enrolled patients.",
+    )
+    candidates_path = data_dir / "candidates.jsonl"
+    write_jsonl(candidates_path, [candidate])
+
+    result = apply_study_design_rules_to_candidates(
+        storage=LocalStorage(data_dir),
+        input_path=candidates_path,
+        run_id="20260619T110000Z",
+    )
+
+    updated = json.loads(Path(result["records_path"]).read_text().splitlines()[0])
+    assert updated["benchmark_candidate_id"] == candidate["benchmark_candidate_id"]
+    assert updated["candidate_study_design_category"] == (
+        "double_blind_clinical_trial"
+    )
+    assert updated["provenance"]["study_design_rule_version"] == (
+        "study_design_rules.v2"
+    )
+    assert updated["provenance"]["study_design_rule_source_hash_verified"] is True

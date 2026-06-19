@@ -25,6 +25,8 @@ from marygenai.storage import LocalStorage
 BENCHMARK_SCHEMA_VERSION = "study_design_validation_benchmark_candidate.v1"
 BENCHMARK_REVIEW_SCHEMA_VERSION = "study_design_benchmark_review_decision.v1"
 BENCHMARK_EVALUATION_SCHEMA_VERSION = "study_design_benchmark_evaluation.v1"
+STUDY_DESIGN_RULE_VERSION = "study_design_rules.v2"
+RULE_V2_SOURCE_CHARS = 250_000
 
 
 class StudyDesignTitleRule(NamedTuple):
@@ -32,6 +34,12 @@ class StudyDesignTitleRule(NamedTuple):
     phrases: tuple[str, ...]
     category: StudyDesignCategory
     subtype: StudyDesignSubtype
+
+
+class StudyDesignRuleV2Result(NamedTuple):
+    category: StudyDesignCategory
+    subtype: StudyDesignSubtype
+    applied_rules: tuple[str, ...]
 
 
 TITLE_RULES = (
@@ -304,6 +312,232 @@ def compare_legacy_category(
     if {candidate, reference} == {"meta_analysis", "clinical_meta_analysis"}:
         return "compatible_refinement"
     return "disagreement"
+
+
+def normalized_source_prefix(path: Path, *, max_chars: int = RULE_V2_SOURCE_CHARS) -> str:
+    source_text = path.read_text(encoding="utf-8", errors="ignore")[:max_chars]
+    normalized = f" {normalize_lookup_text(source_text)} "
+    if path.suffix.lower() != ".html":
+        reference_positions = [
+            position
+            for marker in (" references ", " bibliography ")
+            if (position := normalized.find(marker)) >= 2_000
+        ]
+        if reference_positions:
+            normalized = normalized[: min(reference_positions)]
+    return normalized
+
+
+def contains_any_phrase(text: str, phrases: tuple[str, ...]) -> bool:
+    return any(f" {normalize_lookup_text(phrase)} " in text for phrase in phrases)
+
+
+def apply_study_design_rule_v2(
+    candidate: StudyDesignBenchmarkCandidate,
+    *,
+    source_text: str,
+) -> StudyDesignRuleV2Result:
+    category = candidate.candidate_study_design_category
+    subtype = candidate.candidate_study_design_subtype
+    applied_rules: list[str] = []
+    normalized_title = f" {normalize_lookup_text(candidate.primary_title)} "
+
+    double_blind_signal = contains_any_phrase(
+        source_text,
+        (
+            "double blind",
+            "double masked",
+            "double masking",
+        ),
+    )
+    if category == "clinical_trial" and double_blind_signal:
+        category = "double_blind_clinical_trial"
+        applied_rules.append("source_explicit_double_blind_trial")
+
+    if subtype == "pilot_study" and category == "other":
+        observational_signal = contains_any_phrase(
+            source_text,
+            (
+                "exploratory observational non randomized open label study",
+                "observational non randomized open label study",
+                "observational non-randomized open-label study",
+            ),
+        )
+        interventional_signal = contains_any_phrase(
+            source_text,
+            (
+                "open label treatment study",
+                "open-label treatment study",
+                "participants were randomized",
+                "participants were randomised",
+                "patients were randomized",
+                "patients were randomised",
+                "subjects were randomized",
+                "subjects were randomised",
+            ),
+        ) or (
+            contains_any_phrase(source_text, ("interventional prospective",))
+            and contains_any_phrase(
+                source_text,
+                (
+                    "open label trial",
+                    "open-label trial",
+                ),
+            )
+        )
+        if observational_signal:
+            applied_rules.append("source_explicit_observational_pilot")
+        elif interventional_signal:
+            category = (
+                "double_blind_clinical_trial"
+                if contains_any_phrase(
+                    normalized_title,
+                    (
+                        "double blind",
+                        "double-blind",
+                    ),
+                )
+                else "clinical_trial"
+            )
+            applied_rules.append("source_explicit_interventional_pilot")
+
+    if subtype == "survey" and category == "other":
+        ecological_signal = (
+            contains_any_phrase(
+                source_text,
+                (
+                    "ecological analysis",
+                    "ecological study",
+                    "age standardized state census incidence",
+                    "age-standardized state census incidence",
+                ),
+            )
+            and contains_any_phrase(
+                source_text,
+                (
+                    "joined with drug exposure data",
+                    "regression lines were charted",
+                    "linear regression",
+                ),
+            )
+        )
+        if ecological_signal:
+            subtype = "observational_study"
+            applied_rules.append("source_explicit_ecological_observational_analysis")
+
+    return StudyDesignRuleV2Result(
+        category=category,
+        subtype=subtype,
+        applied_rules=tuple(applied_rules),
+    )
+
+
+def apply_study_design_rules_to_candidates(
+    *,
+    storage: LocalStorage,
+    input_path: Path,
+    run_id: str | None = None,
+) -> dict[str, Any]:
+    resolved_run_id = run_id or new_run_id()
+    records: list[StudyDesignBenchmarkCandidate] = []
+    changed_fields: Counter[str] = Counter()
+    applied_rule_counts: Counter[str] = Counter()
+    source_hash_mismatches: list[str] = []
+
+    for row in read_jsonl(input_path):
+        candidate = StudyDesignBenchmarkCandidate.model_validate(row)
+        source_path = Path(candidate.source_text_path)
+        if not source_path.is_file():
+            msg = f"Source text is unavailable for {candidate.document_id}."
+            raise FileNotFoundError(msg)
+        current_hash = file_sha256(source_path)
+        if current_hash != candidate.source_text_sha256:
+            source_hash_mismatches.append(candidate.document_id)
+            continue
+        source_text = normalized_source_prefix(source_path)
+        result = apply_study_design_rule_v2(candidate, source_text=source_text)
+        updated = candidate.model_copy(deep=True)
+        original_category = candidate.candidate_study_design_category
+        original_subtype = candidate.candidate_study_design_subtype
+        updated.candidate_study_design_category = result.category
+        updated.candidate_study_design_subtype = result.subtype
+        expected_legacy_category = legacy_category(
+            candidate.legacy_english_type_of_study
+        )
+        updated.exact_legacy_category_match = (
+            result.category == expected_legacy_category
+            if expected_legacy_category is not None
+            else None
+        )
+        updated.legacy_comparison = compare_legacy_category(
+            result.category,
+            expected_legacy_category,
+        )
+        updated.provenance.update(
+            {
+                "study_design_rule_version": STUDY_DESIGN_RULE_VERSION,
+                "study_design_rule_run_id": resolved_run_id,
+                "study_design_rule_source_chars": RULE_V2_SOURCE_CHARS,
+                "study_design_rule_applied_rules": list(result.applied_rules),
+                "study_design_rule_original_category": original_category,
+                "study_design_rule_original_subtype": original_subtype,
+                "study_design_rule_source_hash_verified": True,
+                "study_design_rule_does_not_call_llm": True,
+                "study_design_rule_does_not_mutate_sqlite": True,
+            }
+        )
+        if result.category != original_category:
+            changed_fields["study_design_category"] += 1
+        if result.subtype != original_subtype:
+            changed_fields["study_design_subtype"] += 1
+        applied_rule_counts.update(result.applied_rules)
+        records.append(updated)
+
+    if source_hash_mismatches:
+        msg = (
+            "Source hash mismatch for study-design candidates: "
+            + ", ".join(source_hash_mismatches)
+        )
+        raise ValueError(msg)
+
+    output_dir = Path("normalized/classification_evaluations")
+    records_path = storage.write_jsonl(
+        output_dir / f"{resolved_run_id}_study_design_rule_v2_candidates.jsonl",
+        records,
+    )
+    summary = {
+        "run_id": resolved_run_id,
+        "created_at": datetime.now(UTC).isoformat(),
+        "rule_version": STUDY_DESIGN_RULE_VERSION,
+        "input_path": str(input_path),
+        "records_path": str(records_path),
+        "counts": {
+            "input_records": len(records),
+            "changed_records": sum(
+                bool(record.provenance["study_design_rule_applied_rules"])
+                for record in records
+            ),
+        },
+        "changed_field_counts": dict(changed_fields),
+        "applied_rule_counts": dict(applied_rule_counts),
+        "notes": [
+            "Rule v2 uses explicit deterministic source-text signals.",
+            "The command does not call an LLM or mutate SQLite.",
+            "Outputs remain candidate metadata and require benchmark evaluation.",
+        ],
+    }
+    summary_path = storage.write_json(
+        output_dir / f"{resolved_run_id}_study_design_rule_v2_summary.json",
+        summary,
+    )
+    return {
+        "run_id": resolved_run_id,
+        "records_path": str(records_path),
+        "summary_path": str(summary_path),
+        "counts": summary["counts"],
+        "changed_field_counts": summary["changed_field_counts"],
+        "applied_rule_counts": summary["applied_rule_counts"],
+    }
 
 
 def build_benchmark_candidate(

@@ -7,6 +7,7 @@ import typer
 from rich.console import Console
 
 from marygenai.classification.benchmark import (
+    apply_study_design_rules_to_candidates,
     build_study_design_holdout,
     build_study_design_validation_benchmark,
     evaluate_study_design_benchmark,
@@ -180,6 +181,27 @@ def evaluate_validation_benchmark(
         storage=LocalStorage(settings.data_dir),
         candidates_path=candidates_path,
         decisions_path=decisions_path,
+    )
+    console.print(result)
+
+
+@app.command("apply-study-design-rules")
+def apply_study_design_rules(
+    input_path: Annotated[
+        Path,
+        typer.Option("--input-path", help="Study-design benchmark candidates JSONL."),
+    ],
+    run_id: Annotated[
+        str | None,
+        typer.Option("--run-id", help="Optional explicit output run identifier."),
+    ] = None,
+) -> None:
+    """Apply deterministic study-design rule v2 to candidate records."""
+    settings = get_settings()
+    result = apply_study_design_rules_to_candidates(
+        storage=LocalStorage(settings.data_dir),
+        input_path=input_path,
+        run_id=run_id,
     )
     console.print(result)
 

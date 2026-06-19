@@ -118,6 +118,19 @@ disagreements, five records without normalized English legacy reference, and
 five titles matching multiple design rules. The holdout must remain unreviewed
 until the next rule version is frozen.
 
+Apply the versioned deterministic source-text rules:
+
+```bash
+uv run marygenai classification apply-study-design-rules \
+  --input-path <benchmark_or_holdout_candidates.jsonl>
+```
+
+Rule v2 uses explicit source phrases to refine double-blind trials,
+interventional versus observational pilots, and ecological observational
+analyses that consume survey-derived data. It verifies source hashes, preserves
+candidate identity and original labels in provenance, and does not call an LLM
+or mutate SQLite.
+
 Evaluate an existing run without calling a model:
 
 ```bash

@@ -192,6 +192,17 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
   21 development records. It contains 20 exact rule/legacy agreements, 10 new
   disagreements, five no-reference records, and five multi-rule titles. The
   no-reference stratum is limited to the five eligible canine records.
+- Deterministic `study_design_rules.v2` improved exact category-plus-subtype
+  accuracy on the 21-record development benchmark from 0.6190 to 0.9524.
+  Category accuracy improved from 0.6667 to 0.9524, category macro-F1 from
+  0.3011 to 0.9048, and subtype accuracy from 0.9524 to 1.0000.
+- Rule v2 corrected all reviewed interventional-pilot and ecological-analysis
+  errors and three of four reviewed double-blind refinements. The remaining
+  double-blind label was supported by PubMed indexing but not by explicit text
+  in the locally persisted source artifact.
+- Applying rule v2 to the frozen 40-record holdout changed three categories,
+  all through explicit source-level double-blind signals. No holdout labels were
+  inspected during implementation or application.
 - The run produced 40 evidence spans. Seventeen were exact normalized
   substrings; all 40 passed token-bigram grounding with extraction-artifact
   tolerance, leaving no spans for grounding review. Extracted PDFs and page text
