@@ -1,5 +1,57 @@
 # Decision Log
 
+## 2026-06-22: Let The Downloaded Corpus Define Classification Scale
+
+The deduplicated downloaded corpus, after source-quality and classification
+eligibility checks, defines the classification queue, provider-call volume,
+throughput, and cost projection. The normalized English legacy dataset is not a
+batch input by default.
+
+The legacy dataset remains a valuable normative bootstrap and guardrail. It
+defines candidate vocabularies, supplies comparison metadata, helps stratify
+development and holdout samples, and exposes likely error families. It must not
+silently override explicit source evidence or be treated as reviewed clinical
+truth.
+
+Efficiency reports should therefore follow downloaded, source-ready,
+classification-ready, deterministically enriched, LLM-required, provider-valid,
+and evidence-supported counts. Projecting cost from the number of legacy records
+is not valid.
+
+## 2026-06-22: Plan V4 Around Patient-Oriented Retrieval Fields
+
+The current v3 contract is insufficient for the intended physician journey
+because it does not preserve several essential MCP dimensions. Organ-system
+labels enter prompt metadata but have no structured output field. Study
+geography, sample size, study period, age group, sex, comparator, and route are
+also absent or insufficiently structured.
+
+V4 should separate clinical conditions, pathology or disease family, symptoms,
+anatomical entities, organ systems, cannabinoid entities and roles, population,
+sample scope, study structure, and outcomes. Publication year remains canonical
+bibliographic metadata; study and enrollment dates are separate fields.
+
+The contract should be evaluated by field family. A correct study-design label
+must not conceal incorrect condition, organ, cannabinoid, population, or outcome
+metadata.
+
+## 2026-06-22: Prefer Deterministic Enrichment Before Selective LLM Calls
+
+V4 experiments should compare one broad LLM call with deterministic assembly and
+selective field-family calls. Canonical metadata, structured sources, parsers,
+and ontology matching should run before an LLM. The LLM should be reserved for
+semantic relations and unresolved ambiguity.
+
+Every field-level value should preserve extraction method, evidence, source
+hash, component version, uncertainty, and model provenance when applicable.
+Required efficiency metrics include LLM invocation rate, deterministic coverage,
+tokens and cost per invoked document, cost per valid candidate, cost per correct
+evidence-backed field, and incremental quality gained per provider dollar.
+
+The first validation sequence is local-only: profile the downloaded corpus,
+compare available legacy guardrails, and freeze a small retrieval-field sample.
+Provider-backed comparison requires an explicit later authorization.
+
 ## 2026-06-19: Promote Explicit Source Signals Into Study-Design Rule V2
 
 `study_design_rules.v2` refines title-rule candidates using only explicit,

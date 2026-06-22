@@ -10,12 +10,15 @@ AI assistant or research tool. A future read-only MCP server should let that too
 ask MaryGenAI for studies matching dimensions such as:
 
 - medical condition;
+- pathology or disease family;
+- anatomical entity or organ system;
 - cannabinoid or exposure;
 - study type;
 - evidence context;
 - population or model;
 - outcome domain;
 - publication date;
+- study geography and sample context when available;
 - source availability;
 - classification confidence.
 
@@ -128,6 +131,10 @@ Evaluation should use three separate metric groups.
 
 A single headline accuracy number is insufficient. MaryGenAI must optimize for
 useful retrieval while making uncertainty and known limitations visible.
+
+The primary retrieval journey is patient-oriented. Study design is an important
+filter and ranking signal, but it does not replace matching the patient's
+condition, pathology, anatomy, population, relevant cannabinoid, and outcomes.
 
 ## Safety Boundary
 

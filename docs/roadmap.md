@@ -12,31 +12,32 @@ prerequisite for useful candidate retrieval.
 
 ## Now: Classification Reliability
 
-1. Test `retrieval_confidence.v1` on realistic broad versus narrow retrieval
+1. Accept the v4 patient-oriented data dictionary and retrieval architecture.
+2. Profile the downloaded corpus to measure deterministic field coverage and
+   the actual LLM-eligible execution universe.
+3. Freeze a small cross-domain validation sample from source-ready documents.
+4. Test metadata and parser extraction for publication year, geography, sample
+   size and scope, route, species, and explicit study structure.
+5. Run field-scoped review for condition, pathology, anatomy, cannabinoid role,
+   population, outcomes, and study structure.
+6. Compare broad-record and selective LLM calls on the same authorized sample.
+7. Report LLM invocation rate, tokens, latency, cost per valid record, and cost
+   per correct evidence-backed field.
+8. Test `retrieval_confidence.v1` on realistic broad versus narrow retrieval
    queries and a small broader-source-ready contrast set.
-2. Perform weight sensitivity analysis before adding retrieval confidence to a
+9. Perform weight sensitivity analysis before adding retrieval confidence to a
    public schema.
-3. Review the frozen 40-record holdout now that deterministic
-   `study_design_rules.v2` is frozen and has been applied without label
-   inspection.
-4. Compare v1, v2, and normalized English legacy references on the reviewed
-   holdout, including results by holdout stratum.
-5. Re-test classical classifiers and NLI semantic support against the reviewed
-   development and holdout benchmarks before adding either signal to retrieval
-   confidence.
-6. Use the repeatable evaluation command for English legacy alignment, evidence
-   coverage, unsupported labels, and retrieval utility.
-7. Define confidence semantics:
-   - model-declared classification confidence;
-   - deterministic pipeline confidence;
-   - future calibrated retrieval confidence;
-   - clinical evidence strength, which remains a separate concept.
-8. Re-run only affected and disagreement records before another broad paid run.
+10. Complete the frozen 40-record study-design holdout interpretation without
+    treating study design as the only inference-quality domain.
+11. Re-test classical classifiers and NLI semantic support against reviewed
+    field-scoped benchmarks before adding either signal to retrieval confidence.
+12. Re-run only affected and disagreement records before another broad paid run.
 
 ## Next: Bounded Scale
 
 1. Run a larger stratified batch after known defects are fixed.
-2. Measure quality by condition, study type, source strategy, and source quality.
+2. Measure quality by field family, condition, study type, source strategy, and
+   source quality.
 3. Test broad-recall versus high-confidence retrieval behavior.
 4. Estimate full-corpus cost and failure handling.
 5. Establish resumable, idempotent batch execution.
@@ -53,8 +54,9 @@ prerequisite for useful candidate retrieval.
 ## Later: Read-Only Retrieval
 
 1. Define an MCP resource and query contract.
-2. Support structured filters over condition, cannabinoid, study type,
-   population, outcome, source readiness, and confidence.
+2. Support structured filters over condition, pathology, anatomy, organ system,
+   cannabinoid and role, study type, population, geography, publication period,
+   outcome, source readiness, and confidence.
 3. Return evidence spans, source identity, provenance, and trust level.
 4. Add lexical and ontology-aware retrieval before introducing vector search.
 5. Evaluate hybrid retrieval and ranking with realistic physician queries.

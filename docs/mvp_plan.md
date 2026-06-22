@@ -21,6 +21,10 @@ A downstream client should be able to request:
 The system should return candidate records suitable for research triage. It
 should not answer whether a patient should receive a treatment.
 
+The target retrieval journey begins with the patient's condition and context.
+Study design, evidence setting, source quality, and recency refine and rank the
+candidate studies rather than replacing patient-condition relevance.
+
 ## Current Capabilities
 
 - private maintainer bootstrap import into auditable JSONL;
@@ -106,18 +110,24 @@ to the frozen holdout without inspecting its labels.
 
 ## MVP Workstreams
 
-1. Stabilize classification schema and uncertainty representation.
-2. Add repeatable legacy-alignment and retrieval-utility evaluation.
-3. Validate and tune the evaluator-only `retrieval_confidence.v1` signal before
+1. Define and validate the patient-oriented v4 classification data dictionary.
+2. Profile the downloaded corpus and separate deterministic enrichment from
+   fields that require semantic interpretation.
+3. Build field-scoped benchmarks for condition, pathology, anatomy, cannabinoid
+   role, population, study structure, and outcomes.
+4. Compare broad-record and selective field-family LLM strategies on the same
+   small frozen sample, including cost per correct evidence-backed field.
+5. Add repeatable legacy-alignment and retrieval-utility evaluation.
+6. Validate and tune the evaluator-only `retrieval_confidence.v1` signal before
    promoting it into a public retrieval contract.
-4. Review the frozen holdout and compare rule v1, rule v2, and normalized
+7. Review the frozen holdout and compare rule v1, rule v2, and normalized
    English legacy references.
-5. Re-test auxiliary classifiers against reviewed development and holdout
+8. Re-test auxiliary classifiers against reviewed development and holdout
    labels.
-6. Run a larger bounded classification batch after known defects are corrected.
-7. Continue PubMed discovery and source acquisition using supported commands.
-8. Design a read-only MCP retrieval contract.
-9. Publish a public baseline snapshot when licensing and review boundaries are
+9. Run a larger bounded classification batch after known defects are corrected.
+10. Continue PubMed discovery and source acquisition using supported commands.
+11. Design a read-only MCP retrieval contract.
+12. Publish a public baseline snapshot when licensing and review boundaries are
    ready.
 
 ## Data Safety

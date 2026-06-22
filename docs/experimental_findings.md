@@ -25,6 +25,19 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
   prompts and evaluation.
 - Legacy agreement is informative but not absolute. Source-supported
   disagreements should be retained for review.
+- The normalized English reference contains 7,360 deduplicated records, but this
+  count does not define classification scale. The downloaded source-ready corpus
+  defines provider volume and cost.
+- Reference coverage is strong for publication year (100.0%), study location
+  (99.7%), condition/pathology page association (96.6%), cannabinoids (88.4%),
+  and organ-system page association (80.6%). Sample size is available for 35.1%,
+  route for 43.0%, and structured adverse events for 2.4%.
+- Publication year agreed in 6,488 of 6,490 canonical corpus/reference
+  comparisons in the reproducible field profile. It is a strong metadata field,
+  while study period remains a separate extraction problem.
+- Condition and organ labels derived from page membership are useful bootstrap
+  signals but may describe a page association rather than the document's
+  principal question. They require field-scoped validation.
 
 ## Source Availability
 
@@ -221,6 +234,11 @@ Classification exists to improve retrieval, not to replace scientific judgment.
 A declared, evidence-backed uncertainty can remain useful. Known technical
 defects should be corrected. Evaluation must therefore separate technical
 validity, retrieval utility, and inference quality.
+
+Study-design work revealed useful architecture and evaluation patterns, but it
+does not establish the quality of conditions, anatomy, cannabinoid roles,
+population, geography, sample context, or outcomes. Those domains require
+separate benchmarks before a patient-oriented MCP retrieval surface is ready.
 
 ## Decisions Promoted Into The Product
 

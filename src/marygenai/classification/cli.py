@@ -20,6 +20,7 @@ from marygenai.classification.pipeline import (
     build_classification_prompt_packets,
     run_classification_smoke,
 )
+from marygenai.classification.retrieval_profile import profile_retrieval_fields
 from marygenai.settings import get_settings
 from marygenai.storage import LocalStorage
 
@@ -255,5 +256,39 @@ def evaluate(
         input_path=input_path,
         legacy_context_path=legacy_context_path,
         estimated_cost_usd=estimated_cost_usd,
+    )
+    console.print(result)
+
+
+@app.command("profile-retrieval-fields")
+def profile_retrieval_field_coverage(
+    corpus_path: Annotated[
+        Path | None,
+        typer.Option("--corpus-path", help="Classification corpus records JSONL."),
+    ] = None,
+    legacy_context_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--legacy-context-path",
+            help="Normalized English legacy context JSONL used only as a guardrail.",
+        ),
+    ] = None,
+    sample_size: Annotated[
+        int,
+        typer.Option(
+            "--sample-size",
+            min=1,
+            max=100,
+            help="Size of the deterministic retrieval-field validation sample.",
+        ),
+    ] = 12,
+) -> None:
+    """Profile retrieval fields and build a local v4 validation sample."""
+    settings = get_settings()
+    result = profile_retrieval_fields(
+        storage=LocalStorage(settings.data_dir),
+        corpus_path=corpus_path,
+        legacy_context_path=legacy_context_path,
+        sample_size=sample_size,
     )
     console.print(result)

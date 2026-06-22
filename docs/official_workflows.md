@@ -76,6 +76,17 @@ Validate the schema with deterministic mock output:
 uv run marygenai classification run-smoke --limit 5
 ```
 
+Profile the actual downloaded corpus and prepare a small v4 retrieval-field
+validation sample without calling a model:
+
+```bash
+uv run marygenai classification profile-retrieval-fields --sample-size 12
+```
+
+The report distinguishes downloaded, source-ready, strict, and broader records.
+It uses normalized English legacy context only as a comparison guardrail and
+writes ignored artifacts under `data/normalized/classification_evaluations/`.
+
 Build a deterministic study-design benchmark candidate set:
 
 ```bash

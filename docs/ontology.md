@@ -47,6 +47,11 @@ The MVP should normalize at least:
 - external identifiers and vocabulary mappings;
 - links from ontology entities to studies, source records, and reviewed fields.
 
+The retrieval contract should keep medical conditions, pathology or disease
+families, symptoms or indications, anatomical entities, and organ systems as
+related but distinct domains. A page association or broad organ-system mapping
+must not be represented as if it were the principal diagnosed condition.
+
 Ontology enrichment should preserve field-level provenance and review state in
 the same way as publication extraction. A Wikipedia or PubMed-derived condition
 description, for example, is an enrichment candidate until reviewed.

@@ -117,6 +117,11 @@ Candidate confidence is model-declared and categorical. The experimental
 ranking signal. It is not calibrated and remains outside the candidate schema
 while weights and retrieval behavior are validated.
 
+The current broad v3 provider response is not the final architecture. V4 planning
+prefers field-level deterministic enrichment followed by selective semantic
+classification. See [Classification Architecture](classification_architecture.md)
+and [Classification Data Dictionary](classification_data_dictionary.md).
+
 ## Retrieval Surface
 
 The intended first external integration is a read-only MCP server over discovered,

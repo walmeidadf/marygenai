@@ -66,6 +66,7 @@ Classification preparation and validation:
 uv run marygenai classification-corpus rollup --sample-size 30
 uv run marygenai classification build-prompt-packets --limit 5
 uv run marygenai classification run-smoke --limit 5
+uv run marygenai classification profile-retrieval-fields --sample-size 12
 uv run marygenai classification build-validation-benchmark --sample-size 48
 uv run marygenai classification build-validation-holdout \
   --exclude-decisions-path <reviewed_benchmark_decisions.jsonl>
@@ -89,6 +90,10 @@ input under `data/normalized/classification_evaluations/`.
 `classification build-validation-benchmark` creates a deterministic,
 title-explicit, stratified candidate set for human review. It does not call an
 LLM, mutate SQLite, or create reviewed knowledge.
+
+`classification profile-retrieval-fields` measures the actual downloaded corpus
+and prepares a small cross-domain validation worklist. Legacy English context is
+reported as a guardrail, not treated as the classification queue.
 
 The benchmark evaluator measures deterministic candidates against append-only,
 human-confirmed review decisions. The holdout builder freezes a separate
@@ -142,7 +147,10 @@ history remains available through Git.
 - [Project Brief](docs/project_brief.md)
 - [Official Workflows](docs/official_workflows.md)
 - [Architecture](docs/architecture.md)
+- [Classification Architecture](docs/classification_architecture.md)
 - [Classification Contract](docs/classification_dataset_plan.md)
+- [Classification Data Dictionary](docs/classification_data_dictionary.md)
+- [Candidate Classification V4 Plan](docs/classification_v4_plan.md)
 - [MVP Plan](docs/mvp_plan.md)
 - [Roadmap](docs/roadmap.md)
 - [Data Sources](docs/data_sources.md)

@@ -78,6 +78,15 @@ Evidence and uncertainty:
 - `requires_human_review=true`;
 - `review_state=needs_review`.
 
+The current schema remains supported for existing experiments, but it is not the
+complete target MCP contract. The planned v4 contract and field definitions are
+documented in [Candidate Classification V4 Plan](classification_v4_plan.md) and
+[Classification Data Dictionary](classification_data_dictionary.md).
+
+The principal known gaps are structured pathology, symptoms, anatomy and organ
+systems, study geography, study period, demographics, sample size and scope,
+route, comparator, and entity-level cannabinoid role.
+
 ## Study Design Domain
 
 The principal field uses the normalized English legacy-compatible domain:
@@ -213,6 +222,22 @@ ambiguity are correctable defects.
 
 Legacy comparison uses normalized English context first. Portuguese fields remain
 fallback and traceability only.
+
+The downloaded corpus defines evaluation scale and provider cost. Legacy context
+is a reference and guardrail, not a queue of documents to classify.
+
+Field-scoped evaluation must expand beyond study design. Required v4 benchmark
+families are:
+
+- condition, pathology, symptom, anatomy, and organ system;
+- cannabinoid identity and scientific role;
+- population, demographics, species, and sample scope;
+- publication and study time, geography, route, and comparator;
+- study structure;
+- outcomes, adverse events, and overall direction.
+
+Efficiency must report deterministic coverage, LLM invocation rate, cost per
+valid record, and cost per correct evidence-backed field.
 
 ## Study-Design Validation Benchmark
 
