@@ -67,6 +67,8 @@ uv run marygenai classification-corpus rollup --sample-size 30
 uv run marygenai classification build-prompt-packets --limit 5
 uv run marygenai classification run-smoke --limit 5
 uv run marygenai classification profile-retrieval-fields --sample-size 12
+uv run marygenai classification extract-retrieval-metadata \
+  --input-path <retrieval_field_validation_sample.jsonl>
 uv run marygenai classification build-validation-benchmark --sample-size 48
 uv run marygenai classification build-validation-holdout \
   --exclude-decisions-path <reviewed_benchmark_decisions.jsonl>
@@ -94,6 +96,10 @@ LLM, mutate SQLite, or create reviewed knowledge.
 `classification profile-retrieval-fields` measures the actual downloaded corpus
 and prepares a small cross-domain validation worklist. Legacy English context is
 reported as a guardrail, not treated as the classification queue.
+
+`classification extract-retrieval-metadata` tests deterministic source parsing
+on that worklist. Its outputs are field candidates with evidence and provenance,
+not final classifications.
 
 The benchmark evaluator measures deterministic candidates against append-only,
 human-confirmed review decisions. The holdout builder freezes a separate

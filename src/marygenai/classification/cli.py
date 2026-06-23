@@ -20,6 +20,9 @@ from marygenai.classification.pipeline import (
     build_classification_prompt_packets,
     run_classification_smoke,
 )
+from marygenai.classification.retrieval_baseline import (
+    run_retrieval_metadata_baseline,
+)
 from marygenai.classification.retrieval_profile import profile_retrieval_fields
 from marygenai.settings import get_settings
 from marygenai.storage import LocalStorage
@@ -290,5 +293,24 @@ def profile_retrieval_field_coverage(
         corpus_path=corpus_path,
         legacy_context_path=legacy_context_path,
         sample_size=sample_size,
+    )
+    console.print(result)
+
+
+@app.command("extract-retrieval-metadata")
+def extract_retrieval_metadata(
+    input_path: Annotated[
+        Path,
+        typer.Option(
+            "--input-path",
+            help="Retrieval-field validation sample JSONL.",
+        ),
+    ],
+) -> None:
+    """Extract deterministic retrieval metadata candidates without an LLM."""
+    settings = get_settings()
+    result = run_retrieval_metadata_baseline(
+        storage=LocalStorage(settings.data_dir),
+        input_path=input_path,
     )
     console.print(result)

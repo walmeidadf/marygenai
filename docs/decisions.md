@@ -1,5 +1,24 @@
 # Decision Log
 
+## 2026-06-23: Use Parsers To Generate Field Evidence, Not Silent Final Values
+
+The first 12-document v4 metadata/parser baseline produced candidate evidence
+for sample size, route, country mentions, population/species, and study-design
+signals without calling an LLM. Candidate recall was useful: five of six
+available legacy sample-size references and four of six route references
+appeared in the extracted candidate sets.
+
+The same documents also exposed why regex matches are not final classifications.
+Articles contain arm sizes, screening counts, analyzed samples, cited animal
+models, background routes, reference study designs, and author affiliations.
+Choosing the principal value and scope is a semantic task.
+
+Deterministic extractors should therefore preserve all bounded candidate values,
+evidence, source hash, method, and confidence. They may finalize only
+unambiguous metadata under an explicit field rule. Otherwise they should route a
+compact evidence packet to selective semantic resolution or abstain. Silent
+normalization that discards ambiguity is not allowed.
+
 ## 2026-06-22: Let The Downloaded Corpus Define Classification Scale
 
 The deduplicated downloaded corpus, after source-quality and classification

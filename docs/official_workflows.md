@@ -87,6 +87,18 @@ The report distinguishes downloaded, source-ready, strict, and broader records.
 It uses normalized English legacy context only as a comparison guardrail and
 writes ignored artifacts under `data/normalized/classification_evaluations/`.
 
+Run the deterministic metadata/parser baseline on the frozen worklist:
+
+```bash
+uv run marygenai classification extract-retrieval-metadata \
+  --input-path <retrieval_field_validation_sample.jsonl>
+```
+
+This command generates source-backed candidates for sample size and scope,
+route, country mentions, population/species, and explicit study-design signals.
+It does not treat regex matches as reviewed values, call an LLM, or mutate
+SQLite.
+
 Build a deterministic study-design benchmark candidate set:
 
 ```bash

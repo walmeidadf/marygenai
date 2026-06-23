@@ -113,6 +113,17 @@ On the frozen sample:
 - measure coverage, exactness, ambiguity, and extraction provenance;
 - record which documents still need semantic classification.
 
+The first 12-document baseline produced valid local artifacts for every input.
+It found source candidates for sample size in 8 records, route in 8, country
+mentions in 9, population in 12, and explicit design signals in 9. Against
+available legacy guardrails, the candidate set contained the reference sample
+size in 5 of 6 records and an overlapping route in 4 of 6.
+
+This is candidate-retrieval performance, not final field accuracy. Multiple
+numbers, cited designs, background species, affiliations, and non-primary routes
+remain common. The parser should therefore select compact evidence candidates
+for later semantic resolution rather than write final retrieval values silently.
+
 ### Phase 2: Small LLM Comparison
 
 With explicit maintainer authorization, run 5 to 10 documents through:

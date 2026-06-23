@@ -240,6 +240,21 @@ does not establish the quality of conditions, anatomy, cannabinoid roles,
 population, geography, sample context, or outcomes. Those domains require
 separate benchmarks before a patient-oriented MCP retrieval surface is ready.
 
+- The first v4 metadata/parser baseline ran locally on 12 source-ready
+  documents. It produced valid candidate artifacts for all 12 without an LLM.
+- Source candidates were found for sample size in 8/12 records, route in 8/12,
+  country mentions in 9/12, population in 12/12, and explicit design signals in
+  9/12.
+- The candidate set contained the legacy-reference sample size in 5/6 available
+  cases and an overlapping route in 4/6 available cases.
+- High candidate recall did not imply final-field precision. Primary studies and
+  reviews contain multiple sample counts, cited species, background routes, and
+  design phrases. Country mentions were frequently affiliations rather than
+  explicit study geography.
+- Deterministic parsing is therefore best used to locate compact field evidence
+  and reduce LLM context. Semantic selection, relation classification, or
+  explicit abstention remains necessary for ambiguous fields.
+
 ## Decisions Promoted Into The Product
 
 - Supported workflows live under `src/marygenai/` and the `marygenai` CLI.
