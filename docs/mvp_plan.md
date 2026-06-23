@@ -35,6 +35,9 @@ candidate studies rather than replacing patient-condition relevance.
 - strict candidate-classification schema;
 - prompt packet generation without provider calls;
 - bounded OpenAI-backed classification validation;
+- downloaded-corpus retrieval-field profiler;
+- frozen patient-oriented retrieval-field sample builder;
+- deterministic metadata/parser candidate extraction;
 - review CLI, API, and local UI for explicit review workflows.
 
 ## Current Local Dataset
@@ -107,6 +110,13 @@ subtype, pair, per-label, legacy-reference, and error-pattern metrics.
 Deterministic `study_design_rules.v2` now reaches 20/21 exact
 category-plus-subtype matches on the development benchmark and has been applied
 to the frozen holdout without inspecting its labels.
+
+V4 preparation now has a reproducible 12-document cross-domain sample and a
+local parser baseline. The parser found useful evidence candidates but also
+confirmed that multiple sample counts, cited study designs, affiliations,
+background species, and routes require semantic selection. The next gate is
+local construction and cost inspection of broad versus selective semantic
+prompt packets; no broader provider run is yet justified.
 
 ## MVP Workstreams
 

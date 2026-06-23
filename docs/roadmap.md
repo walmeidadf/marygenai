@@ -12,6 +12,17 @@ prerequisite for useful candidate retrieval.
 
 ## Now: Classification Reliability
 
+Completed in the current v4 preparation cycle:
+
+- patient-oriented data dictionary and classification architecture;
+- downloaded-corpus profiling and execution-universe correction;
+- frozen 12-document cross-domain validation sample;
+- deterministic metadata/parser baseline with evidence candidates;
+- initial parser-versus-legacy guardrail comparison.
+
+Immediate next step: build broad and selective semantic prompt packets, validate
+their schemas locally, and estimate tokens and cost before any provider call.
+
 1. Accept the v4 patient-oriented data dictionary and retrieval architecture.
 2. Profile the downloaded corpus to measure deterministic field coverage and
    the actual LLM-eligible execution universe.

@@ -254,6 +254,10 @@ separate benchmarks before a patient-oriented MCP retrieval surface is ready.
 - Deterministic parsing is therefore best used to locate compact field evidence
   and reduce LLM context. Semantic selection, relation classification, or
   explicit abstention remains necessary for ambiguous fields.
+- The next controlled experiment is broad-record versus selective field-family
+  semantic classification on the same 5 to 10 documents. Prompt packets, local
+  schemas, token estimates, and projected cost inputs must be inspected before
+  a provider call.
 
 ## Decisions Promoted Into The Product
 

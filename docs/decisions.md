@@ -1,5 +1,25 @@
 # Decision Log
 
+## 2026-06-23: Compare Compact Semantic Packets Before Any Broader V4 Run
+
+The next v4 experiment will not send full source text and every retrieval field
+through an unbounded broad prompt. It will first build local, inspectable prompt
+packets from deterministic metadata and parser candidates.
+
+The first comparison will use the same 5 to 10 documents for both strategies:
+
+1. one broad v4 candidate-record prompt;
+2. selective field-family prompts over compact evidence candidates.
+
+Before a provider call, the implementation must report packet character and
+token estimates, fields requested, evidence candidates included, and projected
+cost inputs. The provider, model, source-character limits, completion limits,
+and documents must be identical where comparison requires them.
+
+No provider call is authorized by this decision alone. Prompt packets, schemas,
+local evaluation, and cost projections should be validated first. AI outputs
+remain candidate evidence and must not mutate SQLite or reviewed knowledge.
+
 ## 2026-06-23: Use Parsers To Generate Field Evidence, Not Silent Final Values
 
 The first 12-document v4 metadata/parser baseline produced candidate evidence

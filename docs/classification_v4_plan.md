@@ -8,6 +8,25 @@ structured for a read-only MCP server while minimizing unnecessary LLM calls.
 V4 should improve retrieval-field coverage and correctness without turning
 candidate metadata into clinical truth.
 
+## Current Status
+
+Completed as of 2026-06-23:
+
+- patient-oriented classification architecture and data dictionary;
+- reproducible profiling of the downloaded classification corpus;
+- a frozen 12-document retrieval-field validation sample;
+- a deterministic metadata/parser baseline with field evidence and provenance;
+- local comparison against available legacy guardrails;
+- official CLI commands, tests, and documentation.
+
+The current downloaded corpus profile contains 6,490 canonical records, 3,374
+source-ready records, 3,149 strict classification-ready records, and 225 broader
+source-ready records. These locally generated counts define the current execution
+universe; the legacy reference size does not.
+
+The immediate next implementation is compact semantic prompt-packet preparation
+and cost estimation. It must not call an LLM by default.
+
 ## Design Principles
 
 1. The downloaded classification-eligible corpus defines execution scale.
@@ -134,6 +153,23 @@ With explicit maintainer authorization, run 5 to 10 documents through:
 Use the same documents and model settings. Do not compare architectures on
 different samples.
 
+Before authorization, prepare and inspect:
+
+- a versioned broad-v4 response schema and prompt;
+- versioned field-family schemas and prompts;
+- bounded parser evidence included in each packet;
+- packet character and estimated token counts;
+- projected provider cost inputs;
+- local schema-valid mock responses;
+- an evaluator that reports field quality and efficiency separately.
+
+Recommended first semantic families:
+
+1. clinical topic, anatomy, and organ system;
+2. cannabinoid identity and scientific role;
+3. population, sample-size selection, geography, and study structure;
+4. outcomes and overall direction.
+
 ### Phase 3: Field-Scoped Review
 
 Review each field family independently:
@@ -202,6 +238,20 @@ stratified across:
 - recent and older publication years.
 
 Legacy availability is a sample annotation, not an eligibility requirement.
+
+## Next-Session Entry Point
+
+Start from the official local artifacts produced by:
+
+```bash
+uv run marygenai classification profile-retrieval-fields --sample-size 12
+uv run marygenai classification extract-retrieval-metadata \
+  --input-path <retrieval_field_validation_sample.jsonl>
+```
+
+Implement prompt-packet preparation under `src/marygenai/` and expose it through
+the `marygenai classification` CLI. Do not call a provider until packet contents,
+schemas, cost estimates, and tests have been reviewed.
 
 ## V4 Promotion Gate
 
