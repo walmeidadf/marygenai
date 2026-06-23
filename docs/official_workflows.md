@@ -110,12 +110,20 @@ uv run marygenai classification build-v4-comparison-packets \
   --target-model-name gpt-5.4-mini
 ```
 
-This local-only command writes versioned prompt packets, schema-valid mocks, and
-an efficiency report under `data/normalized/classification_evaluations/`.
+This local-only command writes versioned prompt packets, field-routing records,
+schema-valid mocks, assembled mock candidate records, and an efficiency report
+under `data/normalized/classification_evaluations/`.
 Token counts use the declared `chars_divided_by_4.v1` heuristic. Cost projections
 use configurable input and output rates and maximum completion limits; they are
 not provider usage or billing records. No provider call is available through
 this command.
+
+Selective packets request only fields routed as
+`semantic_resolution_required`. Other fields remain visibly
+`insufficient_evidence`, `not_applicable`, or deterministically resolved. The
+semantic response schema contains only field decisions, evidence IDs,
+categorical confidence, and uncertainty; identity and provenance are assembled
+locally.
 
 Build a deterministic study-design benchmark candidate set:
 

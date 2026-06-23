@@ -37,18 +37,23 @@ Implemented locally on 2026-06-23:
   deterministic-field counts, and configurable cost projections;
 - a same-document comparison command that performs no provider call.
 
-The first eight-document projection produced eight broad packets and 32
-selective packets. Under the explicitly configurable pricing assumption used by
-the command, the broad maximum-cost projection was USD 0.138211 and the
-selective projection was USD 0.176462. This does not reject selective
-classification: it shows that four calls per document and repeated schemas are
-not automatically cheaper. Selective execution needs evidence-aware call
-suppression, smaller provider response contracts, or both.
+The first packet design showed that four selective calls per document were more
+expensive than a broad call because schemas and unrelated fields were repeated.
+The second local iteration added bounded clinical-topic, cannabinoid, and
+outcome evidence locators; field-level routing; a minimal semantic response
+schema; and deterministic assembly.
 
-Three selective packets had no parser evidence candidates. The current parser
-does not generate direct outcome evidence, so outcome packets currently rely on
-title and legacy guardrail metadata plus explicit abstention. Provider execution
-must remain blocked until the evidence-routing gap is accepted or improved.
+On the same eight documents, v2 still produced eight broad packets and 32
+selective packets, but it avoided requesting 72 of 248 field instances. Under
+the explicitly configurable pricing assumption used by the command, the broad
+maximum-cost projection was USD 0.150251 and the selective projection was USD
+0.103974. Selective was therefore about 30.8% cheaper at the configured
+completion ceilings.
+
+The result does not yet measure inference quality. Evidence locators generate
+bounded candidates, not final values, and broad packets now receive the same
+expanded evidence pool for a fair quality comparison. Provider execution
+remains blocked pending packet inspection and maintainer authorization.
 
 ## Design Principles
 

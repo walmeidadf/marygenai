@@ -10,7 +10,8 @@ CLINICAL_TOPIC_SCHEMA_VERSION = "clinical_topic_anatomy_organ_system.v1"
 CANNABINOID_ROLE_SCHEMA_VERSION = "cannabinoid_identity_scientific_role.v1"
 POPULATION_STRUCTURE_SCHEMA_VERSION = "population_sample_geography_study_structure.v1"
 OUTCOMES_DIRECTION_SCHEMA_VERSION = "outcomes_overall_direction.v1"
-V4_PROMPT_PACKET_SCHEMA_VERSION = "classification_v4_prompt_packet.v1"
+V4_PROMPT_PACKET_SCHEMA_VERSION = "classification_v4_prompt_packet.v2"
+MINIMAL_SEMANTIC_RESPONSE_SCHEMA_VERSION = "minimal_semantic_field_response.v1"
 
 FieldConfidence = Literal["high", "medium", "low"]
 SemanticFamily = Literal[
@@ -60,6 +61,33 @@ class V4Uncertainty(BaseModel):
     field_name: str
     reason: UncertaintyReason
     detail: str
+
+
+class MinimalSemanticFieldDecision(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    field_name: str
+    values: list[str | int | bool] = Field(default_factory=list)
+    evidence_ids: list[str] = Field(default_factory=list)
+    field_confidence: FieldConfidence
+    uncertainty_reason: UncertaintyReason | None = None
+
+    @model_validator(mode="after")
+    def validate_evidence_or_uncertainty(self) -> MinimalSemanticFieldDecision:
+        if self.values and not self.evidence_ids:
+            raise ValueError("Populated semantic values require evidence_ids.")
+        if not self.values and self.uncertainty_reason is None:
+            raise ValueError("Empty semantic values require uncertainty_reason.")
+        return self
+
+
+class MinimalSemanticFieldResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["minimal_semantic_field_response.v1"] = (
+        MINIMAL_SEMANTIC_RESPONSE_SCHEMA_VERSION
+    )
+    decisions: list[MinimalSemanticFieldDecision]
 
 
 class ClinicalTopicAnatomyOrganSystem(BaseModel):
@@ -251,7 +279,7 @@ class V4PromptPacket(BaseModel):
 
     packet_id: str
     packet_run_id: str
-    packet_schema_version: Literal["classification_v4_prompt_packet.v1"] = (
+    packet_schema_version: Literal["classification_v4_prompt_packet.v2"] = (
         V4_PROMPT_PACKET_SCHEMA_VERSION
     )
     strategy: Literal["broad", "selective"]
@@ -263,6 +291,7 @@ class V4PromptPacket(BaseModel):
     target_model_name: str
     max_completion_tokens: int = Field(ge=1)
     requested_fields: list[str] = Field(min_length=1)
+    field_routes: list[dict[str, Any]]
     deterministic_fields: dict[str, Any]
     metadata_candidates: dict[str, Any]
     evidence_candidates: list[V4EvidenceReference]

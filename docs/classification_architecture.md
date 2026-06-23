@@ -92,6 +92,12 @@ Preferred extraction order:
 4. LLM classification only for semantic relations or unresolved ambiguity;
 5. explicit abstention when evidence remains insufficient.
 
+The local v4 packet builder represents this boundary with four field-routing
+states: deterministic resolution, semantic resolution required, insufficient
+evidence, and not applicable. Semantic responses contain only field decisions
+and evidence references. Identity and provenance are assembled locally so model
+output cannot rewrite source identity or review state.
+
 Publication year, identifiers, and source availability should not consume LLM
 tokens. Study country and sample size should use structured metadata or parsers
 first. The LLM is most valuable for condition relevance, pathology grouping,

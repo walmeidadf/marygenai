@@ -106,8 +106,9 @@ on that worklist. Its outputs are field candidates with evidence and provenance,
 not final classifications.
 
 `classification build-v4-comparison-packets` creates versioned broad-v4 and
-selective field-family prompt packets, strict local mock responses, token
-estimates, and configurable cost projections. It never calls a provider.
+selective field-family prompt packets, field-level routing records, strict local
+mock responses, assembled mock candidates, token estimates, and configurable
+cost projections. It never calls a provider.
 
 The benchmark evaluator measures deterministic candidates against append-only,
 human-confirmed review decisions. The holdout builder freezes a separate

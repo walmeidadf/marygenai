@@ -258,25 +258,32 @@ separate benchmarks before a patient-oriented MCP retrieval surface is ready.
   semantic classification on the same 5 to 10 documents. Prompt packets, local
   schemas, token estimates, and projected cost inputs must be inspected before
   a provider call.
-- The first local v4 packet comparison used the same eight frozen documents for
-  both strategies and generated 40 schema-valid mocks without a provider call:
-  eight broad packets and 32 selective family packets.
-- The broad strategy requested 248 field instances with about 40,282 estimated
-  input tokens and a 24,000-token aggregate completion ceiling. The selective
-  strategy requested the same field instances with about 57,683 estimated input
-  tokens and a 29,600-token aggregate completion ceiling.
+- The first local v4 packet design confirmed that four field-family calls are
+  not inherently cheaper: repeated schemas and broad family requests made the
+  initial selective projection more expensive than one broad call.
+- V2 added bounded label and sentence evidence locators, field-specific routing,
+  a minimal semantic response schema, and deterministic candidate assembly.
+  Evidence candidates remain retrieval aids, not final classifications.
+- On the same eight frozen documents, v2 generated eight broad packets, 32
+  selective packets, 40 schema-valid mocks, eight assembled mock records, and no
+  provider calls.
+- Field routing avoided 72 of 248 possible selective field requests. The
+  remaining 176 field instances had bounded candidate evidence; absent fields
+  remained explicit instead of being sent speculatively.
+- The broad strategy used about 56,335 estimated input tokens and a 24,000-token
+  aggregate completion ceiling. Selective used about 47,432 estimated input
+  tokens and a 15,200-token aggregate completion ceiling.
 - Under the configurable USD 0.75 input and USD 4.50 output per-million-token
-  assumption, the maximum projected cost was USD 0.138211 for broad packets and
-  USD 0.176462 for selective packets. These are ceiling estimates from a
-  character heuristic, not provider usage.
-- Repeated schemas and four calls per document outweighed selective context
-  reduction in this first packet design. Selective-LLM is not inherently
-  lower-cost; it needs call suppression or materially smaller response
-  contracts.
-- Three selective packets had no parser evidence candidates. The parser baseline
-  does not yet produce direct clinical-topic or outcome evidence spans, so those
-  families must abstain, use a new deterministic evidence locator, or receive an
-  explicitly approved bounded source excerpt before provider execution.
+  assumption, maximum projected cost was USD 0.150251 for broad and USD
+  0.103974 for selective. Selective was about 30.8% cheaper, or approximately
+  USD 0.012997 per document at the ceiling.
+- The assembler rejects unexpected fields, duplicate decisions, missing
+  decisions, and evidence IDs that were not supplied in the packet. Identity,
+  hashes, versions, and review boundaries remain deterministic.
+- The current eight-document direct-signal sample still routes all four families
+  for every document. Future call-count reduction requires evidence-aware family
+  suppression on contrast documents or safe deterministic resolution; it must
+  not be achieved by dropping clinically useful fields.
 
 ## Decisions Promoted Into The Product
 

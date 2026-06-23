@@ -1,5 +1,30 @@
 # Decision Log
 
+## 2026-06-23: Route V4 At Field Level And Assemble Identity Deterministically
+
+Selective v4 packets request only fields with bounded, field-relevant evidence.
+Every semantic field receives one of four routing states:
+`deterministically_resolved`, `semantic_resolution_required`,
+`insufficient_evidence`, or `not_applicable`.
+
+The semantic provider contract is intentionally small. It returns field names,
+selected values, evidence IDs, categorical confidence, and structured
+uncertainty. Document identity, source hashes, versions, timestamps, trust and
+review boundaries, and final broad-record assembly remain deterministic Python
+responsibilities.
+
+Evidence locators may find source sentences for conditions, cannabinoid
+mentions, and outcomes, but they do not choose the final relation or direction.
+The assembler rejects unknown evidence IDs, unexpected fields, duplicate field
+decisions, and missing requested decisions.
+
+On the same eight-document frozen sample, this design avoided 72 of 248
+potential field requests and reduced the selective maximum-cost projection from
+the broad USD 0.150251 to USD 0.103974 under the configured token-price
+assumption. All four semantic families were still required for each of these
+direct-signal documents, so call count did not decrease. No provider call is
+authorized by this decision.
+
 ## 2026-06-23: Version V4 By Semantic Family And Measure Call Overhead Explicitly
 
 The first v4 preparation contract uses one broad candidate schema and four

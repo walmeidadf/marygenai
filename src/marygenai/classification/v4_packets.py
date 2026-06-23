@@ -11,6 +11,14 @@ from typing import Any
 from pydantic import BaseModel
 
 from marygenai.classification.retrieval_baseline import read_jsonl, resolve_source_path
+from marygenai.classification.v4_assembly import (
+    ASSEMBLER_VERSION,
+    assemble_mock_candidate,
+)
+from marygenai.classification.v4_evidence import (
+    EVIDENCE_LOCATOR_VERSION,
+    locate_v4_evidence,
+)
 from marygenai.classification.v4_models import (
     BROAD_V4_SCHEMA_VERSION,
     CANNABINOID_ROLE_SCHEMA_VERSION,
@@ -20,6 +28,8 @@ from marygenai.classification.v4_models import (
     BroadV4CandidateRecord,
     CannabinoidIdentityAndScientificRole,
     ClinicalTopicAnatomyOrganSystem,
+    MinimalSemanticFieldDecision,
+    MinimalSemanticFieldResponse,
     OutcomesAndOverallDirection,
     PopulationSampleGeographyStudyStructure,
     V4CandidateValue,
@@ -27,10 +37,17 @@ from marygenai.classification.v4_models import (
     V4PromptPacket,
     V4Uncertainty,
 )
+from marygenai.classification.v4_routing import (
+    FAMILY_FIELDS,
+    ROUTER_VERSION,
+    FieldRoute,
+    route_fields,
+    routing_summary,
+)
 from marygenai.initial_load.files import file_sha256
 from marygenai.storage import LocalStorage
 
-PACKET_BUILDER_VERSION = "classification_v4_packet_builder.v1"
+PACKET_BUILDER_VERSION = "classification_v4_packet_builder.v2"
 TOKEN_ESTIMATOR_VERSION = "chars_divided_by_4.v1"
 DEFAULT_PROVIDER = "openai"
 DEFAULT_MODEL = "gpt-5.4-mini"
@@ -38,51 +55,10 @@ DEFAULT_INPUT_COST_PER_MILLION = 0.75
 DEFAULT_OUTPUT_COST_PER_MILLION = 4.50
 FAMILY_COMPLETION_LIMITS = {
     "broad_v4": 3000,
-    "clinical_topic": 900,
-    "cannabinoid_role": 800,
-    "population_structure": 1100,
-    "outcomes_direction": 900,
-}
-FAMILY_FIELDS = {
-    "clinical_topic": [
-        "medical_conditions",
-        "pathologies_or_disease_families",
-        "symptoms_or_indications",
-        "anatomical_entities",
-        "organ_systems",
-        "comorbidities",
-    ],
-    "cannabinoid_role": [
-        "cannabinoids_or_exposures",
-        "principal_role",
-        "products_or_formulations",
-        "routes_of_administration",
-        "comparators",
-    ],
-    "population_structure": [
-        "population_category",
-        "population_description",
-        "age_groups",
-        "sex_or_gender",
-        "species",
-        "sample_size",
-        "sample_size_scope",
-        "study_countries",
-        "publication_type",
-        "study_design_category",
-        "study_design_subtype",
-        "evidence_context",
-        "randomization",
-        "blinding",
-    ],
-    "outcomes_direction": [
-        "outcome_domains",
-        "outcome_entities",
-        "adverse_events",
-        "overall_direction",
-        "direction_question",
-        "key_findings",
-    ],
+    "clinical_topic": 450,
+    "cannabinoid_role": 400,
+    "population_structure": 600,
+    "outcomes_direction": 450,
 }
 FAMILY_MODELS: dict[str, type[BaseModel]] = {
     "clinical_topic": ClinicalTopicAnatomyOrganSystem,
@@ -120,7 +96,7 @@ def estimate_tokens(text: str) -> int:
     return max(1, math.ceil(len(text) / 4))
 
 
-def evidence_candidates(record: dict[str, Any]) -> list[V4EvidenceReference]:
+def parser_evidence_candidates(record: dict[str, Any]) -> list[V4EvidenceReference]:
     evidence: list[V4EvidenceReference] = []
     groups = (
         ("sample_size", "sample_size_candidates"),
@@ -148,21 +124,17 @@ def evidence_candidates(record: dict[str, Any]) -> list[V4EvidenceReference]:
 
 
 def relevant_evidence(
-    family: str, evidence: list[V4EvidenceReference]
+    family: str,
+    evidence: list[V4EvidenceReference],
+    routes: list[FieldRoute],
 ) -> list[V4EvidenceReference]:
-    allowed = {
-        "clinical_topic": {"population_category", "species", "study_structure"},
-        "cannabinoid_role": {"route_of_administration", "study_structure"},
-        "population_structure": {
-            "sample_size",
-            "study_countries",
-            "population_category",
-            "species",
-            "study_structure",
-        },
-        "outcomes_direction": {"study_structure"},
+    allowed_ids = {
+        evidence_id
+        for route in routes
+        if route.family == family and route.state == "semantic_resolution_required"
+        for evidence_id in route.evidence_ids
     }
-    selected = [item for item in evidence if item.field_name in allowed[family]]
+    selected = [item for item in evidence if item.evidence_id in allowed_ids]
     bounded: list[V4EvidenceReference] = []
     field_counts: Counter[str] = Counter()
     for item in selected:
@@ -233,20 +205,26 @@ def build_user_prompt(
     deterministic: dict[str, Any],
     metadata: dict[str, Any],
     evidence: list[V4EvidenceReference],
-    response_schema: dict[str, Any],
+    field_routes: list[FieldRoute],
 ) -> str:
     payload = {
         "requested_fields": requested_fields,
-        "deterministic_fields": deterministic,
+        "document_context": {
+            "document_id": deterministic["document_id"],
+            "publication_year": deterministic["publication_year"],
+        },
         "metadata_candidates": metadata,
         "evidence_candidates": [item.model_dump(mode="json") for item in evidence],
-        "response_json_schema": response_schema,
+        "field_evidence_constraints": {
+            route.field_name: route.evidence_ids for route in field_routes
+        },
     }
     return (
         "Resolve only the requested semantic fields. Do not repeat unsupported candidates. "
         "A country mention in an affiliation is not study geography. A cited design, species, "
         "route, or sample is not automatically the primary study value. Direction must be tied "
-        "to the document's question; descriptive results use not_applicable. Return JSON only.\n"
+        "to the document's question; descriptive results use not_applicable. The response "
+        "schema is supplied separately. Return JSON only.\n"
         + json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
     )
 
@@ -261,15 +239,27 @@ def packet_for_family(
     provider: str,
     model: str,
     created_at: datetime,
+    all_evidence: list[V4EvidenceReference],
+    routes: list[FieldRoute],
 ) -> V4PromptPacket:
-    all_evidence = evidence_candidates(baseline)
-    selected_evidence = all_evidence if family == "broad_v4" else relevant_evidence(
-        family, all_evidence
+    family_routes = (
+        routes
+        if family == "broad_v4"
+        else [
+            route
+            for route in routes
+            if route.family == family and route.state == "semantic_resolution_required"
+        ]
+    )
+    selected_evidence = (
+        all_evidence
+        if family == "broad_v4"
+        else relevant_evidence(family, all_evidence, routes)
     )
     requested_fields = (
         [field for fields in FAMILY_FIELDS.values() for field in fields]
         if family == "broad_v4"
-        else FAMILY_FIELDS[family]
+        else [route.field_name for route in family_routes]
     )
     metadata = (
         {name: metadata_for_packet(sample, name) for name in FAMILY_FIELDS}
@@ -277,7 +267,11 @@ def packet_for_family(
         else metadata_for_packet(sample, family)
     )
     deterministic = deterministic_fields(sample, baseline)
-    response_schema = FAMILY_MODELS[family].model_json_schema()
+    response_schema = (
+        FAMILY_MODELS[family].model_json_schema()
+        if family == "broad_v4"
+        else MinimalSemanticFieldResponse.model_json_schema()
+    )
     system_prompt = build_system_prompt(family)
     user_prompt = build_user_prompt(
         family=family,
@@ -285,7 +279,7 @@ def packet_for_family(
         deterministic=deterministic,
         metadata=metadata,
         evidence=selected_evidence,
-        response_schema=response_schema,
+        field_routes=family_routes,
     )
     return V4PromptPacket(
         packet_id=f"v4_packet:{run_id}:{safe_fragment(sample['document_id'])}:{family}",
@@ -293,12 +287,17 @@ def packet_for_family(
         strategy=strategy,
         semantic_family=family,
         document_id=sample["document_id"],
-        response_schema_version=FAMILY_SCHEMA_VERSIONS[family],
-        prompt_version=f"classification_v4_{family}_prompt.v1",
+        response_schema_version=(
+            FAMILY_SCHEMA_VERSIONS[family]
+            if family == "broad_v4"
+            else "minimal_semantic_field_response.v1"
+        ),
+        prompt_version=f"classification_v4_{family}_prompt.v2",
         target_model_provider=provider,
         target_model_name=model,
         max_completion_tokens=FAMILY_COMPLETION_LIMITS[family],
         requested_fields=requested_fields,
+        field_routes=[route.model_dump(mode="json") for route in family_routes],
         deterministic_fields=deterministic,
         metadata_candidates=metadata,
         evidence_candidates=selected_evidence,
@@ -307,7 +306,11 @@ def packet_for_family(
         system_prompt=system_prompt,
         user_prompt=user_prompt,
         response_json_schema=response_schema,
-        estimated_input_tokens=estimate_tokens(system_prompt + user_prompt),
+        estimated_input_tokens=estimate_tokens(
+            system_prompt
+            + user_prompt
+            + json.dumps(response_schema, separators=(",", ":"), sort_keys=True)
+        ),
         estimated_max_output_tokens=FAMILY_COMPLETION_LIMITS[family],
         created_at=created_at,
         provenance={
@@ -315,6 +318,8 @@ def packet_for_family(
             "token_estimator_version": TOKEN_ESTIMATOR_VERSION,
             "parser_baseline_id": baseline["baseline_id"],
             "sample_id": sample["sample_id"],
+            "evidence_locator_version": EVIDENCE_LOCATOR_VERSION,
+            "field_router_version": ROUTER_VERSION,
             "does_not_call_llm": True,
             "does_not_mutate_sqlite": True,
             "legacy_is_guardrail_not_ground_truth": True,
@@ -323,13 +328,15 @@ def packet_for_family(
     )
 
 
-def semantic_families_for_record(baseline: dict[str, Any]) -> list[str]:
-    unresolved = {
-        BASELINE_TO_FAMILY[field]
-        for field in baseline["fields_requiring_semantic_resolution"]
-        if field in BASELINE_TO_FAMILY
-    }
-    return [family for family in FAMILY_FIELDS if family in unresolved]
+def semantic_families_for_record(routes: list[FieldRoute]) -> list[str]:
+    return [
+        family
+        for family in FAMILY_FIELDS
+        if any(
+            route.family == family and route.state == "semantic_resolution_required"
+            for route in routes
+        )
+    ]
 
 
 def mock_value(label: str, evidence_id: str) -> V4CandidateValue:
@@ -348,38 +355,74 @@ def mock_family_response(family: str, packet: V4PromptPacket) -> BaseModel:
         if packet.evidence_candidates
         else "source_excerpt:unavailable"
     )
+    if family == "clinical_topic":
+        return MinimalSemanticFieldResponse(
+            decisions=[
+                MinimalSemanticFieldDecision(
+                    field_name=field_name,
+                    field_confidence="low",
+                    uncertainty_reason="insufficient_source_evidence",
+                )
+                for field_name in packet.requested_fields
+            ]
+        )
+    if family == "cannabinoid_role":
+        return MinimalSemanticFieldResponse(
+            decisions=[
+                MinimalSemanticFieldDecision(
+                    field_name=field_name,
+                    field_confidence="low",
+                    uncertainty_reason="insufficient_source_evidence",
+                )
+                for field_name in packet.requested_fields
+            ]
+        )
+    if family == "population_structure":
+        return MinimalSemanticFieldResponse(
+            decisions=[
+                MinimalSemanticFieldDecision(
+                    field_name=field_name,
+                    field_confidence="low",
+                    uncertainty_reason="insufficient_source_evidence",
+                )
+                for field_name in packet.requested_fields
+            ]
+        )
+    if family == "outcomes_direction":
+        return MinimalSemanticFieldResponse(
+            decisions=[
+                MinimalSemanticFieldDecision(
+                    field_name=field_name,
+                    field_confidence="low",
+                    uncertainty_reason="insufficient_source_evidence",
+                )
+                for field_name in packet.requested_fields
+            ]
+        )
     uncertainty = V4Uncertainty(
         field_name="mock_response",
         reason="insufficient_source_evidence",
         detail="Schema-valid deterministic mock; no semantic claim was made.",
     )
-    if family == "clinical_topic":
-        return ClinicalTopicAnatomyOrganSystem(uncertainties=[uncertainty])
-    if family == "cannabinoid_role":
-        return CannabinoidIdentityAndScientificRole(
-            principal_role="cannot_determine", uncertainties=[uncertainty]
-        )
-    if family == "population_structure":
-        return PopulationSampleGeographyStudyStructure(
-            population_category="cannot_determine",
-            sample_size=None,
-            sample_size_scope="cannot_determine",
-            publication_type="cannot_determine",
-            study_design_category="cannot_determine",
-            study_design_subtype="cannot_determine",
-            evidence_context="cannot_determine",
-            randomization="uncertain",
-            blinding="uncertain",
-            uncertainties=[uncertainty],
-        )
-    if family == "outcomes_direction":
-        return OutcomesAndOverallDirection(
-            overall_direction="cannot_determine", uncertainties=[uncertainty]
-        )
-    clinical = mock_family_response("clinical_topic", packet)
-    cannabinoid = mock_family_response("cannabinoid_role", packet)
-    population = mock_family_response("population_structure", packet)
-    outcomes = mock_family_response("outcomes_direction", packet)
+    clinical = ClinicalTopicAnatomyOrganSystem(uncertainties=[uncertainty])
+    cannabinoid = CannabinoidIdentityAndScientificRole(
+        principal_role="cannot_determine", uncertainties=[uncertainty]
+    )
+    population = PopulationSampleGeographyStudyStructure(
+        population_category="cannot_determine",
+        sample_size=None,
+        sample_size_scope="cannot_determine",
+        publication_type="cannot_determine",
+        study_design_category="cannot_determine",
+        study_design_subtype="cannot_determine",
+        evidence_context="cannot_determine",
+        randomization="uncertain",
+        blinding="uncertain",
+        uncertainties=[uncertainty],
+    )
+    outcomes = OutcomesAndOverallDirection(
+        overall_direction="cannot_determine", uncertainties=[uncertainty]
+    )
     return BroadV4CandidateRecord(
         candidate_id=f"mock:{packet.packet_id}",
         document_id=packet.document_id,
@@ -425,6 +468,9 @@ def strategy_metrics(
             input_tokens * input_cost_per_million
             + output_tokens * output_cost_per_million
         ) / 1_000_000
+        maximum_field_instances = len(documents) * sum(
+            len(fields) for fields in FAMILY_FIELDS.values()
+        )
         by_strategy[strategy] = {
             "documents": len(documents),
             "packets_or_calls": len(selected),
@@ -434,6 +480,7 @@ def strategy_metrics(
             "estimated_input_tokens": input_tokens,
             "max_completion_tokens": output_tokens,
             "requested_field_instances": requested,
+            "field_instances_not_requested": maximum_field_instances - requested,
             "evidence_candidates": sum(
                 len(packet.evidence_candidates) for packet in selected
             ),
@@ -444,6 +491,16 @@ def strategy_metrics(
                 {field for packet in selected for field in packet.requested_fields}
             ),
             "projected_max_cost_usd": round(cost, 6),
+            "projected_max_cost_per_document_usd": round(
+                cost / len(documents), 6
+            )
+            if documents
+            else None,
+            "projected_max_cost_per_requested_field_usd": round(
+                cost / requested, 8
+            )
+            if requested
+            else None,
         }
     return by_strategy
 
@@ -466,14 +523,33 @@ def build_v4_comparison_packets(
     baselines = {row["document_id"]: row for row in read_jsonl(parser_records_path)}
     packets: list[V4PromptPacket] = []
     mocks: list[dict[str, Any]] = []
+    assembled_records: list[BroadV4CandidateRecord] = []
     deterministic_field_counts = Counter()
     llm_field_counts = Counter()
     selected_document_ids = []
+    routing_records: list[dict[str, Any]] = []
     for sample in samples:
         baseline = baselines[sample["document_id"]]
         source_path = resolve_source_path(storage.root, baseline["source_text_path"])
         if file_sha256(source_path) != baseline["source_text_sha256"]:
             raise ValueError(f"Source hash changed for {sample['document_id']}.")
+        all_evidence = parser_evidence_candidates(baseline)
+        all_evidence.extend(
+            locate_v4_evidence(
+                sample=sample,
+                source_path=source_path,
+                stored_source_path=baseline["source_text_path"],
+            )
+        )
+        routes = route_fields(sample=sample, baseline=baseline, evidence=all_evidence)
+        routing_records.append(
+            {
+                "document_id": sample["document_id"],
+                "router_version": ROUTER_VERSION,
+                "routes": [route.model_dump(mode="json") for route in routes],
+                "summary": routing_summary(routes),
+            }
+        )
         selected_document_ids.append(sample["document_id"])
         deterministic_field_counts.update(
             ["document_id", "publication_year", "source_identity", "source_text_sha256"]
@@ -487,10 +563,22 @@ def build_v4_comparison_packets(
             provider=provider,
             model=model,
             created_at=created_at,
+            all_evidence=all_evidence,
+            routes=routes,
         )
         packets.append(broad)
-        mocks.append(mock_family_response("broad_v4", broad).model_dump(mode="json"))
-        for family in semantic_families_for_record(baseline):
+        broad_mock = mock_family_response("broad_v4", broad)
+        mocks.append(
+            {
+                "packet_id": broad.packet_id,
+                "document_id": broad.document_id,
+                "strategy": broad.strategy,
+                "semantic_family": broad.semantic_family,
+                "response": broad_mock.model_dump(mode="json"),
+            }
+        )
+        selective_responses: dict[str, MinimalSemanticFieldResponse] = {}
+        for family in semantic_families_for_record(routes):
             packet = packet_for_family(
                 sample=sample,
                 baseline=baseline,
@@ -500,20 +588,59 @@ def build_v4_comparison_packets(
                 provider=provider,
                 model=model,
                 created_at=created_at,
+                all_evidence=all_evidence,
+                routes=routes,
             )
             packets.append(packet)
-            mocks.append(mock_family_response(family, packet).model_dump(mode="json"))
+            mock = mock_family_response(family, packet)
+            if not isinstance(mock, MinimalSemanticFieldResponse):
+                raise TypeError(f"Expected minimal semantic response for {family}.")
+            selective_responses[family] = mock
+            mocks.append(
+                {
+                    "packet_id": packet.packet_id,
+                    "document_id": packet.document_id,
+                    "strategy": packet.strategy,
+                    "semantic_family": packet.semantic_family,
+                    "response": mock.model_dump(mode="json"),
+                }
+            )
             llm_field_counts.update(packet.requested_fields)
+        assembled_records.append(
+            assemble_mock_candidate(
+                run_id=resolved_run_id,
+                document_id=sample["document_id"],
+                source_text_path=baseline["source_text_path"],
+                source_text_sha256=baseline["source_text_sha256"],
+                source_identity=deterministic_fields(sample, baseline),
+                routes=routes,
+                evidence=all_evidence,
+                responses=selective_responses,
+                created_at=created_at,
+            )
+        )
     output_dir = storage.path("normalized/classification_evaluations")
     output_dir.mkdir(parents=True, exist_ok=True)
     packets_path = output_dir / f"{resolved_run_id}_classification_v4_comparison_packets.jsonl"
     mocks_path = output_dir / f"{resolved_run_id}_classification_v4_mock_responses.jsonl"
+    routing_path = output_dir / f"{resolved_run_id}_classification_v4_field_routes.jsonl"
+    assembled_path = (
+        output_dir / f"{resolved_run_id}_classification_v4_assembled_mock_records.jsonl"
+    )
     with packets_path.open("w", encoding="utf-8") as file:
         for packet in packets:
             file.write(json.dumps(packet.model_dump(mode="json"), sort_keys=True) + "\n")
     with mocks_path.open("w", encoding="utf-8") as file:
         for mock in mocks:
             file.write(json.dumps(mock, sort_keys=True) + "\n")
+    with routing_path.open("w", encoding="utf-8") as file:
+        for routing_record in routing_records:
+            file.write(json.dumps(routing_record, sort_keys=True) + "\n")
+    with assembled_path.open("w", encoding="utf-8") as file:
+        for record in assembled_records:
+            file.write(
+                json.dumps(record.model_dump(mode="json"), sort_keys=True) + "\n"
+            )
     report = {
         "run_id": resolved_run_id,
         "builder_version": PACKET_BUILDER_VERSION,
@@ -522,6 +649,8 @@ def build_v4_comparison_packets(
         "parser_records_path": str(parser_records_path),
         "packets_path": str(packets_path),
         "mock_responses_path": str(mocks_path),
+        "field_routes_path": str(routing_path),
+        "assembled_mock_records_path": str(assembled_path),
         "selected_document_ids": selected_document_ids,
         "fair_comparison": {
             "same_documents": True,
@@ -542,6 +671,13 @@ def build_v4_comparison_packets(
         ),
         "deterministic_field_instances": dict(deterministic_field_counts),
         "selective_llm_field_instances": dict(llm_field_counts),
+        "field_routing_state_counts": dict(
+            Counter(
+                route["state"]
+                for record in routing_records
+                for route in record["routes"]
+            )
+        ),
         "selective_family_metrics": {
             family: {
                 "packets": sum(
@@ -562,12 +698,14 @@ def build_v4_comparison_packets(
             for family in FAMILY_FIELDS
         },
         "schema_versions": FAMILY_SCHEMA_VERSIONS,
+        "assembler_version": ASSEMBLER_VERSION,
         "counts": {
             "documents": len(samples),
             "packets": len(packets),
             "broad_packets": sum(packet.strategy == "broad" for packet in packets),
             "selective_packets": sum(packet.strategy == "selective" for packet in packets),
             "schema_valid_mocks": len(mocks),
+            "assembled_mock_records": len(assembled_records),
         },
         "notes": [
             "No provider or LLM call was executed.",
@@ -583,6 +721,8 @@ def build_v4_comparison_packets(
         "run_id": resolved_run_id,
         "packets_path": str(packets_path),
         "mock_responses_path": str(mocks_path),
+        "field_routes_path": str(routing_path),
+        "assembled_mock_records_path": str(assembled_path),
         "report_path": str(report_path),
         "counts": report["counts"],
         "strategy_metrics": report["strategy_metrics"],
