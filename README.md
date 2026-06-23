@@ -108,7 +108,8 @@ not final classifications.
 `classification build-v4-comparison-packets` creates versioned broad-v4 and
 selective field-family prompt packets, field-level routing records, strict local
 mock responses, assembled mock candidates, token estimates, and configurable
-cost projections. It never calls a provider.
+cost projections. It also writes a frozen comparison manifest that can be
+reused with `--manifest-path`. It never calls a provider.
 
 The benchmark evaluator measures deterministic candidates against append-only,
 human-confirmed review decisions. The holdout builder freezes a separate

@@ -127,9 +127,7 @@ def field_evidence_ids(
             pattern=r"\b(comorbid|concurrent|coexisting)\b",
         )
     if field_name in {"cannabinoids_or_exposures", "principal_role"}:
-        return matching_ids(
-            evidence, fields={"cannabinoid_identity", "document_title"}
-        )
+        return matching_ids(evidence, fields={"cannabinoid_identity"})
     if field_name == "products_or_formulations":
         return matching_ids(
             evidence,
@@ -215,6 +213,9 @@ def route_fields(
 ) -> list[FieldRoute]:
     routes: dict[str, FieldRoute] = {}
     focus_group = sample.get("cannabinoid_focus_group")
+    has_cannabinoid_identity_evidence = any(
+        item.field_name == "cannabinoid_identity" for item in evidence
+    )
     for family, fields in FAMILY_FIELDS.items():
         for field_name in fields:
             if field_name in routes:
@@ -225,6 +226,20 @@ def route_fields(
                     family=family,
                     state="not_applicable",
                     reason="Frozen sample profile found no cannabinoid signal.",
+                )
+                continue
+            if (
+                family == "cannabinoid_role"
+                and not has_cannabinoid_identity_evidence
+            ):
+                routes[field_name] = FieldRoute(
+                    field_name=field_name,
+                    family=family,
+                    state="insufficient_evidence",
+                    reason=(
+                        "No source-backed cannabinoid identity evidence was located; "
+                        "route or formulation mentions alone cannot activate this family."
+                    ),
                 )
                 continue
             ids = field_evidence_ids(

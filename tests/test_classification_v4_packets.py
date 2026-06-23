@@ -6,13 +6,17 @@ from pathlib import Path
 import pytest
 
 from marygenai.classification.v4_assembly import validate_semantic_responses
+from marygenai.classification.v4_evidence import cannabinoid_identity_labels
 from marygenai.classification.v4_models import (
     MinimalSemanticFieldDecision,
     MinimalSemanticFieldResponse,
     V4EvidenceReference,
     V4PromptPacket,
 )
-from marygenai.classification.v4_packets import build_v4_comparison_packets
+from marygenai.classification.v4_packets import (
+    build_v4_comparison_packets,
+    select_comparison_samples,
+)
 from marygenai.classification.v4_routing import FieldRoute
 from marygenai.initial_load.files import file_sha256
 from marygenai.storage import LocalStorage
@@ -188,3 +192,47 @@ def test_assembler_rejects_unknown_evidence_ids() -> None:
             evidence=evidence,
             responses={"outcomes_direction": response},
         )
+
+
+def test_comparison_selection_includes_metadata_and_no_signal_contrasts() -> None:
+    rows = [
+        {
+            "document_id": f"direct:{index}",
+            "cannabinoid_focus_group": "source_text_signal",
+            "source_strategy": f"source:{index % 3}",
+            "classification_dataset_split": "strict_classification_ready",
+        }
+        for index in range(8)
+    ]
+    rows.extend(
+        [
+            {
+                "document_id": "contrast:metadata",
+                "cannabinoid_focus_group": "metadata_label_only",
+                "source_strategy": "source:metadata",
+                "classification_dataset_split": "broader_source_ready",
+            },
+            {
+                "document_id": "contrast:none",
+                "cannabinoid_focus_group": "no_signal",
+                "source_strategy": "source:none",
+                "classification_dataset_split": "broader_source_ready",
+            },
+        ]
+    )
+
+    selected, manifest = select_comparison_samples(rows, limit=8)
+
+    assert {row["cannabinoid_focus_group"] for row in selected} >= {
+        "source_text_signal",
+        "metadata_label_only",
+        "no_signal",
+    }
+    assert len(manifest) == 8
+
+
+def test_metadata_guardrail_rejects_non_cannabinoid_labels() -> None:
+    assert cannabinoid_identity_labels(["Phycocyanin"]) == []
+    assert cannabinoid_identity_labels(["Cannabidiol (CBD)"]) == [
+        "Cannabidiol (CBD)"
+    ]

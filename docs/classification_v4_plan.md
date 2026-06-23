@@ -43,12 +43,18 @@ The second local iteration added bounded clinical-topic, cannabinoid, and
 outcome evidence locators; field-level routing; a minimal semantic response
 schema; and deterministic assembly.
 
-On the same eight documents, v2 still produced eight broad packets and 32
-selective packets, but it avoided requesting 72 of 248 field instances. Under
-the explicitly configurable pricing assumption used by the command, the broad
-maximum-cost projection was USD 0.150251 and the selective projection was USD
-0.103974. Selective was therefore about 30.8% cheaper at the configured
-completion ceilings.
+The original first-eight selection contained only direct-signal documents, so
+it could not test family suppression. The comparison builder now freezes an
+explicit manifest instead of relying on file order. The current eight-document
+manifest contains six direct-signal records, one metadata-label-only contrast,
+and one no-signal contrast while preserving source-strategy diversity.
+
+On that manifest, v2 produced eight broad packets and 30 selective packets. It
+avoided requesting 87 of 248 field instances and suppressed the cannabinoid
+family for both contrast records. Under the explicitly configurable pricing
+assumption used by the command, the broad maximum-cost projection was USD
+0.147287 and the selective projection was USD 0.096044. Selective was therefore
+about 34.8% cheaper at the configured completion ceilings.
 
 The result does not yet measure inference quality. Evidence locators generate
 bounded candidates, not final values, and broad packets now receive the same
@@ -288,6 +294,15 @@ uv run marygenai classification build-v4-comparison-packets \
   --sample-path <retrieval_field_validation_sample.jsonl> \
   --parser-records-path <retrieval_metadata_parser_records.jsonl> \
   --limit 8
+```
+
+Reuse the emitted manifest for later broad/selective runs:
+
+```bash
+uv run marygenai classification build-v4-comparison-packets \
+  --sample-path <retrieval_field_validation_sample.jsonl> \
+  --parser-records-path <retrieval_metadata_parser_records.jsonl> \
+  --manifest-path <classification_v4_comparison_manifest.jsonl>
 ```
 
 ## V4 Promotion Gate

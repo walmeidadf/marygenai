@@ -1,5 +1,26 @@
 # Decision Log
 
+## 2026-06-23: Freeze A Contrast-Aware Manifest Before Provider Comparison
+
+Broad and selective comparisons must use an explicit frozen manifest rather
+than the first N rows of a sample file. File ordering can hide contrast records
+and make family-suppression metrics meaningless.
+
+The current eight-document manifest contains six direct-signal records, one
+metadata-label-only contrast, and one no-signal contrast with source-strategy
+diversity. The emitted manifest can be supplied to later local or explicitly
+authorized provider execution through `--manifest-path`.
+
+Metadata slots do not establish scientific entity type. A value such as
+`Phycocyanin` must not activate the cannabinoid semantic family merely because a
+legacy export placed it in a cannabinoid-label field. Metadata-only candidates
+must pass a cannabinoid identity guardrail and have source-backed identity
+evidence. Route or formulation phrases alone cannot activate the family.
+
+With these constraints, two cannabinoid-family calls were suppressed and the
+eight-document selective projection used 30 calls rather than 32. No provider
+call is authorized by this decision.
+
 ## 2026-06-23: Route V4 At Field Level And Assemble Identity Deterministically
 
 Selective v4 packets request only fields with bounded, field-relevant evidence.

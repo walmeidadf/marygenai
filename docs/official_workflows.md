@@ -125,6 +125,12 @@ semantic response schema contains only field decisions, evidence IDs,
 categorical confidence, and uncertainty; identity and provenance are assembled
 locally.
 
+Without `--manifest-path`, the command deterministically balances direct-signal
+source strategies and includes metadata-only and no-signal contrasts. It writes
+the selected documents to a frozen JSONL manifest. Pass that artifact back
+through `--manifest-path` so later broad and selective executions use exactly
+the same documents regardless of input ordering.
+
 Build a deterministic study-design benchmark candidate set:
 
 ```bash

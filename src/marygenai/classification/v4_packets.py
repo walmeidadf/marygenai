@@ -88,6 +88,139 @@ BASELINE_TO_FAMILY = {
 }
 
 
+def select_comparison_samples(
+    sample_rows: list[dict[str, Any]],
+    *,
+    limit: int,
+    manifest_rows: list[dict[str, Any]] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    by_document_id = {row["document_id"]: row for row in sample_rows}
+    if manifest_rows is not None:
+        selected = []
+        for entry in manifest_rows:
+            document_id = entry["document_id"]
+            if document_id not in by_document_id:
+                raise ValueError(f"Manifest document not found in sample: {document_id}")
+            selected.append(by_document_id[document_id])
+        if len(selected) != len({row["document_id"] for row in selected}):
+            raise ValueError("Comparison manifest must not contain duplicate documents.")
+        return selected, manifest_rows
+
+    contrast_count = min(2, max(1, limit // 4))
+    contrasts = [
+        row
+        for row in sample_rows
+        if row.get("cannabinoid_focus_group") != "source_text_signal"
+    ]
+    direct = [
+        row
+        for row in sample_rows
+        if row.get("cannabinoid_focus_group") == "source_text_signal"
+    ]
+    selected: list[dict[str, Any]] = []
+    selected_strategies: Counter[str] = Counter()
+    while direct and len(selected) < max(0, limit - contrast_count):
+        direct.sort(
+            key=lambda row: (
+                selected_strategies[row.get("source_strategy") or "unknown"],
+                row.get("source_strategy") or "",
+                row["document_id"],
+            )
+        )
+        row = direct.pop(0)
+        selected.append(row)
+        selected_strategies[row.get("source_strategy") or "unknown"] += 1
+    contrasts_by_group = {
+        group: sorted(
+            [
+                row
+                for row in contrasts
+                if row.get("cannabinoid_focus_group") == group
+            ],
+            key=lambda row: (
+                row.get("source_strategy") or "",
+                row["document_id"],
+            ),
+        )
+        for group in ("metadata_label_only", "no_signal")
+    }
+    selected_contrasts: list[dict[str, Any]] = []
+    for group in ("metadata_label_only", "no_signal"):
+        if contrasts_by_group[group] and len(selected_contrasts) < contrast_count:
+            selected_contrasts.append(contrasts_by_group[group][0])
+    if len(selected_contrasts) < contrast_count:
+        selected_contrast_ids = {
+            row["document_id"] for row in selected_contrasts
+        }
+        selected_contrasts.extend(
+            row
+            for row in sorted(contrasts, key=lambda row: row["document_id"])
+            if row["document_id"] not in selected_contrast_ids
+        )
+    selected.extend(selected_contrasts[:contrast_count])
+    if len(selected) < limit:
+        selected_ids = {row["document_id"] for row in selected}
+        selected.extend(
+            row
+            for row in sample_rows
+            if row["document_id"] not in selected_ids
+        )
+        selected = selected[:limit]
+    manifest = [
+        {
+            "manifest_position": index,
+            "document_id": row["document_id"],
+            "selection_reason": (
+                "contrast"
+                if row.get("cannabinoid_focus_group") != "source_text_signal"
+                else "direct_signal_source_strategy_balance"
+            ),
+            "cannabinoid_focus_group": row.get("cannabinoid_focus_group"),
+            "classification_dataset_split": row.get("classification_dataset_split"),
+            "source_strategy": row.get("source_strategy"),
+        }
+        for index, row in enumerate(selected, start=1)
+    ]
+    return selected, manifest
+
+
+def evidence_routing_audit(
+    *,
+    routing_records: list[dict[str, Any]],
+    packets: list[V4PromptPacket],
+) -> dict[str, Any]:
+    selective = [packet for packet in packets if packet.strategy == "selective"]
+    family_calls_by_document = Counter(packet.document_id for packet in selective)
+    evidence_usage = Counter(
+        f"{packet.document_id}:{evidence.evidence_id}"
+        for packet in selective
+        for evidence in packet.evidence_candidates
+    )
+    return {
+        "documents_with_all_four_selective_families": sum(
+            count == 4 for count in family_calls_by_document.values()
+        ),
+        "documents_with_suppressed_families": sum(
+            count < 4 for count in family_calls_by_document.values()
+        ),
+        "selective_calls_avoided_against_four_per_document": (
+            len(routing_records) * 4 - len(selective)
+        ),
+        "evidence_reused_across_packets": sum(
+            count > 1 for count in evidence_usage.values()
+        ),
+        "maximum_evidence_reuse_count": max(evidence_usage.values(), default=0),
+        "documents_with_insufficient_fields": sum(
+            bool(record["summary"]["insufficient_fields"])
+            for record in routing_records
+        ),
+        "documents_with_not_applicable_fields": sum(
+            bool(record["summary"]["not_applicable_fields"])
+            for record in routing_records
+        ),
+    }
+
+
 def safe_fragment(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_")
 
@@ -510,6 +643,7 @@ def build_v4_comparison_packets(
     storage: LocalStorage,
     sample_path: Path,
     parser_records_path: Path,
+    manifest_path: Path | None = None,
     limit: int = 8,
     run_id: str | None = None,
     provider: str = DEFAULT_PROVIDER,
@@ -519,7 +653,13 @@ def build_v4_comparison_packets(
 ) -> dict[str, Any]:
     resolved_run_id = run_id or datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     created_at = datetime.now(UTC)
-    samples = read_jsonl(sample_path)[:limit]
+    sample_rows = read_jsonl(sample_path)
+    input_manifest_rows = read_jsonl(manifest_path) if manifest_path else None
+    samples, comparison_manifest = select_comparison_samples(
+        sample_rows,
+        limit=limit,
+        manifest_rows=input_manifest_rows,
+    )
     baselines = {row["document_id"]: row for row in read_jsonl(parser_records_path)}
     packets: list[V4PromptPacket] = []
     mocks: list[dict[str, Any]] = []
@@ -627,6 +767,9 @@ def build_v4_comparison_packets(
     assembled_path = (
         output_dir / f"{resolved_run_id}_classification_v4_assembled_mock_records.jsonl"
     )
+    manifest_output_path = (
+        output_dir / f"{resolved_run_id}_classification_v4_comparison_manifest.jsonl"
+    )
     with packets_path.open("w", encoding="utf-8") as file:
         for packet in packets:
             file.write(json.dumps(packet.model_dump(mode="json"), sort_keys=True) + "\n")
@@ -641,11 +784,16 @@ def build_v4_comparison_packets(
             file.write(
                 json.dumps(record.model_dump(mode="json"), sort_keys=True) + "\n"
             )
+    with manifest_output_path.open("w", encoding="utf-8") as file:
+        for entry in comparison_manifest:
+            file.write(json.dumps(entry, sort_keys=True) + "\n")
     report = {
         "run_id": resolved_run_id,
         "builder_version": PACKET_BUILDER_VERSION,
         "token_estimator_version": TOKEN_ESTIMATOR_VERSION,
         "sample_path": str(sample_path),
+        "input_manifest_path": str(manifest_path) if manifest_path else None,
+        "comparison_manifest_path": str(manifest_output_path),
         "parser_records_path": str(parser_records_path),
         "packets_path": str(packets_path),
         "mock_responses_path": str(mocks_path),
@@ -697,6 +845,10 @@ def build_v4_comparison_packets(
             }
             for family in FAMILY_FIELDS
         },
+        "evidence_routing_audit": evidence_routing_audit(
+            routing_records=routing_records,
+            packets=packets,
+        ),
         "schema_versions": FAMILY_SCHEMA_VERSIONS,
         "assembler_version": ASSEMBLER_VERSION,
         "counts": {
@@ -723,6 +875,7 @@ def build_v4_comparison_packets(
         "mock_responses_path": str(mocks_path),
         "field_routes_path": str(routing_path),
         "assembled_mock_records_path": str(assembled_path),
+        "comparison_manifest_path": str(manifest_output_path),
         "report_path": str(report_path),
         "counts": report["counts"],
         "strategy_metrics": report["strategy_metrics"],

@@ -264,26 +264,35 @@ separate benchmarks before a patient-oriented MCP retrieval surface is ready.
 - V2 added bounded label and sentence evidence locators, field-specific routing,
   a minimal semantic response schema, and deterministic candidate assembly.
   Evidence candidates remain retrieval aids, not final classifications.
-- On the same eight frozen documents, v2 generated eight broad packets, 32
-  selective packets, 40 schema-valid mocks, eight assembled mock records, and no
-  provider calls.
-- Field routing avoided 72 of 248 possible selective field requests. The
-  remaining 176 field instances had bounded candidate evidence; absent fields
+- The original first-eight comparison was ordering-dependent and contained only
+  direct-signal records. It was retained as historical packet-cost evidence but
+  rejected as the next provider-comparison manifest because it could not test
+  family suppression.
+- The revised frozen manifest contains six direct-signal records, one
+  metadata-label-only contrast, and one no-signal contrast across augmented
+  links, PMC HTML, PMC OAI, and PDF source strategies.
+- On this manifest, v2 generated eight broad packets, 30 selective packets, 38
+  schema-valid mocks, eight assembled mock records, and no provider calls.
+- Field routing avoided 87 of 248 possible selective field requests. The
+  remaining 161 field instances had bounded candidate evidence; absent fields
   remained explicit instead of being sent speculatively.
-- The broad strategy used about 56,335 estimated input tokens and a 24,000-token
-  aggregate completion ceiling. Selective used about 47,432 estimated input
-  tokens and a 15,200-token aggregate completion ceiling.
+- The broad strategy used about 52,383 estimated input tokens and a 24,000-token
+  aggregate completion ceiling. Selective used about 41,658 estimated input
+  tokens and a 14,400-token aggregate completion ceiling.
 - Under the configurable USD 0.75 input and USD 4.50 output per-million-token
-  assumption, maximum projected cost was USD 0.150251 for broad and USD
-  0.103974 for selective. Selective was about 30.8% cheaper, or approximately
-  USD 0.012997 per document at the ceiling.
+  assumption, maximum projected cost was USD 0.147287 for broad and USD
+  0.096044 for selective. Selective was about 34.8% cheaper, or approximately
+  USD 0.012005 per document at the ceiling.
 - The assembler rejects unexpected fields, duplicate decisions, missing
   decisions, and evidence IDs that were not supplied in the packet. Identity,
   hashes, versions, and review boundaries remain deterministic.
-- The current eight-document direct-signal sample still routes all four families
-  for every document. Future call-count reduction requires evidence-aware family
-  suppression on contrast documents or safe deterministic resolution; it must
-  not be achieved by dropping clinically useful fields.
+- The no-signal contrast suppresses its cannabinoid family as not applicable.
+  The metadata-label-only contrast suppresses the same family because no
+  source-backed cannabinoid identity evidence exists.
+- One audit exposed `Phycocyanin` being treated as cannabinoid evidence solely
+  because it appeared in a legacy cannabinoid-label slot. That behavior was a
+  correctable entity-routing defect. Metadata-only labels now require a known
+  cannabinoid identity pattern before they can activate cannabinoid evidence.
 
 ## Decisions Promoted Into The Product
 

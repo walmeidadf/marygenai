@@ -333,6 +333,13 @@ def build_v4_packets(
         Path,
         typer.Option("--parser-records-path", help="Deterministic parser records JSONL."),
     ],
+    manifest_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--manifest-path",
+            help="Optional frozen comparison manifest JSONL from a previous local gate.",
+        ),
+    ] = None,
     limit: Annotated[
         int,
         typer.Option("--limit", min=5, max=10, help="Same documents used by both strategies."),
@@ -360,6 +367,7 @@ def build_v4_packets(
         storage=LocalStorage(settings.data_dir),
         sample_path=sample_path,
         parser_records_path=parser_records_path,
+        manifest_path=manifest_path,
         limit=limit,
         provider=target_model_provider,
         model=target_model_name,

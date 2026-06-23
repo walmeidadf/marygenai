@@ -40,6 +40,15 @@ CANNABINOID_ALIASES = {
     "2-arachidonoylglycerol": ("2-arachidonoylglycerol", "2-ag"),
     "endocannabinoid": ("endocannabinoid", "endocannabinoids"),
 }
+CANNABINOID_IDENTITY_PATTERN = re.compile(
+    r"\b("
+    r"cannabi(?:s|noid|diol)|marijuana|tetrahydrocannabinol|"
+    r"endocannabinoid|anandamide|arachidonoylglycerol|"
+    r"palmitoylethanolamide|dronabinol|nabilone|jwh[- ]?\w+|"
+    r"thc|cbd|2-ag|aea|pea"
+    r")\b",
+    re.IGNORECASE,
+)
 
 
 def normalized_text(value: str) -> str:
@@ -135,13 +144,25 @@ def cannabinoid_search_terms(labels: list[str]) -> list[str]:
     return sorted((term for term in terms if len(term) >= 3), key=len, reverse=True)
 
 
+def cannabinoid_identity_labels(labels: list[str]) -> list[str]:
+    return [label for label in labels if CANNABINOID_IDENTITY_PATTERN.search(label)]
+
+
 def locate_cannabinoid_evidence(
     text: str,
     *,
     labels: list[str],
     source_text_path: str,
+    focus_group: str,
 ) -> list[V4EvidenceReference]:
-    terms = cannabinoid_search_terms(labels)
+    eligible_labels = (
+        labels
+        if focus_group == "source_text_signal"
+        else cannabinoid_identity_labels(labels)
+    )
+    terms = cannabinoid_search_terms(eligible_labels)
+    if not terms and focus_group != "source_text_signal":
+        return []
     if not terms:
         terms = ["cannabidiol", "cannabinoid", "cannabis", "tetrahydrocannabinol"]
     located: list[V4EvidenceReference] = []
@@ -252,6 +273,7 @@ def locate_v4_evidence(
             text,
             labels=corpus.get("cannabinoid_labels") or [],
             source_text_path=stored_source_path,
+            focus_group=sample.get("cannabinoid_focus_group") or "unknown",
         )
     )
     evidence.extend(
