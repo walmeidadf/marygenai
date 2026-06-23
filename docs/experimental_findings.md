@@ -258,6 +258,25 @@ separate benchmarks before a patient-oriented MCP retrieval surface is ready.
   semantic classification on the same 5 to 10 documents. Prompt packets, local
   schemas, token estimates, and projected cost inputs must be inspected before
   a provider call.
+- The first local v4 packet comparison used the same eight frozen documents for
+  both strategies and generated 40 schema-valid mocks without a provider call:
+  eight broad packets and 32 selective family packets.
+- The broad strategy requested 248 field instances with about 40,282 estimated
+  input tokens and a 24,000-token aggregate completion ceiling. The selective
+  strategy requested the same field instances with about 57,683 estimated input
+  tokens and a 29,600-token aggregate completion ceiling.
+- Under the configurable USD 0.75 input and USD 4.50 output per-million-token
+  assumption, the maximum projected cost was USD 0.138211 for broad packets and
+  USD 0.176462 for selective packets. These are ceiling estimates from a
+  character heuristic, not provider usage.
+- Repeated schemas and four calls per document outweighed selective context
+  reduction in this first packet design. Selective-LLM is not inherently
+  lower-cost; it needs call suppression or materially smaller response
+  contracts.
+- Three selective packets had no parser evidence candidates. The parser baseline
+  does not yet produce direct clinical-topic or outcome evidence spans, so those
+  families must abstain, use a new deterministic evidence locator, or receive an
+  explicitly approved bounded source excerpt before provider execution.
 
 ## Decisions Promoted Into The Product
 

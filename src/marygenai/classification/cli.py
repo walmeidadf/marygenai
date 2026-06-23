@@ -24,6 +24,13 @@ from marygenai.classification.retrieval_baseline import (
     run_retrieval_metadata_baseline,
 )
 from marygenai.classification.retrieval_profile import profile_retrieval_fields
+from marygenai.classification.v4_packets import (
+    DEFAULT_INPUT_COST_PER_MILLION,
+    DEFAULT_MODEL,
+    DEFAULT_OUTPUT_COST_PER_MILLION,
+    DEFAULT_PROVIDER,
+    build_v4_comparison_packets,
+)
 from marygenai.settings import get_settings
 from marygenai.storage import LocalStorage
 
@@ -312,5 +319,51 @@ def extract_retrieval_metadata(
     result = run_retrieval_metadata_baseline(
         storage=LocalStorage(settings.data_dir),
         input_path=input_path,
+    )
+    console.print(result)
+
+
+@app.command("build-v4-comparison-packets")
+def build_v4_packets(
+    sample_path: Annotated[
+        Path,
+        typer.Option("--sample-path", help="Frozen retrieval-field validation sample JSONL."),
+    ],
+    parser_records_path: Annotated[
+        Path,
+        typer.Option("--parser-records-path", help="Deterministic parser records JSONL."),
+    ],
+    limit: Annotated[
+        int,
+        typer.Option("--limit", min=5, max=10, help="Same documents used by both strategies."),
+    ] = 8,
+    target_model_provider: Annotated[
+        str,
+        typer.Option("--target-model-provider"),
+    ] = DEFAULT_PROVIDER,
+    target_model_name: Annotated[
+        str,
+        typer.Option("--target-model-name"),
+    ] = DEFAULT_MODEL,
+    input_cost_per_million: Annotated[
+        float,
+        typer.Option("--input-cost-per-million", min=0),
+    ] = DEFAULT_INPUT_COST_PER_MILLION,
+    output_cost_per_million: Annotated[
+        float,
+        typer.Option("--output-cost-per-million", min=0),
+    ] = DEFAULT_OUTPUT_COST_PER_MILLION,
+) -> None:
+    """Build broad and selective v4 packets, mocks, and cost estimates locally."""
+    settings = get_settings()
+    result = build_v4_comparison_packets(
+        storage=LocalStorage(settings.data_dir),
+        sample_path=sample_path,
+        parser_records_path=parser_records_path,
+        limit=limit,
+        provider=target_model_provider,
+        model=target_model_name,
+        input_cost_per_million=input_cost_per_million,
+        output_cost_per_million=output_cost_per_million,
     )
     console.print(result)

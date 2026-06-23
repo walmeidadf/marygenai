@@ -99,6 +99,24 @@ route, country mentions, population/species, and explicit study-design signals.
 It does not treat regex matches as reviewed values, call an LLM, or mutate
 SQLite.
 
+Build the same-document broad-v4 versus selective field-family comparison:
+
+```bash
+uv run marygenai classification build-v4-comparison-packets \
+  --sample-path <retrieval_field_validation_sample.jsonl> \
+  --parser-records-path <retrieval_metadata_parser_records.jsonl> \
+  --limit 8 \
+  --target-model-provider openai \
+  --target-model-name gpt-5.4-mini
+```
+
+This local-only command writes versioned prompt packets, schema-valid mocks, and
+an efficiency report under `data/normalized/classification_evaluations/`.
+Token counts use the declared `chars_divided_by_4.v1` heuristic. Cost projections
+use configurable input and output rates and maximum completion limits; they are
+not provider usage or billing records. No provider call is available through
+this command.
+
 Build a deterministic study-design benchmark candidate set:
 
 ```bash

@@ -1,5 +1,33 @@
 # Decision Log
 
+## 2026-06-23: Version V4 By Semantic Family And Measure Call Overhead Explicitly
+
+The first v4 preparation contract uses one broad candidate schema and four
+independently versioned semantic-family schemas:
+
+1. clinical topic, anatomy, and organ system;
+2. cannabinoid identity and scientific role;
+3. population, sample, geography, and study structure;
+4. outcomes and overall direction.
+
+Prompt packets preserve source identity and hash, parser evidence IDs and
+offsets, requested fields, response schema and prompt versions, completion
+limits, target model configuration, uncertainty, and preparation provenance.
+Strict deterministic mocks validate every response schema without representing
+semantic truth.
+
+The first eight-document projection found that four selective calls per document
+were more expensive at the configured maximum-token ceiling than one broad call.
+This is an architecture measurement, not a reason to collapse field provenance.
+Selective execution should suppress families that have no unresolved fields or
+no adequate evidence and should test smaller response contracts before a
+provider run.
+
+The current parser does not provide direct outcome evidence. Missing family
+evidence must remain visible and lead to abstention or improved evidence routing;
+unrelated sample, route, or population snippets must not be presented as outcome
+support. No provider call is authorized by this decision.
+
 ## 2026-06-23: Compare Compact Semantic Packets Before Any Broader V4 Run
 
 The next v4 experiment will not send full source text and every retrieval field

@@ -27,6 +27,29 @@ universe; the legacy reference size does not.
 The immediate next implementation is compact semantic prompt-packet preparation
 and cost estimation. It must not call an LLM by default.
 
+Implemented locally on 2026-06-23:
+
+- versioned broad-v4 and four field-family response schemas;
+- compact prompt packets built from relevant metadata and bounded parser
+  evidence candidates;
+- strict schema-valid deterministic mocks;
+- character-based token estimates, completion ceilings, requested-field counts,
+  deterministic-field counts, and configurable cost projections;
+- a same-document comparison command that performs no provider call.
+
+The first eight-document projection produced eight broad packets and 32
+selective packets. Under the explicitly configurable pricing assumption used by
+the command, the broad maximum-cost projection was USD 0.138211 and the
+selective projection was USD 0.176462. This does not reject selective
+classification: it shows that four calls per document and repeated schemas are
+not automatically cheaper. Selective execution needs evidence-aware call
+suppression, smaller provider response contracts, or both.
+
+Three selective packets had no parser evidence candidates. The current parser
+does not generate direct outcome evidence, so outcome packets currently rely on
+title and legacy guardrail metadata plus explicit abstention. Provider execution
+must remain blocked until the evidence-routing gap is accepted or improved.
+
 ## Design Principles
 
 1. The downloaded classification-eligible corpus defines execution scale.
@@ -252,6 +275,15 @@ uv run marygenai classification extract-retrieval-metadata \
 Implement prompt-packet preparation under `src/marygenai/` and expose it through
 the `marygenai classification` CLI. Do not call a provider until packet contents,
 schemas, cost estimates, and tests have been reviewed.
+
+The supported command is:
+
+```bash
+uv run marygenai classification build-v4-comparison-packets \
+  --sample-path <retrieval_field_validation_sample.jsonl> \
+  --parser-records-path <retrieval_metadata_parser_records.jsonl> \
+  --limit 8
+```
 
 ## V4 Promotion Gate
 

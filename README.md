@@ -69,6 +69,10 @@ uv run marygenai classification run-smoke --limit 5
 uv run marygenai classification profile-retrieval-fields --sample-size 12
 uv run marygenai classification extract-retrieval-metadata \
   --input-path <retrieval_field_validation_sample.jsonl>
+uv run marygenai classification build-v4-comparison-packets \
+  --sample-path <retrieval_field_validation_sample.jsonl> \
+  --parser-records-path <retrieval_metadata_parser_records.jsonl> \
+  --limit 8
 uv run marygenai classification build-validation-benchmark --sample-size 48
 uv run marygenai classification build-validation-holdout \
   --exclude-decisions-path <reviewed_benchmark_decisions.jsonl>
@@ -100,6 +104,10 @@ reported as a guardrail, not treated as the classification queue.
 `classification extract-retrieval-metadata` tests deterministic source parsing
 on that worklist. Its outputs are field candidates with evidence and provenance,
 not final classifications.
+
+`classification build-v4-comparison-packets` creates versioned broad-v4 and
+selective field-family prompt packets, strict local mock responses, token
+estimates, and configurable cost projections. It never calls a provider.
 
 The benchmark evaluator measures deterministic candidates against append-only,
 human-confirmed review decisions. The holdout builder freezes a separate
