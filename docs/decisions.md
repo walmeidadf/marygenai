@@ -46,6 +46,19 @@ source hashes, model, and provenance through a local manifest. This is the
 correct next operational artifact to submit only after explicit maintainer
 authorization.
 
+Batch submission and retrieval must preserve a local audit chain:
+
+1. prepared input JSONL;
+2. MaryGenAI manifest keyed by `custom_id`;
+3. remote file and batch submission record;
+4. status snapshots;
+5. downloaded output and error files;
+6. converted candidate-classification records, raw responses, errors, and
+   summary.
+
+The converted records must use the same candidate schema and evaluator contract
+as synchronous runs so Batch and non-Batch quality can be compared directly.
+
 ## 2026-07-10: Ship A First Broad Candidate Base And Read-Only MCP Before More V4 Optimization
 
 The next product milestone is a demonstrable read-only retrieval surface for the

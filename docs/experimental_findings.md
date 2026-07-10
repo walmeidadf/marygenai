@@ -332,6 +332,11 @@ separate benchmarks before a patient-oriented MCP retrieval surface is ready.
   provider. Each JSONL line contains `custom_id`, `method`, `url`, and `body`,
   and the local manifest maps `custom_id` back to document identity, source
   hash, packet identity, model, and provenance.
+- The first remote Batch submission attempt was blocked before batch creation:
+  the configured restricted project API key lacked `api.files.write`, which is
+  required to upload Batch input JSONL through the Files API. No remote Batch was
+  created, no classification output was produced, and SQLite remained
+  unchanged.
 
 ## Decisions Promoted Into The Product
 

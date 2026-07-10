@@ -36,6 +36,7 @@ DRY_RUN_PROVIDER = "dry_run"
 DRY_RUN_MODEL = "deterministic_mock_classifier"
 DEFAULT_PROMPT_SOURCE_CHARS = 12_000
 OPENAI_CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions"
+OPENAI_API_BASE_URL = "https://api.openai.com/v1"
 OPENAI_BATCH_CHAT_COMPLETIONS_ENDPOINT = "/v1/chat/completions"
 DEFAULT_OPENAI_MODEL = "gpt-5.4-mini"
 DEFAULT_MAX_COMPLETION_TOKENS = 3000
@@ -709,6 +710,12 @@ def write_dict_jsonl(path: Path, records: list[dict[str, Any]]) -> Path:
     return path
 
 
+def write_text(path: Path, text: str) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
 def build_openai_chat_request(
     packet: CandidateClassificationPromptPacket,
     *,
@@ -875,6 +882,8 @@ def prepare_openai_batch_requests(
                     "source_record_id": corpus_record.legacy_study_id,
                     "source_text_path": packet.source_text_path,
                     "source_text_sha256": packet.source_text_sha256,
+                    "prompt_version": packet.prompt_version,
+                    "schema_version": packet.schema_version,
                     "classification_dataset_split": corpus_record.classification_dataset_split,
                     "source_strategy": corpus_record.source_strategy,
                     "primary_title": corpus_record.primary_title,
@@ -965,6 +974,492 @@ def prepare_openai_batch_requests(
         "errors_path": str(errors_path),
         "counts": summary["counts"],
     }
+
+
+def openai_headers(api_key: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {api_key}"}
+
+
+def raise_openai_for_status(response: httpx.Response) -> None:
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        safe_body = response.text[:2_000]
+        msg = (
+            f"OpenAI API request failed with status {response.status_code} "
+            f"for {response.request.method} {response.request.url}: {safe_body}"
+        )
+        raise RuntimeError(msg) from exc
+
+
+def upload_openai_batch_file(
+    *,
+    client: httpx.Client,
+    api_key: str,
+    batch_input_path: Path,
+) -> dict[str, Any]:
+    with batch_input_path.open("rb") as file:
+        response = client.post(
+            f"{OPENAI_API_BASE_URL}/files",
+            headers=openai_headers(api_key),
+            data={"purpose": "batch"},
+            files={"file": (batch_input_path.name, file, "application/jsonl")},
+        )
+    raise_openai_for_status(response)
+    return response.json()
+
+
+def create_openai_batch(
+    *,
+    client: httpx.Client,
+    api_key: str,
+    input_file_id: str,
+    completion_window: str,
+    metadata: dict[str, str],
+) -> dict[str, Any]:
+    response = client.post(
+        f"{OPENAI_API_BASE_URL}/batches",
+        headers={**openai_headers(api_key), "Content-Type": "application/json"},
+        json={
+            "input_file_id": input_file_id,
+            "endpoint": OPENAI_BATCH_CHAT_COMPLETIONS_ENDPOINT,
+            "completion_window": completion_window,
+            "metadata": metadata,
+        },
+    )
+    raise_openai_for_status(response)
+    return response.json()
+
+
+def retrieve_openai_batch(
+    *,
+    client: httpx.Client,
+    api_key: str,
+    batch_id: str,
+) -> dict[str, Any]:
+    response = client.get(
+        f"{OPENAI_API_BASE_URL}/batches/{batch_id}",
+        headers={**openai_headers(api_key), "Content-Type": "application/json"},
+    )
+    raise_openai_for_status(response)
+    return response.json()
+
+
+def download_openai_file_text(
+    *,
+    client: httpx.Client,
+    api_key: str,
+    file_id: str,
+) -> str:
+    response = client.get(
+        f"{OPENAI_API_BASE_URL}/files/{file_id}/content",
+        headers=openai_headers(api_key),
+    )
+    raise_openai_for_status(response)
+    return response.text
+
+
+def infer_batch_run_id(path: Path) -> str:
+    name = path.name
+    for suffix in (
+        "_openai_batch_input.jsonl",
+        "_openai_batch_manifest.jsonl",
+        "_openai_batch_prepare_summary.json",
+        "_openai_batch_submission.json",
+    ):
+        if name.endswith(suffix):
+            return name[: -len(suffix)]
+    return new_run_id()
+
+
+def submit_openai_batch(
+    *,
+    storage: LocalStorage,
+    batch_input_path: Path,
+    manifest_path: Path,
+    completion_window: str = "24h",
+    metadata: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    load_dotenv()
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        msg = "OPENAI_API_KEY is not set."
+        raise RuntimeError(msg)
+    resolved_run_id = infer_batch_run_id(batch_input_path)
+    started_at = datetime.now(UTC)
+    metadata_payload = {
+        "marygenai_run_id": resolved_run_id,
+        "purpose": "candidate_classification_canary",
+        "review_boundary": "ai_classification_candidate_not_reviewed_knowledge",
+        **(metadata or {}),
+    }
+    with httpx.Client(timeout=180) as client:
+        file_response = upload_openai_batch_file(
+            client=client,
+            api_key=api_key,
+            batch_input_path=batch_input_path,
+        )
+        batch_response = create_openai_batch(
+            client=client,
+            api_key=api_key,
+            input_file_id=str(file_response["id"]),
+            completion_window=completion_window,
+            metadata=metadata_payload,
+        )
+    completed_at = datetime.now(UTC)
+    submission = {
+        "run_id": resolved_run_id,
+        "started_at": started_at.isoformat(),
+        "completed_at": completed_at.isoformat(),
+        "batch_input_path": str(batch_input_path),
+        "manifest_path": str(manifest_path),
+        "completion_window": completion_window,
+        "file": file_response,
+        "batch": batch_response,
+        "notes": [
+            "Remote OpenAI file upload and batch creation were executed.",
+            "No SQLite, review queue, review decision, or reviewed knowledge state was mutated.",
+            "Batch output remains candidate evidence until human review.",
+        ],
+    }
+    submission_path = storage.write_json(
+        Path("normalized/classification_batches")
+        / f"{resolved_run_id}_openai_batch_submission.json",
+        submission,
+    )
+    return {
+        "run_id": resolved_run_id,
+        "submission_path": str(submission_path),
+        "batch_id": batch_response["id"],
+        "input_file_id": file_response["id"],
+        "status": batch_response.get("status"),
+    }
+
+
+def load_manifest_index(manifest_path: Path) -> dict[str, dict[str, Any]]:
+    manifest_rows = read_jsonl(manifest_path)
+    return {str(row["custom_id"]): row for row in manifest_rows}
+
+
+def normalize_batch_model_payload(
+    payload: dict[str, Any],
+    *,
+    manifest_record: dict[str, Any],
+    run_id: str,
+    batch_id: str,
+    request_id: str | None,
+    created_at: datetime,
+    usage: dict[str, Any],
+) -> dict[str, Any]:
+    document_id = str(manifest_record["document_id"])
+    normalized = dict(payload)
+    normalized.update(
+        {
+            "classification_id": f"classification:{run_id}:{safe_id_fragment(document_id)}",
+            "document_id": document_id,
+            "classification_run_id": run_id,
+            "schema_version": CANDIDATE_STUDY_CLASSIFICATION_SCHEMA_VERSION,
+            "extractor_name": EXTRACTOR_NAME,
+            "extractor_version": EXTRACTOR_VERSION,
+            "model_provider": "openai",
+            "model_name": str(manifest_record.get("model") or DEFAULT_OPENAI_MODEL),
+            "prompt_version": str(manifest_record.get("prompt_version") or PROMPT_VERSION),
+            "source_text_path": str(manifest_record["source_text_path"]),
+            "source_text_sha256": str(manifest_record["source_text_sha256"]),
+            "created_at": created_at.isoformat(),
+            "requires_human_review": True,
+            "review_state": "needs_review",
+            "provenance": {
+                **dict(payload.get("provenance") or {}),
+                "method": "openai_batch_candidate_classification",
+                "prompt_packet_id": manifest_record.get("packet_id"),
+                "provider": "openai",
+                "model": manifest_record.get("model") or DEFAULT_OPENAI_MODEL,
+                "batch_id": batch_id,
+                "batch_custom_id": manifest_record["custom_id"],
+                "request_id": request_id,
+                "usage": usage,
+                "does_not_mutate_sqlite": True,
+                "review_boundary": "ai_classification_candidate_not_reviewed_knowledge",
+            },
+        }
+    )
+    return normalized
+
+
+def raw_response_from_batch_line(
+    *,
+    run_id: str,
+    batch_id: str,
+    line: dict[str, Any],
+    manifest_record: dict[str, Any] | None,
+) -> dict[str, Any]:
+    response = line.get("response") or {}
+    response_body = response.get("body") or {}
+    return {
+        "run_id": run_id,
+        "document_id": manifest_record.get("document_id") if manifest_record else None,
+        "packet_id": manifest_record.get("packet_id") if manifest_record else None,
+        "provider": "openai",
+        "model": manifest_record.get("model") if manifest_record else None,
+        "batch_id": batch_id,
+        "batch_custom_id": line.get("custom_id"),
+        "batch_request_id": line.get("id"),
+        "status_code": response.get("status_code"),
+        "response_json": response_body,
+        "error": line.get("error"),
+        "attempts": [
+            {
+                "attempt": 1,
+                "status_code": response.get("status_code"),
+                "batch_request_id": line.get("id"),
+            }
+        ],
+    }
+
+
+def convert_openai_batch_outputs(
+    *,
+    storage: LocalStorage,
+    run_id: str,
+    batch_id: str,
+    manifest_path: Path,
+    output_path: Path | None,
+    error_output_path: Path | None = None,
+) -> dict[str, Any]:
+    created_at = datetime.now(UTC)
+    manifest_index = load_manifest_index(manifest_path)
+    output_lines = read_jsonl(output_path) if output_path and output_path.exists() else []
+    error_lines = (
+        read_jsonl(error_output_path) if error_output_path and error_output_path.exists() else []
+    )
+    records: list[CandidateStudyClassification] = []
+    errors: list[ClassificationRunError] = []
+    raw_responses: list[dict[str, Any]] = []
+    for line in output_lines:
+        custom_id = str(line.get("custom_id") or "")
+        manifest_record = manifest_index.get(custom_id)
+        raw_responses.append(
+            raw_response_from_batch_line(
+                run_id=run_id,
+                batch_id=batch_id,
+                line=line,
+                manifest_record=manifest_record,
+            )
+        )
+        if manifest_record is None:
+            errors.append(
+                ClassificationRunError(
+                    classification_run_id=run_id,
+                    error_type="UnknownBatchCustomId",
+                    message=f"Batch output custom_id not found in manifest: {custom_id}.",
+                    provenance={"method": "openai_batch_candidate_classification_convert"},
+                )
+            )
+            continue
+        response = line.get("response") or {}
+        response_body = response.get("body") or {}
+        status_code = response.get("status_code")
+        if status_code != 200 or line.get("error"):
+            errors.append(
+                ClassificationRunError(
+                    classification_run_id=run_id,
+                    document_id=str(manifest_record.get("document_id")),
+                    source_record_id=manifest_record.get("source_record_id"),
+                    error_type="OpenAIBatchRequestError",
+                    message=json.dumps(line.get("error") or response_body, sort_keys=True),
+                    provenance={
+                        "method": "openai_batch_candidate_classification_error",
+                        "batch_id": batch_id,
+                        "batch_custom_id": custom_id,
+                        "status_code": status_code,
+                        "does_not_mutate_sqlite": True,
+                    },
+                )
+            )
+            continue
+        try:
+            content = str(response_body["choices"][0]["message"]["content"])
+            parsed = json.loads(content)
+            normalized = normalize_batch_model_payload(
+                parsed,
+                manifest_record=manifest_record,
+                run_id=run_id,
+                batch_id=batch_id,
+                request_id=response.get("request_id"),
+                created_at=created_at,
+                usage=response_body.get("usage") or {},
+            )
+            records.append(CandidateStudyClassification.model_validate(normalized))
+        except Exception as exc:  # noqa: BLE001
+            errors.append(
+                ClassificationRunError(
+                    classification_run_id=run_id,
+                    document_id=str(manifest_record.get("document_id")),
+                    source_record_id=manifest_record.get("source_record_id"),
+                    error_type=type(exc).__name__,
+                    message=str(exc),
+                    provenance={
+                        "method": "openai_batch_candidate_classification_error",
+                        "batch_id": batch_id,
+                        "batch_custom_id": custom_id,
+                        "does_not_mutate_sqlite": True,
+                    },
+                )
+            )
+
+    for line in error_lines:
+        custom_id = str(line.get("custom_id") or "")
+        manifest_record = manifest_index.get(custom_id)
+        errors.append(
+            ClassificationRunError(
+                classification_run_id=run_id,
+                document_id=str(manifest_record.get("document_id")) if manifest_record else None,
+                source_record_id=manifest_record.get("source_record_id")
+                if manifest_record
+                else None,
+                error_type="OpenAIBatchErrorFileEntry",
+                message=json.dumps(line.get("error") or line, sort_keys=True),
+                provenance={
+                    "method": "openai_batch_candidate_classification_error_file",
+                    "batch_id": batch_id,
+                    "batch_custom_id": custom_id,
+                    "does_not_mutate_sqlite": True,
+                },
+            )
+        )
+
+    records_path = storage.write_jsonl(
+        Path("normalized/classification_runs")
+        / f"{run_id}_candidate_classification_records.jsonl",
+        records,
+    )
+    errors_path = storage.write_jsonl(
+        Path("normalized/classification_runs")
+        / f"{run_id}_candidate_classification_errors.jsonl",
+        errors,
+    )
+    raw_responses_path = write_dict_jsonl(
+        storage.path(
+            Path("normalized/classification_runs")
+            / f"{run_id}_candidate_classification_raw_responses.jsonl"
+        ),
+        raw_responses,
+    )
+    summary = summarize_smoke_run(
+        run_id=run_id,
+        input_path=manifest_path,
+        records_path=records_path,
+        errors_path=errors_path,
+        records=records,
+        errors=errors,
+        raw_responses_path=raw_responses_path,
+        raw_responses=raw_responses,
+        started_at=created_at,
+        completed_at=datetime.now(UTC),
+        dry_run=False,
+        provider="openai",
+        model=str(next(iter(manifest_index.values())).get("model") or DEFAULT_OPENAI_MODEL)
+        if manifest_index
+        else DEFAULT_OPENAI_MODEL,
+        dataset_split=None,
+    )
+    summary["batch_id"] = batch_id
+    summary["batch_output_path"] = str(output_path) if output_path else None
+    summary["batch_error_output_path"] = str(error_output_path) if error_output_path else None
+    summary_path = storage.write_json(
+        Path("normalized/classification_runs")
+        / f"{run_id}_candidate_classification_summary.json",
+        summary,
+    )
+    return {
+        "run_id": run_id,
+        "records_path": str(records_path),
+        "errors_path": str(errors_path),
+        "raw_responses_path": str(raw_responses_path),
+        "summary_path": str(summary_path),
+        "counts": summary["counts"],
+    }
+
+
+def retrieve_and_convert_openai_batch(
+    *,
+    storage: LocalStorage,
+    submission_path: Path,
+    manifest_path: Path | None = None,
+) -> dict[str, Any]:
+    load_dotenv()
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        msg = "OPENAI_API_KEY is not set."
+        raise RuntimeError(msg)
+    submission = json.loads(submission_path.read_text(encoding="utf-8"))
+    run_id = str(submission["run_id"])
+    batch_id = str(submission["batch"]["id"])
+    resolved_manifest_path = manifest_path or Path(str(submission["manifest_path"]))
+    with httpx.Client(timeout=180) as client:
+        batch = retrieve_openai_batch(client=client, api_key=api_key, batch_id=batch_id)
+        status_path = storage.write_json(
+            Path("normalized/classification_batches")
+            / f"{run_id}_openai_batch_status.json",
+            {
+                "run_id": run_id,
+                "batch_id": batch_id,
+                "retrieved_at": datetime.now(UTC).isoformat(),
+                "batch": batch,
+                "notes": [
+                    "Remote batch status was retrieved.",
+                    "No SQLite, review queue, review decision, or reviewed knowledge state was "
+                    "mutated.",
+                ],
+            },
+        )
+        output_path = None
+        error_output_path = None
+        if batch.get("output_file_id"):
+            output_text = download_openai_file_text(
+                client=client,
+                api_key=api_key,
+                file_id=str(batch["output_file_id"]),
+            )
+            output_path = write_text(
+                storage.path(
+                    Path("normalized/classification_batches")
+                    / f"{run_id}_openai_batch_output.jsonl"
+                ),
+                output_text,
+            )
+        if batch.get("error_file_id"):
+            error_text = download_openai_file_text(
+                client=client,
+                api_key=api_key,
+                file_id=str(batch["error_file_id"]),
+            )
+            error_output_path = write_text(
+                storage.path(
+                    Path("normalized/classification_batches")
+                    / f"{run_id}_openai_batch_error_output.jsonl"
+                ),
+                error_text,
+            )
+    result: dict[str, Any] = {
+        "run_id": run_id,
+        "batch_id": batch_id,
+        "status": batch.get("status"),
+        "status_path": str(status_path),
+        "output_path": str(output_path) if output_path else None,
+        "error_output_path": str(error_output_path) if error_output_path else None,
+    }
+    if batch.get("status") == "completed" and output_path is not None:
+        result["conversion"] = convert_openai_batch_outputs(
+            storage=storage,
+            run_id=run_id,
+            batch_id=batch_id,
+            manifest_path=resolved_manifest_path,
+            output_path=output_path,
+            error_output_path=error_output_path,
+        )
+    return result
 
 
 def retry_wait_seconds(response: httpx.Response, attempt_number: int) -> float:

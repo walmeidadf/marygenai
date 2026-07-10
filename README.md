@@ -78,6 +78,11 @@ uv run marygenai classification prepare-batch \
   --input-path <classification_corpus_records.jsonl> \
   --dataset-split strict_classification_ready \
   --model gpt-5.4-mini
+uv run marygenai classification submit-batch \
+  --batch-input-path <openai_batch_input.jsonl> \
+  --manifest-path <openai_batch_manifest.jsonl>
+uv run marygenai classification retrieve-batch \
+  --submission-path <openai_batch_submission.json>
 uv run marygenai classification profile-retrieval-fields --sample-size 12
 uv run marygenai classification extract-retrieval-metadata \
   --input-path <retrieval_field_validation_sample.jsonl>
@@ -135,6 +140,11 @@ the first candidate-classified base or read-only MCP demonstration.
 `classification prepare-batch` writes OpenAI Batch-compatible JSONL plus a local
 manifest for later submission. It does not upload files, create a remote batch,
 call a provider, mutate SQLite, or create reviewed knowledge.
+
+`classification submit-batch` and `classification retrieve-batch` are explicit
+provider-backed operations. They write ignored local audit artifacts and convert
+completed Batch outputs into the same candidate-classification run format used
+by synchronous validation. Outputs remain candidate evidence.
 
 The benchmark evaluator measures deterministic candidates against append-only,
 human-confirmed review decisions. The holdout builder freezes a separate

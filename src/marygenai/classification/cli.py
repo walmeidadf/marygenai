@@ -20,7 +20,9 @@ from marygenai.classification.pipeline import (
     DEFAULT_PROMPT_SOURCE_CHARS,
     build_classification_prompt_packets,
     prepare_openai_batch_requests,
+    retrieve_and_convert_openai_batch,
     run_classification_smoke,
+    submit_openai_batch,
 )
 from marygenai.classification.retrieval_baseline import (
     run_retrieval_metadata_baseline,
@@ -193,6 +195,61 @@ def prepare_batch(
         model=model,
         max_completion_tokens=max_completion_tokens,
     )
+    console.print(result)
+
+
+@app.command("submit-batch")
+def submit_batch(
+    batch_input_path: Annotated[
+        Path,
+        typer.Option("--batch-input-path", help="Prepared OpenAI Batch input JSONL path."),
+    ],
+    manifest_path: Annotated[
+        Path,
+        typer.Option("--manifest-path", help="Prepared MaryGenAI batch manifest JSONL path."),
+    ],
+    completion_window: Annotated[
+        str,
+        typer.Option("--completion-window", help="OpenAI Batch completion window."),
+    ] = "24h",
+) -> None:
+    """Upload a prepared Batch file and create a remote OpenAI Batch."""
+    settings = get_settings()
+    try:
+        result = submit_openai_batch(
+            storage=LocalStorage(settings.data_dir),
+            batch_input_path=batch_input_path,
+            manifest_path=manifest_path,
+            completion_window=completion_window,
+        )
+    except RuntimeError as exc:
+        console.print({"error": str(exc)})
+        raise typer.Exit(1) from exc
+    console.print(result)
+
+
+@app.command("retrieve-batch")
+def retrieve_batch(
+    submission_path: Annotated[
+        Path,
+        typer.Option("--submission-path", help="Local OpenAI Batch submission JSON path."),
+    ],
+    manifest_path: Annotated[
+        Path | None,
+        typer.Option("--manifest-path", help="Override manifest path for conversion."),
+    ] = None,
+) -> None:
+    """Retrieve remote Batch status, download completed outputs, and convert records."""
+    settings = get_settings()
+    try:
+        result = retrieve_and_convert_openai_batch(
+            storage=LocalStorage(settings.data_dir),
+            submission_path=submission_path,
+            manifest_path=manifest_path,
+        )
+    except RuntimeError as exc:
+        console.print({"error": str(exc)})
+        raise typer.Exit(1) from exc
     console.print(result)
 
 

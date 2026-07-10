@@ -7,6 +7,7 @@ import pytest
 
 from marygenai.classification.pipeline import (
     build_classification_prompt_packets,
+    convert_openai_batch_outputs,
     prepare_openai_batch_requests,
     run_classification_smoke,
 )
@@ -404,3 +405,126 @@ def test_prepare_openai_batch_requests_can_filter_dataset_split(tmp_path: Path) 
 
     assert result["counts"]["batch_requests"] == 1
     assert manifest[0]["document_id"] == "publication:pmid:strict"
+
+
+def test_convert_openai_batch_outputs_writes_candidate_artifacts(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    text_path = data_dir / "processed/source.txt"
+    text_path.parent.mkdir(parents=True, exist_ok=True)
+    text_path.write_text(
+        "Abstract Methods Results Cannabidiol was studied for pain in adult participants. "
+        * 20,
+        encoding="utf-8",
+    )
+    input_path = data_dir / "normalized/classification_corpus/records.jsonl"
+    write_jsonl(
+        input_path,
+        [corpus_record(data_dir, document_id="publication:pmid:1", text_path=text_path)],
+    )
+    prepared = prepare_openai_batch_requests(
+        storage=LocalStorage(data_dir),
+        input_path=input_path,
+        limit=50,
+        run_id="20260710T130000Z",
+        dataset_split="strict_classification_ready",
+        model="gpt-test",
+    )
+    custom_id = "classification_batch:20260710T130000Z:publication_pmid_1"
+    model_payload = {
+        "study_design_category": "clinical_trial",
+        "study_design_subtype": "other",
+        "evidence_context": "human_clinical",
+        "medical_conditions": [
+            {
+                "normalized_label": "pain",
+                "free_text_label": "pain",
+                "ontology_entity_id": None,
+                "confidence": "medium",
+                "evidence_text": "Cannabidiol was studied for pain.",
+            }
+        ],
+        "cannabinoids_or_exposures": [
+            {
+                "normalized_label": "cannabidiol",
+                "free_text_label": "Cannabidiol",
+                "ontology_entity_id": None,
+                "confidence": "medium",
+                "evidence_text": "Cannabidiol was studied.",
+            }
+        ],
+        "intervention_or_exposure_role": "therapeutic_intervention",
+        "population_or_model": {
+            "category": "adult_humans",
+            "description": "adult participants",
+        },
+        "outcome_domains": ["efficacy"],
+        "overall_direction": "beneficial",
+        "classification_confidence": "medium",
+        "evidence_spans": [
+            {
+                "section": "Abstract",
+                "text": "Cannabidiol was studied for pain in adult participants.",
+                "source_text_path": str(text_path),
+            }
+        ],
+        "supporting_sections": ["Abstract"],
+        "missing_or_uncertain_fields": [],
+        "warnings": [],
+        "provenance": {"review_boundary": "candidate_evidence"},
+    }
+    output_path = data_dir / "normalized/classification_batches/output.jsonl"
+    write_jsonl(
+        output_path,
+        [
+            {
+                "id": "batch_req_test",
+                "custom_id": custom_id,
+                "response": {
+                    "status_code": 200,
+                    "request_id": "req_test",
+                    "body": {
+                        "choices": [
+                            {"message": {"content": json.dumps(model_payload, sort_keys=True)}}
+                        ],
+                        "usage": {
+                            "prompt_tokens": 100,
+                            "completion_tokens": 50,
+                            "total_tokens": 150,
+                        },
+                    },
+                },
+                "error": None,
+            }
+        ],
+    )
+
+    result = convert_openai_batch_outputs(
+        storage=LocalStorage(data_dir),
+        run_id="20260710T130000Z",
+        batch_id="batch_test",
+        manifest_path=Path(prepared["manifest_path"]),
+        output_path=output_path,
+    )
+
+    records = [
+        json.loads(line)
+        for line in Path(result["records_path"]).read_text(encoding="utf-8").splitlines()
+    ]
+    raw_responses = [
+        json.loads(line)
+        for line in Path(result["raw_responses_path"]).read_text(encoding="utf-8").splitlines()
+    ]
+    summary = json.loads(Path(result["summary_path"]).read_text(encoding="utf-8"))
+
+    assert result["counts"]["valid_classification_records"] == 1
+    assert records[0]["document_id"] == "publication:pmid:1"
+    assert records[0]["model_provider"] == "openai"
+    assert records[0]["model_name"] == "gpt-test"
+    assert records[0]["provenance"]["method"] == "openai_batch_candidate_classification"
+    assert records[0]["provenance"]["batch_id"] == "batch_test"
+    assert raw_responses[0]["batch_custom_id"] == custom_id
+    assert summary["usage"] == {
+        "completion_tokens": 50,
+        "prompt_tokens": 100,
+        "total_tokens": 150,
+    }

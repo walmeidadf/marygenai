@@ -285,6 +285,34 @@ document, packet, source hash, model, and provenance. Remote upload, batch
 creation, status polling, and result conversion require a separate explicit
 maintainer authorization.
 
+Submit a prepared mini-Batch only after reviewing the local input and manifest:
+
+```bash
+uv run marygenai classification submit-batch \
+  --batch-input-path <openai_batch_input.jsonl> \
+  --manifest-path <openai_batch_manifest.jsonl>
+```
+
+This uploads the JSONL through the OpenAI Files API with `purpose=batch`,
+creates a remote Batch for `/v1/chat/completions`, and writes a local submission
+record. It does not mutate SQLite or reviewed knowledge. The API key must have
+permission to write batch files and create/read batches; restricted keys without
+Files API write scope cannot submit Batch inputs.
+
+Retrieve status and, when complete, download and convert results:
+
+```bash
+uv run marygenai classification retrieve-batch \
+  --submission-path <openai_batch_submission.json>
+```
+
+If the remote Batch has completed, the command downloads output and error files
+under `data/normalized/classification_batches/`, converts successful responses
+into the standard candidate-classification artifacts under
+`data/normalized/classification_runs/`, and preserves raw responses for the
+normal evaluator. If the Batch is still running, the command writes only a
+status snapshot and can be re-run later.
+
 ## Read-Only MCP Prototype Workflow
 
 The first MCP milestone should be read-only over ignored local candidate
