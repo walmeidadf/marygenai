@@ -752,6 +752,39 @@ def repair_required_uncertainty_markers(payload: dict[str, Any]) -> dict[str, An
         for field in repaired.get("missing_or_uncertain_fields") or []
         if field is not None
     ]
+    technical_repairs: list[dict[str, Any]] = []
+    if repaired.get("study_design_subtype") == "in_vitro_or_cellular":
+        repaired["study_design_subtype"] = "other"
+        fields.append("study_design_subtype")
+        technical_repairs.append(
+            {
+                "repair_type": "normalized_invalid_enum_value",
+                "field": "study_design_subtype",
+                "original_value": "in_vitro_or_cellular",
+                "repaired_value": "other",
+                "reason": (
+                    "Candidate output used an evidence_context enum value in "
+                    "study_design_subtype. The value was moved to a valid broad subtype "
+                    "without changing evidence_context."
+                ),
+            }
+        )
+    if repaired.get("overall_direction") == "negative":
+        repaired["overall_direction"] = "cannot_determine"
+        fields.append("overall_direction")
+        technical_repairs.append(
+            {
+                "repair_type": "normalized_invalid_enum_value",
+                "field": "overall_direction",
+                "original_value": "negative",
+                "repaired_value": "cannot_determine",
+                "reason": (
+                    "Candidate output used an unsupported direction label. It was mapped "
+                    "conservatively to cannot_determine rather than inferring clinical "
+                    "benefit or harm."
+                ),
+            }
+        )
     required_fields = [
         field_name
         for field_name, cannot_determine in (
@@ -788,10 +821,11 @@ def repair_required_uncertainty_markers(payload: dict[str, Any]) -> dict[str, An
             continue
         repaired_fields.append(field)
     added_fields = sorted(set(required_fields) - set(fields))
-    if added_fields or duplicate_fields:
+    if added_fields or duplicate_fields or technical_repairs:
         repaired["missing_or_uncertain_fields"] = repaired_fields
         provenance = dict(repaired.get("provenance") or {})
         repairs = list(provenance.get("technical_schema_repairs") or [])
+        repairs.extend(technical_repairs)
         if added_fields:
             repairs.append(
                 {

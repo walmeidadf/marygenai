@@ -360,6 +360,15 @@ separate benchmarks before a patient-oriented MCP retrieval surface is ready.
   completion ceiling. This produced zero remote usage and confirms that
   MaryGenAI must size Batch chunks by estimated enqueued tokens, not only by
   request count.
+- A 150-document sub-batch stayed below the local 1.8M estimated enqueued-token
+  guard and completed successfully with 150/150 remote requests completed. Usage
+  was 951,165 input tokens and 179,473 output tokens. Initial local conversion
+  had two enum validation errors; deterministic conservative repairs for
+  unsupported `study_design_subtype=in_vitro_or_cellular` and
+  `overall_direction=negative` converted the same downloaded output to 150/150
+  strict-valid candidate records. The direction repair maps to
+  `cannot_determine`, not `harmful`, to avoid silently changing clinical
+  meaning.
 - The first conversion surfaced three schema validation errors caused by missing
   uncertainty markers for empty or `cannot_determine` retrieval fields. A local
   deterministic repair that only adds required `missing_or_uncertain_fields`

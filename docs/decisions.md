@@ -108,6 +108,20 @@ to submit one sub-batch at a time, wait for completion/retrieval, then submit
 the next offset chunk. All outputs remain ignored local candidate evidence and
 must not mutate SQLite, review queues, review decisions, or reviewed knowledge.
 
+The first 150-document sub-batch completed successfully after this change:
+150 remote requests completed, zero remote request failures, 951,165 input
+tokens, 179,473 output tokens, and 1,130,638 total tokens. Two local schema
+errors were caused by unsupported enum values rather than missing provider
+output: `study_design_subtype=in_vitro_or_cellular` and
+`overall_direction=negative`. MaryGenAI now applies conservative deterministic
+technical repairs for these cases: the misplaced cellular context value becomes
+`study_design_subtype=other` with `study_design_subtype` marked uncertain, and
+unsupported `overall_direction=negative` becomes `cannot_determine` with
+`overall_direction` marked uncertain rather than being interpreted as clinical
+harm. These repairs are provenance-recorded under `technical_schema_repairs`.
+Reconversion of the same downloaded output produced 150/150 strict-valid
+candidate records with zero schema errors.
+
 ## 2026-07-10: Ship A First Broad Candidate Base And Read-Only MCP Before More V4 Optimization
 
 The next product milestone is a demonstrable read-only retrieval surface for the

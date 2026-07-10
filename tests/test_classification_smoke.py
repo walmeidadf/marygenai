@@ -9,6 +9,7 @@ from marygenai.classification.pipeline import (
     build_classification_prompt_packets,
     convert_openai_batch_outputs,
     prepare_openai_batch_requests,
+    repair_required_uncertainty_markers,
     run_classification_smoke,
     watch_openai_batch,
 )
@@ -522,6 +523,39 @@ def test_prepare_openai_batch_requests_blocks_large_estimated_enqueued_token_bat
             dataset_split="strict_classification_ready",
             max_estimated_enqueued_tokens=1,
         )
+
+
+def test_repair_required_uncertainty_markers_normalizes_safe_invalid_enum_values() -> None:
+    repaired = repair_required_uncertainty_markers(
+        {
+            "study_design_subtype": "in_vitro_or_cellular",
+            "evidence_context": "in_vitro_or_cellular",
+            "overall_direction": "negative",
+            "medical_conditions": [{"free_text_label": "pain"}],
+            "cannabinoids_or_exposures": [{"free_text_label": "CBD"}],
+            "outcome_domains": ["efficacy"],
+            "missing_or_uncertain_fields": [],
+            "provenance": {},
+        }
+    )
+
+    assert repaired["study_design_subtype"] == "other"
+    assert repaired["evidence_context"] == "in_vitro_or_cellular"
+    assert repaired["overall_direction"] == "cannot_determine"
+    assert repaired["missing_or_uncertain_fields"] == [
+        "study_design_subtype",
+        "overall_direction",
+    ]
+    enum_repairs = [
+        repair
+        for repair in repaired["provenance"]["technical_schema_repairs"]
+        if repair["repair_type"] == "normalized_invalid_enum_value"
+    ]
+    assert [repair["field"] for repair in enum_repairs] == [
+        "study_design_subtype",
+        "overall_direction",
+    ]
+    assert enum_repairs[1]["repaired_value"] == "cannot_determine"
 
 
 def test_watch_openai_batch_stops_at_terminal_status(
