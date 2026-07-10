@@ -69,6 +69,7 @@ uv run marygenai classification run-smoke --limit 5
 uv run marygenai classification run-smoke \
   --limit 50 \
   --input-path <classification_corpus_records.jsonl> \
+  --dataset-split strict_classification_ready \
   --no-dry-run \
   --provider openai \
   --model gpt-5.4-mini

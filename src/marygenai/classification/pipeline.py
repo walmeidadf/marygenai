@@ -38,6 +38,10 @@ DEFAULT_PROMPT_SOURCE_CHARS = 12_000
 OPENAI_CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions"
 DEFAULT_OPENAI_MODEL = "gpt-5.4-mini"
 DEFAULT_MAX_COMPLETION_TOKENS = 3000
+CLASSIFICATION_DATASET_SPLITS = {
+    "strict_classification_ready",
+    "broader_source_ready",
+}
 
 
 def new_run_id() -> str:
@@ -87,7 +91,12 @@ def load_smoke_corpus_records(
     data_dir: Path,
     input_path: Path | None,
     limit: int,
+    dataset_split: str | None = None,
 ) -> tuple[list[ClassificationCorpusRecord], Path]:
+    if dataset_split is not None and dataset_split not in CLASSIFICATION_DATASET_SPLITS:
+        allowed = ", ".join(sorted(CLASSIFICATION_DATASET_SPLITS))
+        msg = f"Unsupported dataset split {dataset_split!r}. Expected one of: {allowed}."
+        raise ValueError(msg)
     path = input_path or latest_path(
         data_dir,
         "normalized/classification_runs/*_classification_sample_records.jsonl",
@@ -100,6 +109,8 @@ def load_smoke_corpus_records(
         else:
             record = ClassificationCorpusRecord.model_validate(row)
         if record.source_ready:
+            if dataset_split is not None and record.classification_dataset_split != dataset_split:
+                continue
             records.append(record)
         if len(records) >= limit:
             break
@@ -547,12 +558,14 @@ def summarize_prompt_packets(
     started_at: datetime,
     completed_at: datetime,
     max_source_chars: int,
+    dataset_split: str | None,
 ) -> dict[str, Any]:
     return {
         "run_id": run_id,
         "started_at": started_at.isoformat(),
         "completed_at": completed_at.isoformat(),
         "input_path": str(input_path),
+        "dataset_split_filter": dataset_split,
         "packets_path": str(packets_path),
         "errors_path": str(errors_path),
         "max_source_chars": max_source_chars,
@@ -588,6 +601,7 @@ def build_classification_prompt_packets(
     max_source_chars: int = DEFAULT_PROMPT_SOURCE_CHARS,
     target_model_provider: str | None = None,
     target_model_name: str | None = None,
+    dataset_split: str | None = None,
 ) -> dict[str, Any]:
     resolved_run_id = run_id or new_run_id()
     started_at = datetime.now(UTC)
@@ -595,6 +609,7 @@ def build_classification_prompt_packets(
         data_dir=storage.root,
         input_path=input_path,
         limit=limit,
+        dataset_split=dataset_split,
     )
     legacy_english_indexes = load_legacy_english_context_index(storage.root)
     packets: list[CandidateClassificationPromptPacket] = []
@@ -650,6 +665,7 @@ def build_classification_prompt_packets(
         started_at=started_at,
         completed_at=completed_at,
         max_source_chars=max_source_chars,
+        dataset_split=dataset_split,
     )
     summary_path = storage.write_json(
         Path("normalized/classification_runs")
@@ -909,6 +925,7 @@ def summarize_smoke_run(
     dry_run: bool,
     provider: str | None = None,
     model: str | None = None,
+    dataset_split: str | None = None,
 ) -> dict[str, Any]:
     field_cannot_determine_counts: Counter[str] = Counter()
     for record in records:
@@ -931,6 +948,7 @@ def summarize_smoke_run(
         "started_at": started_at.isoformat(),
         "completed_at": completed_at.isoformat(),
         "input_path": str(input_path),
+        "dataset_split_filter": dataset_split,
         "records_path": str(records_path),
         "errors_path": str(errors_path),
         "raw_responses_path": str(raw_responses_path) if raw_responses_path else None,
@@ -977,6 +995,7 @@ def run_classification_smoke(
     model: str = DEFAULT_OPENAI_MODEL,
     max_source_chars: int = 6_000,
     max_completion_tokens: int = DEFAULT_MAX_COMPLETION_TOKENS,
+    dataset_split: str | None = None,
 ) -> dict[str, Any]:
     if not dry_run and provider != "openai":
         msg = "Only provider='openai' is implemented for the first real smoke run."
@@ -989,6 +1008,7 @@ def run_classification_smoke(
         data_dir=storage.root,
         input_path=input_path,
         limit=limit,
+        dataset_split=dataset_split,
     )
     legacy_english_indexes = load_legacy_english_context_index(storage.root)
     records: list[CandidateStudyClassification] = []
@@ -1111,6 +1131,7 @@ def run_classification_smoke(
         dry_run=dry_run,
         provider=provider if not dry_run else None,
         model=model if not dry_run else None,
+        dataset_split=dataset_split,
     )
     summary_path = storage.write_json(
         Path("normalized/classification_runs")

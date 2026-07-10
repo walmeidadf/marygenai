@@ -14,6 +14,7 @@ from marygenai.classification.benchmark import (
 )
 from marygenai.classification.evaluation import evaluate_classification_run
 from marygenai.classification.pipeline import (
+    CLASSIFICATION_DATASET_SPLITS,
     DEFAULT_MAX_COMPLETION_TOKENS,
     DEFAULT_OPENAI_MODEL,
     DEFAULT_PROMPT_SOURCE_CHARS,
@@ -53,6 +54,16 @@ def run_smoke(
         Path | None,
         typer.Option("--input-path", help="Classification sample or corpus JSONL path."),
     ] = None,
+    dataset_split: Annotated[
+        str | None,
+        typer.Option(
+            "--dataset-split",
+            help=(
+                "Optional corpus split filter. Supported values: "
+                f"{', '.join(sorted(CLASSIFICATION_DATASET_SPLITS))}."
+            ),
+        ),
+    ] = None,
     dry_run: Annotated[
         bool,
         typer.Option("--dry-run/--no-dry-run", help="Use deterministic mock outputs."),
@@ -85,6 +96,7 @@ def run_smoke(
         model=model,
         max_source_chars=max_source_chars,
         max_completion_tokens=max_completion_tokens,
+        dataset_split=dataset_split,
     )
     console.print(result)
 
@@ -98,6 +110,16 @@ def build_prompt_packets(
     input_path: Annotated[
         Path | None,
         typer.Option("--input-path", help="Classification sample or corpus JSONL path."),
+    ] = None,
+    dataset_split: Annotated[
+        str | None,
+        typer.Option(
+            "--dataset-split",
+            help=(
+                "Optional corpus split filter. Supported values: "
+                f"{', '.join(sorted(CLASSIFICATION_DATASET_SPLITS))}."
+            ),
+        ),
     ] = None,
     max_source_chars: Annotated[
         int,
@@ -121,6 +143,7 @@ def build_prompt_packets(
         max_source_chars=max_source_chars,
         target_model_provider=target_model_provider,
         target_model_name=target_model_name,
+        dataset_split=dataset_split,
     )
     console.print(result)
 

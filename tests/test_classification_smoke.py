@@ -49,6 +49,13 @@ def corpus_record(data_dir: Path, *, document_id: str, text_path: Path) -> dict:
     }
 
 
+def broader_corpus_record(data_dir: Path, *, document_id: str, text_path: Path) -> dict:
+    record = corpus_record(data_dir, document_id=document_id, text_path=text_path)
+    record["classification_ready"] = False
+    record["classification_dataset_split"] = "broader_source_ready"
+    return record
+
+
 def sample_record(data_dir: Path, *, document_id: str, text_path: Path) -> dict:
     return {
         "sample_id": f"sample:{document_id}",
@@ -146,6 +153,47 @@ def test_run_classification_smoke_rejects_non_openai_provider(tmp_path: Path) ->
             dry_run=False,
             provider="groq",
         )
+
+
+def test_run_classification_smoke_can_filter_dataset_split(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    text_path = data_dir / "processed/source.txt"
+    text_path.parent.mkdir(parents=True, exist_ok=True)
+    text_path.write_text(
+        "Abstract Methods Results Cannabidiol was studied for pain in adult participants. "
+        * 20,
+        encoding="utf-8",
+    )
+    input_path = data_dir / "normalized/classification_corpus/records.jsonl"
+    write_jsonl(
+        input_path,
+        [
+            broader_corpus_record(
+                data_dir,
+                document_id="publication:pmid:broader",
+                text_path=text_path,
+            ),
+            corpus_record(data_dir, document_id="publication:pmid:strict", text_path=text_path),
+        ],
+    )
+
+    result = run_classification_smoke(
+        storage=LocalStorage(data_dir),
+        input_path=input_path,
+        limit=5,
+        run_id="20260615T130000Z",
+        dataset_split="strict_classification_ready",
+    )
+
+    records = [
+        json.loads(line)
+        for line in Path(result["records_path"]).read_text(encoding="utf-8").splitlines()
+    ]
+    summary = json.loads(Path(result["summary_path"]).read_text(encoding="utf-8"))
+
+    assert result["counts"]["valid_classification_records"] == 1
+    assert records[0]["document_id"] == "publication:pmid:strict"
+    assert summary["dataset_split_filter"] == "strict_classification_ready"
 
 
 def test_build_classification_prompt_packets_writes_prompt_and_schema(tmp_path: Path) -> None:

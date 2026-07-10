@@ -297,10 +297,36 @@ separate benchmarks before a patient-oriented MCP retrieval surface is ready.
   block the first product demonstration. The measured savings on an
   eight-document packet projection were not yet tied to inference-quality gains
   or reviewer adoption.
-- The next product learning should come from a provider-backed broad/v3 canary
-  of 50 to 100 strict classification-ready documents, followed by a read-only
-  MCP prototype over candidate evidence. This better tests whether physicians
-  and prospective human reviewers find the retrieval surface valuable.
+- The next product learning should come from a read-only MCP prototype over
+  candidate evidence, using the broad/v3 canary output as an initial demo base.
+  This better tests whether physicians and prospective human reviewers find the
+  retrieval surface valuable.
+- A 50-document broad/v3 provider canary ran on 2026-07-10 using only
+  `strict_classification_ready` records. It produced 50 HTTP 200 responses,
+  50 valid JSON responses, 49 strict schema-valid records, no provider errors,
+  no retries, and evidence spans for every valid record.
+- The single strict validation error was a contract issue: the model returned a
+  `cannot_determine` or empty population field without including
+  `population_or_model` in `missing_or_uncertain_fields`. This is a targeted
+  prompt/schema-hardening issue, not a provider-availability issue.
+- The canary generated 217 evidence spans. Exact normalized grounding found
+  174/217 spans; extraction-tolerant token-bigram grounding found 213/217,
+  leaving four spans for grounding review.
+- Filter coverage among the 49 valid records was complete for study design,
+  evidence context, population/model, outcome domain, and overall direction;
+  coverage was 47/49 for cannabinoids or exposures and 46/49 for medical
+  conditions and intervention/exposure role.
+- The canary used 318,522 prompt tokens and 59,873 completion tokens. At the
+  standard `gpt-5.4-mini` rates verified on 2026-07-10, estimated cost was
+  about USD 0.5083, or about USD 0.0102 per input document.
+- Extrapolated from measured usage, the 3,149-record strict classification-ready
+  corpus would cost about USD 32.01 with synchronous standard calls and about
+  USD 16.01 with Batch pricing. The 3,374-record broader source-ready corpus
+  would cost about USD 34.30 standard or USD 17.15 with Batch pricing.
+- Synchronous latency was about 7.37 seconds per document. A full strict-corpus
+  synchronous run would take roughly 6.45 hours if latency remains similar,
+  making resumability or Batch preparation more important than further
+  broad-versus-selective prompt research.
 
 ## Decisions Promoted Into The Product
 

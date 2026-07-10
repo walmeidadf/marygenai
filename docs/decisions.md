@@ -1,5 +1,37 @@
 # Decision Log
 
+## 2026-07-10: Use Canary Results To Plan First Broad Candidate Base
+
+A maintainer-authorized broad/v3 provider canary ran on 50
+`strict_classification_ready` records using `gpt-5.4-mini`, 12,000 source
+characters, and a 3,000-token completion ceiling. It produced 50 HTTP 200
+responses, 50 valid JSON responses, 49 strict schema-valid candidate records,
+and one validation error. No retries or provider errors occurred.
+
+The run used 318,522 prompt tokens and 59,873 completion tokens. At the
+standard pricing verified for `gpt-5.4-mini` on 2026-07-10
+(USD 0.75 per million input tokens and USD 4.50 per million output tokens), the
+estimated canary cost was USD 0.508320, or about USD 0.010166 per input
+document and USD 0.010374 per strict-valid record.
+
+Projected from measured canary usage:
+
+- 3,149 strict classification-ready records: about USD 32.01 with standard
+  synchronous calls, or about USD 16.01 with Batch pricing;
+- 3,374 broader source-ready records: about USD 34.30 with standard synchronous
+  calls, or about USD 17.15 with Batch pricing.
+
+Latency was 368.503 seconds total for 50 responses, about 7.37 seconds per
+document. A full synchronous strict-corpus run would therefore take about
+6.45 hours if latency remains similar. Before a full run, the pipeline should
+support a resumable execution plan or Batch-compatible artifact preparation.
+
+The canary is strong enough to continue toward a first candidate-classified
+base and read-only MCP prototype. It does not justify treating candidate output
+as reviewed knowledge. The one schema error and the 10 evaluator-selected rerun
+documents should feed targeted prompt/schema hardening and human review, not a
+return to broad architecture exploration.
+
 ## 2026-07-10: Ship A First Broad Candidate Base And Read-Only MCP Before More V4 Optimization
 
 The next product milestone is a demonstrable read-only retrieval surface for the

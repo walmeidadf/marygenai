@@ -118,34 +118,31 @@ manifests, deterministic selective assembly, and local cost projections. The
 selective architecture produced useful provenance and routing lessons, but it
 is no longer an MVP blocker.
 
-The next gate is operational rather than architectural: run a 50- to
-100-document provider-backed canary using the broad
-`candidate_study_classification.v3` contract, measure real usage and quality,
-and use the result to project the cost of the first strict-corpus candidate
-base.
+The first 50-document broad/v3 canary completed on 2026-07-10. It produced
+49 strict-valid candidate records, one validation error, no retries, and an
+estimated cost of about USD 0.51. Measured usage projects the 3,149-record
+strict corpus at about USD 32.01 through standard synchronous calls, or about
+USD 16.01 if a Batch-compatible workflow is implemented. The next gate is now
+resumable or batch-oriented execution plus a read-only retrieval/MCP prototype.
 
 ## MVP Workstreams
 
 1. Freeze selective-v4 work as documented findings and future optimization.
-2. Prepare a 50- to 100-document broad/v3 provider canary from strict
-   classification-ready records.
-3. Run the canary only under explicit maintainer authorization and available API
-   balance guardrails.
-4. Evaluate real usage, cost, schema validity, retry behavior, latency,
-   grounding, and retrieval-field coverage.
-5. Project strict-corpus and broader-source-ready costs from measured canary
-   usage.
-6. After approval and credit top-up if needed, run the first strict-corpus
+2. Preserve the 50-document broad/v3 canary artifacts and use them as the first
+   MCP-demo candidate base.
+3. Add resumable or Batch-compatible execution before any full strict-corpus
+   classification run.
+4. After approval and credit top-up if needed, run the first strict-corpus
    candidate-classification batch.
-7. Build a read-only retrieval index over candidate records, source identity,
+5. Build a read-only retrieval index over candidate records, source identity,
    evidence spans, uncertainty, and provenance.
-8. Design and implement a read-only MCP retrieval contract.
-9. Prepare medical-team demo journeys and targeted human-review exports.
-10. Use reviewer feedback to prioritize field-scoped improvements for
+6. Design and implement a read-only MCP retrieval contract.
+7. Prepare medical-team demo journeys and targeted human-review exports.
+8. Use reviewer feedback to prioritize field-scoped improvements for
     condition, anatomy, cannabinoid role, population, study structure, and
     outcomes.
-11. Continue PubMed discovery and source acquisition using supported commands.
-12. Publish a public baseline snapshot when licensing and review boundaries are
+9. Continue PubMed discovery and source acquisition using supported commands.
+10. Publish a public baseline snapshot when licensing and review boundaries are
     ready.
 
 ## Data Safety

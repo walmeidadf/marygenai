@@ -37,8 +37,8 @@ prototype for medical-team demonstration and human-review recruitment.
    evidence grounding, and field coverage.
 5. Project full strict-corpus and broader-source-ready costs from measured
    canary usage, not only from prompt estimates.
-6. After maintainer approval and funding, run the first strict-corpus candidate
-   classification batch.
+6. Add resumable or Batch-compatible execution before any full strict-corpus
+   classification run.
 7. Build a local read-only retrieval index over candidate records, source
    identity, evidence spans, uncertainty, and provenance.
 8. Implement a read-only MCP surface with structured filters and study-detail
