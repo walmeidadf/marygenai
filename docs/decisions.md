@@ -135,6 +135,18 @@ Reconversion of the downloaded output produced 150/150 strict-valid candidate
 records. The raw invalid outcome value remains visible in evaluation as a schema
 evolution signal rather than silently becoming reviewed knowledge.
 
+The third 150-document sub-batch completed with 150 remote requests and zero
+remote failures. Initial local conversion had two schema errors caused by
+`missing_or_uncertain_fields=biomarker` and
+`study_design_subtype=meta_analysis`. `biomarker` is a valid outcome-domain
+value but not a canonical uncertainty field name, so MaryGenAI removes the
+invalid uncertainty marker and marks `outcome_domains` uncertain. The misplaced
+`meta_analysis` subtype is mapped conservatively to
+`study_design_subtype=cannot_determine` while preserving the principal
+`clinical_meta_analysis` category. Reconversion produced 150/150 strict-valid
+candidate records. Raw unsupported outcome values such as `behavior` and `pain`
+remain visible in evaluation as schema-evolution signals.
+
 ## 2026-07-10: Ship A First Broad Candidate Base And Read-Only MCP Before More V4 Optimization
 
 The next product milestone is a demonstrable read-only retrieval surface for the

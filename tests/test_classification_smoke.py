@@ -538,7 +538,7 @@ def test_repair_required_uncertainty_markers_normalizes_safe_invalid_enum_values
             "medical_conditions": [{"free_text_label": "pain"}],
             "cannabinoids_or_exposures": [{"free_text_label": "CBD"}],
             "outcome_domains": ["use_pattern", "mental_health", "public_health"],
-            "missing_or_uncertain_fields": [],
+            "missing_or_uncertain_fields": ["biomarker"],
             "provenance": {},
         }
     )
@@ -571,6 +571,34 @@ def test_repair_required_uncertainty_markers_normalizes_safe_invalid_enum_values
         if repair["repair_type"] == "removed_invalid_enum_values"
     ]
     assert removed_value_repairs[0]["original_values"] == ["mental_health"]
+    uncertainty_marker_repairs = [
+        repair
+        for repair in repaired["provenance"]["technical_schema_repairs"]
+        if repair["repair_type"] == "removed_invalid_uncertainty_markers"
+    ]
+    assert uncertainty_marker_repairs[0]["original_values"] == ["biomarker"]
+
+
+def test_repair_required_uncertainty_markers_normalizes_misplaced_meta_analysis_subtype() -> None:
+    repaired = repair_required_uncertainty_markers(
+        {
+            "study_design_category": "clinical_meta_analysis",
+            "study_design_subtype": "meta_analysis",
+            "medical_conditions": [{"free_text_label": "arthritis"}],
+            "cannabinoids_or_exposures": [{"free_text_label": "cannabis"}],
+            "outcome_domains": ["biomarker"],
+            "population_or_model": {"category": "adult_humans"},
+            "overall_direction": "beneficial",
+            "missing_or_uncertain_fields": [],
+            "provenance": {},
+        }
+    )
+
+    assert repaired["study_design_category"] == "clinical_meta_analysis"
+    assert repaired["study_design_subtype"] == "cannot_determine"
+    assert repaired["missing_or_uncertain_fields"] == ["study_design_subtype"]
+    repairs = repaired["provenance"]["technical_schema_repairs"]
+    assert repairs[0]["original_value"] == "meta_analysis"
 
 
 def test_watch_openai_batch_stops_at_terminal_status(

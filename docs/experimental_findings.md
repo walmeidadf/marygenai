@@ -376,6 +376,12 @@ separate benchmarks before a patient-oriented MCP retrieval surface is ready.
   removed while valid sibling domains are preserved and the field is marked
   uncertain; plant model categories are mapped to `cannot_determine` because the
   current population/model schema does not encode plant studies.
+- A third 150-document sub-batch completed with 150/150 remote requests and
+  converted to 150/150 strict-valid records after conservative local repairs for
+  invalid uncertainty marker `biomarker` and misplaced
+  `study_design_subtype=meta_analysis`. The run also surfaced raw unsupported
+  outcome-domain values `behavior` and `pain`; they are removed from candidate
+  records and retained by evaluation as schema-evolution signals.
 - The first conversion surfaced three schema validation errors caused by missing
   uncertainty markers for empty or `cannot_determine` retrieval fields. A local
   deterministic repair that only adds required `missing_or_uncertain_fields`

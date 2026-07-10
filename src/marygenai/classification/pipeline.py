@@ -747,10 +747,27 @@ def build_openai_chat_request(
 
 def repair_required_uncertainty_markers(payload: dict[str, Any]) -> dict[str, Any]:
     repaired = dict(payload)
+    uncertainty_field_names = {
+        "study_design_category",
+        "study_design_subtype",
+        "evidence_context",
+        "medical_conditions",
+        "cannabinoids_or_exposures",
+        "intervention_or_exposure_role",
+        "population_or_model",
+        "outcome_domains",
+        "overall_direction",
+        "classification_confidence",
+    }
     fields = [
         str(field)
         for field in repaired.get("missing_or_uncertain_fields") or []
-        if field is not None
+        if field is not None and str(field) in uncertainty_field_names
+    ]
+    invalid_uncertainty_markers = [
+        str(field)
+        for field in repaired.get("missing_or_uncertain_fields") or []
+        if field is not None and str(field) not in uncertainty_field_names
     ]
     technical_repairs: list[dict[str, Any]] = []
     valid_outcome_domains = {
@@ -789,6 +806,26 @@ def repair_required_uncertainty_markers(payload: dict[str, Any]) -> dict[str, An
                 ),
             }
         )
+    uncertainty_outcome_markers = [
+        marker for marker in invalid_uncertainty_markers if marker in valid_outcome_domains
+    ]
+    if uncertainty_outcome_markers:
+        fields.append("outcome_domains")
+    if invalid_uncertainty_markers:
+        technical_repairs.append(
+            {
+                "repair_type": "removed_invalid_uncertainty_markers",
+                "field": "missing_or_uncertain_fields",
+                "original_values": invalid_uncertainty_markers,
+                "repaired_value": fields,
+                "reason": (
+                    "Candidate output placed values that are not canonical field names "
+                    "inside missing_or_uncertain_fields. Unsupported markers were removed; "
+                    "valid outcome-domain markers were represented by marking "
+                    "outcome_domains uncertain."
+                ),
+            }
+        )
     if repaired.get("study_design_subtype") == "in_vitro_or_cellular":
         repaired["study_design_subtype"] = "other"
         fields.append("study_design_subtype")
@@ -802,6 +839,23 @@ def repair_required_uncertainty_markers(payload: dict[str, Any]) -> dict[str, An
                     "Candidate output used an evidence_context enum value in "
                     "study_design_subtype. The value was moved to a valid broad subtype "
                     "without changing evidence_context."
+                ),
+            }
+        )
+    if repaired.get("study_design_subtype") in {"meta_analysis", "clinical_meta_analysis"}:
+        original_value = str(repaired["study_design_subtype"])
+        repaired["study_design_subtype"] = "cannot_determine"
+        fields.append("study_design_subtype")
+        technical_repairs.append(
+            {
+                "repair_type": "normalized_invalid_enum_value",
+                "field": "study_design_subtype",
+                "original_value": original_value,
+                "repaired_value": "cannot_determine",
+                "reason": (
+                    "Candidate output used a study_design_category enum value in "
+                    "study_design_subtype. The category value remains preserved in "
+                    "study_design_category, while subtype was marked uncertain."
                 ),
             }
         )
