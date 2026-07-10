@@ -38,6 +38,7 @@ candidate studies rather than replacing patient-condition relevance.
 - downloaded-corpus retrieval-field profiler;
 - frozen patient-oriented retrieval-field sample builder;
 - deterministic metadata/parser candidate extraction;
+- broad-v4 versus selective field-family packet and cost comparison;
 - review CLI, API, and local UI for explicit review workflows.
 
 ## Current Local Dataset
@@ -111,34 +112,41 @@ Deterministic `study_design_rules.v2` now reaches 20/21 exact
 category-plus-subtype matches on the development benchmark and has been applied
 to the frozen holdout without inspecting its labels.
 
-V4 preparation now has a reproducible 12-document cross-domain sample and a
-local parser baseline. The parser found useful evidence candidates but also
-confirmed that multiple sample counts, cited study designs, affiliations,
-background species, and routes require semantic selection. The next gate is
-local construction and cost inspection of broad versus selective semantic
-prompt packets; no broader provider run is yet justified.
+V4 preparation now has a reproducible 12-document cross-domain sample, a local
+parser baseline, versioned broad and selective packet schemas, contrast-aware
+manifests, deterministic selective assembly, and local cost projections. The
+selective architecture produced useful provenance and routing lessons, but it
+is no longer an MVP blocker.
+
+The next gate is operational rather than architectural: run a 50- to
+100-document provider-backed canary using the broad
+`candidate_study_classification.v3` contract, measure real usage and quality,
+and use the result to project the cost of the first strict-corpus candidate
+base.
 
 ## MVP Workstreams
 
-1. Define and validate the patient-oriented v4 classification data dictionary.
-2. Profile the downloaded corpus and separate deterministic enrichment from
-   fields that require semantic interpretation.
-3. Build field-scoped benchmarks for condition, pathology, anatomy, cannabinoid
-   role, population, study structure, and outcomes.
-4. Compare broad-record and selective field-family LLM strategies on the same
-   small frozen sample, including cost per correct evidence-backed field.
-5. Add repeatable legacy-alignment and retrieval-utility evaluation.
-6. Validate and tune the evaluator-only `retrieval_confidence.v1` signal before
-   promoting it into a public retrieval contract.
-7. Review the frozen holdout and compare rule v1, rule v2, and normalized
-   English legacy references.
-8. Re-test auxiliary classifiers against reviewed development and holdout
-   labels.
-9. Run a larger bounded classification batch after known defects are corrected.
-10. Continue PubMed discovery and source acquisition using supported commands.
-11. Design a read-only MCP retrieval contract.
+1. Freeze selective-v4 work as documented findings and future optimization.
+2. Prepare a 50- to 100-document broad/v3 provider canary from strict
+   classification-ready records.
+3. Run the canary only under explicit maintainer authorization and available API
+   balance guardrails.
+4. Evaluate real usage, cost, schema validity, retry behavior, latency,
+   grounding, and retrieval-field coverage.
+5. Project strict-corpus and broader-source-ready costs from measured canary
+   usage.
+6. After approval and credit top-up if needed, run the first strict-corpus
+   candidate-classification batch.
+7. Build a read-only retrieval index over candidate records, source identity,
+   evidence spans, uncertainty, and provenance.
+8. Design and implement a read-only MCP retrieval contract.
+9. Prepare medical-team demo journeys and targeted human-review exports.
+10. Use reviewer feedback to prioritize field-scoped improvements for
+    condition, anatomy, cannabinoid role, population, study structure, and
+    outcomes.
+11. Continue PubMed discovery and source acquisition using supported commands.
 12. Publish a public baseline snapshot when licensing and review boundaries are
-   ready.
+    ready.
 
 ## Data Safety
 

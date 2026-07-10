@@ -222,6 +222,61 @@ uv run marygenai classification run-smoke \
 Provider-backed output is candidate evidence. It is written under ignored
 `data/normalized/classification_runs/` and does not become reviewed knowledge.
 
+Run the first broad/v3 cost-and-quality canary only after maintainer
+authorization:
+
+```bash
+uv run marygenai classification run-smoke \
+  --limit 50 \
+  --input-path <classification_corpus_records.jsonl> \
+  --no-dry-run \
+  --provider openai \
+  --model gpt-5.4-mini \
+  --max-source-chars 12000 \
+  --max-completion-tokens 3000
+```
+
+The command currently accepts at most 100 records. Use 50 documents when the
+available API balance is the primary guardrail; increase to 100 only when the
+maintainer confirms the remaining balance is sufficient.
+
+Evaluate the canary before any larger run:
+
+```bash
+uv run marygenai classification evaluate \
+  --records-path <candidate_classification_records.jsonl> \
+  --errors-path <candidate_classification_errors.jsonl> \
+  --raw-responses-path <candidate_classification_raw_responses.jsonl> \
+  --summary-path <candidate_classification_summary.json> \
+  --input-path <classification_corpus_records.jsonl> \
+  --legacy-context-path <legacy_english_context_records.jsonl>
+```
+
+The canary must report real provider usage and cost, strict-valid records,
+errors and retries, latency, evidence grounding, legacy-reference agreement
+where available, and projected cost for the strict classification-ready corpus.
+Do not proceed to full-corpus candidate classification until the maintainer
+approves the canary report and any required credit top-up.
+
+## Read-Only MCP Prototype Workflow
+
+The first MCP milestone should be read-only over ignored local candidate
+classification artifacts. It must not mutate SQLite review queues, review
+decisions, or reviewed knowledge.
+
+Initial MCP capabilities should support:
+
+- structured study search with filters for condition, cannabinoid, study
+  design, evidence context, population, outcome domain, direction, confidence,
+  source readiness, and review state;
+- study detail lookup by `document_id`;
+- evidence-span inspection with source identity and hashes;
+- facet listing for demo and reviewer triage;
+- explanation of candidate classification provenance and uncertainty.
+
+The MCP surface must label AI output as candidate evidence and avoid medical
+advice or treatment recommendations.
+
 ## Maintainer Bootstrap
 
 These commands require private legacy inputs under `temp/legacy/`:

@@ -293,6 +293,14 @@ separate benchmarks before a patient-oriented MCP retrieval surface is ready.
   because it appeared in a legacy cannabinoid-label slot. That behavior was a
   correctable entity-routing defect. Metadata-only labels now require a known
   cannabinoid identity pattern before they can activate cannabinoid evidence.
+- The selective-v4 work is useful architecture evidence, but it should not
+  block the first product demonstration. The measured savings on an
+  eight-document packet projection were not yet tied to inference-quality gains
+  or reviewer adoption.
+- The next product learning should come from a provider-backed broad/v3 canary
+  of 50 to 100 strict classification-ready documents, followed by a read-only
+  MCP prototype over candidate evidence. This better tests whether physicians
+  and prospective human reviewers find the retrieval surface valuable.
 
 ## Decisions Promoted Into The Product
 

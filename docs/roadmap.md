@@ -10,43 +10,48 @@ The first external surface should be read-only retrieval, likely MCP. Human
 review remains a higher trust layer, but broad manual curation is not a
 prerequisite for useful candidate retrieval.
 
-## Now: Classification Reliability
+## Now: First Candidate Base And Read-Only MCP
 
-Completed in the current v4 preparation cycle:
+Completed in the v4 preparation cycle:
 
 - patient-oriented data dictionary and classification architecture;
 - downloaded-corpus profiling and execution-universe correction;
 - frozen 12-document cross-domain validation sample;
 - deterministic metadata/parser baseline with evidence candidates;
-- initial parser-versus-legacy guardrail comparison.
+- initial parser-versus-legacy guardrail comparison;
+- broad-v4 versus selective field-family packet and cost projection;
+- contrast-aware manifest and deterministic selective assembly.
 
-Immediate next step: build broad and selective semantic prompt packets, validate
-their schemas locally, and estimate tokens and cost before any provider call.
+The next step is to stop treating selective-v4 optimization as an MVP blocker.
+Use the broad `candidate_study_classification.v3` contract for the first
+provider-backed candidate base, then expose it through a read-only MCP
+prototype for medical-team demonstration and human-review recruitment.
 
-1. Accept the v4 patient-oriented data dictionary and retrieval architecture.
-2. Profile the downloaded corpus to measure deterministic field coverage and
-   the actual LLM-eligible execution universe.
-3. Freeze a small cross-domain validation sample from source-ready documents.
-4. Test metadata and parser extraction for publication year, geography, sample
-   size and scope, route, species, and explicit study structure.
-5. Run field-scoped review for condition, pathology, anatomy, cannabinoid role,
-   population, outcomes, and study structure.
-6. Compare broad-record and selective LLM calls on the same authorized sample.
-7. Report LLM invocation rate, tokens, latency, cost per valid record, and cost
-   per correct evidence-backed field.
-8. Test `retrieval_confidence.v1` on realistic broad versus narrow retrieval
-   queries and a small broader-source-ready contrast set.
-9. Perform weight sensitivity analysis before adding retrieval confidence to a
-   public schema.
-10. Complete the frozen 40-record study-design holdout interpretation without
-    treating study design as the only inference-quality domain.
-11. Re-test classical classifiers and NLI semantic support against reviewed
-    field-scoped benchmarks before adding either signal to retrieval confidence.
-12. Re-run only affected and disagreement records before another broad paid run.
+1. Freeze the v4 selective work as documented architecture findings and future
+   optimization.
+2. Build a 50- to 100-document broad/v3 canary from strict classification-ready
+   records.
+3. Run the canary only with explicit maintainer authorization and available API
+   balance guardrails.
+4. Evaluate real usage, cost, strict schema validity, retry behavior, latency,
+   evidence grounding, and field coverage.
+5. Project full strict-corpus and broader-source-ready costs from measured
+   canary usage, not only from prompt estimates.
+6. After maintainer approval and funding, run the first strict-corpus candidate
+   classification batch.
+7. Build a local read-only retrieval index over candidate records, source
+   identity, evidence spans, uncertainty, and provenance.
+8. Implement a read-only MCP surface with structured filters and study-detail
+   inspection.
+9. Prepare medical-team demo journeys and reviewer-facing exports for targeted
+   human review.
+10. Continue field-scoped validation where it directly improves reviewer
+    workflows or MCP retrieval quality.
 
 ## Next: Bounded Scale
 
-1. Run a larger stratified batch after known defects are fixed.
+1. Run the strict-corpus candidate batch only after the canary passes technical
+   and cost gates.
 2. Measure quality by field family, condition, study type, source strategy, and
    source quality.
 3. Test broad-recall versus high-confidence retrieval behavior.
@@ -62,7 +67,7 @@ their schemas locally, and estimate tokens and cost before any provider call.
 5. Keep invalid payload, source triage, and identity/focus queues separate.
 6. Publish source-intelligence snapshots when licensing permits.
 
-## Later: Read-Only Retrieval
+## Next: Read-Only Retrieval
 
 1. Define an MCP resource and query contract.
 2. Support structured filters over condition, pathology, anatomy, organ system,
@@ -84,7 +89,7 @@ their schemas locally, and estimate tokens and cost before any provider call.
 
 Mass classification is justified when:
 
-- known schema and prompt defects are corrected;
+- the 50- to 100-document canary fits the maintainer-approved cost guardrail;
 - execution is resumable and idempotent;
 - strict validation and retry policy are measured;
 - retrieval usefulness is demonstrated, not only label agreement;

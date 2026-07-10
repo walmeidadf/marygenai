@@ -58,8 +58,14 @@ about 34.8% cheaper at the configured completion ceilings.
 
 The result does not yet measure inference quality. Evidence locators generate
 bounded candidates, not final values, and broad packets now receive the same
-expanded evidence pool for a fair quality comparison. Provider execution
-remains blocked pending packet inspection and maintainer authorization.
+expanded evidence pool for a fair quality comparison.
+
+As of 2026-07-10, this work is intentionally paused as an MVP blocker. The
+selective-v4 architecture is preserved as a documented finding and future
+optimization path. The next product milestone uses the broad
+`candidate_study_classification.v3` contract to create a first
+candidate-classified base and expose it through a read-only MCP prototype for
+medical-team demonstration and human-review recruitment.
 
 ## Design Principles
 
@@ -141,8 +147,9 @@ Metadata and parsers fill direct facts. Ontology matching proposes entities.
 Field-family LLM calls run only where semantic interpretation is required or
 deterministic confidence is below a threshold.
 
-Option C is the preferred hypothesis. It must earn that position through
-measured quality and cost.
+Option C remains the preferred long-term hypothesis for cost and provenance, but
+it must earn implementation priority through measured product impact. It should
+not block the first broad candidate base or the read-only MCP prototype.
 
 ## Small Validation Sequence
 
@@ -177,7 +184,7 @@ numbers, cited designs, background species, affiliations, and non-primary routes
 remain common. The parser should therefore select compact evidence candidates
 for later semantic resolution rather than write final retrieval values silently.
 
-### Phase 2: Small LLM Comparison
+### Phase 2: Deferred Small LLM Comparison
 
 With explicit maintainer authorization, run 5 to 10 documents through:
 
@@ -203,6 +210,10 @@ Recommended first semantic families:
 2. cannabinoid identity and scientific role;
 3. population, sample-size selection, geography, and study structure;
 4. outcomes and overall direction.
+
+This phase is deferred until the first broad candidate base and MCP demo expose
+which field families most need optimization for real reviewer and physician
+retrieval workflows.
 
 ### Phase 3: Field-Scoped Review
 

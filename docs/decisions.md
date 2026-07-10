@@ -1,5 +1,40 @@
 # Decision Log
 
+## 2026-07-10: Ship A First Broad Candidate Base And Read-Only MCP Before More V4 Optimization
+
+The next product milestone is a demonstrable read-only retrieval surface for the
+medical team, not another classification-architecture refinement cycle.
+
+MaryGenAI will use the existing broad `candidate_study_classification.v3`
+contract as the first operational candidate-classification path for a
+maintainer-authorized provider canary and then a first local candidate base. The
+v4 selective field-family architecture remains a documented finding and future
+optimization path, but it is no longer a blocker for the MVP.
+
+This changes the near-term priority order:
+
+1. run a bounded provider-backed canary of 50 to 100 strict
+   classification-ready documents under the maintainer's available API balance;
+2. evaluate real usage, strict schema validity, retry behavior, latency,
+   grounding, and projected full-dataset cost from that canary;
+3. after maintainer approval and additional credit if needed, classify the
+   strict source-ready corpus as candidate evidence;
+4. expose the candidate base through a read-only MCP surface for medical-team
+   demonstration and reviewer recruitment;
+5. use human review to improve trusted field-level knowledge rather than
+   continuing to optimize prompt architecture in isolation.
+
+The maintainer-reported initial API balance is USD 5.90. That balance is an
+execution guardrail for the canary, not a durable pricing assumption. Provider
+pricing must be checked immediately before paid execution, and the canary must
+record real usage and cost artifacts.
+
+Provider-backed output remains `ai_classified_candidate` evidence with
+`review_state=needs_review`. It must not mutate SQLite review queues, review
+decisions, or reviewed knowledge. The future MCP must be read-only and must
+return source identity, evidence, uncertainty, provenance, and trust-level
+language so candidate retrieval cannot be mistaken for medical advice.
+
 ## 2026-06-23: Freeze A Contrast-Aware Manifest Before Provider Comparison
 
 Broad and selective comparisons must use an explicit frozen manifest rather

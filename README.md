@@ -60,12 +60,18 @@ uv run marygenai access-enrichment run --limit 50
 uv run marygenai access-enrichment audit-artifacts
 ```
 
-Classification preparation and validation:
+Classification preparation, validation, and the first candidate-base canary:
 
 ```bash
 uv run marygenai classification-corpus rollup --sample-size 30
 uv run marygenai classification build-prompt-packets --limit 5
 uv run marygenai classification run-smoke --limit 5
+uv run marygenai classification run-smoke \
+  --limit 50 \
+  --input-path <classification_corpus_records.jsonl> \
+  --no-dry-run \
+  --provider openai \
+  --model gpt-5.4-mini
 uv run marygenai classification profile-retrieval-fields --sample-size 12
 uv run marygenai classification extract-retrieval-metadata \
   --input-path <retrieval_field_validation_sample.jsonl>
@@ -87,6 +93,12 @@ uv run marygenai classification evaluate
 `classification run-smoke` defaults to deterministic mock output. A provider call
 requires `--no-dry-run`, a configured `OPENAI_API_KEY`, and an explicit model.
 All outputs remain candidate evidence.
+
+The first product-oriented provider run should be a broad/v3 canary of 50 to
+100 strict classification-ready documents. Use the canary to measure real cost,
+latency, strict schema validity, retries, evidence grounding, and full-corpus
+cost projection before funding or running a larger candidate-classification
+batch.
 
 `classification evaluate` is local-only. It separates technical validity,
 retrieval utility, and inference quality, compares against normalized English
@@ -110,6 +122,9 @@ selective field-family prompt packets, field-level routing records, strict local
 mock responses, assembled mock candidates, token estimates, and configurable
 cost projections. It also writes a frozen comparison manifest that can be
 reused with `--manifest-path`. It never calls a provider.
+
+Selective-v4 work is documented as a future optimization path, not a blocker for
+the first candidate-classified base or read-only MCP demonstration.
 
 The benchmark evaluator measures deterministic candidates against append-only,
 human-confirmed review decisions. The holdout builder freezes a separate
