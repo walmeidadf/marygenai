@@ -7,6 +7,7 @@ import pytest
 
 from marygenai.classification.pipeline import (
     build_classification_prompt_packets,
+    prepare_openai_batch_requests,
     run_classification_smoke,
 )
 from marygenai.storage import LocalStorage
@@ -307,3 +308,99 @@ def test_build_classification_prompt_packets_records_missing_source_errors(
     assert result["counts"]["prompt_packets"] == 0
     assert result["counts"]["errors"] == 1
     assert errors[0]["error_type"] == "FileNotFoundError"
+
+
+def test_prepare_openai_batch_requests_writes_batch_jsonl_and_manifest(
+    tmp_path: Path,
+) -> None:
+    data_dir = tmp_path / "data"
+    text_path = data_dir / "processed/source.txt"
+    text_path.parent.mkdir(parents=True, exist_ok=True)
+    text_path.write_text(
+        "Abstract Methods Results Cannabidiol was studied for pain in adult participants. "
+        * 20,
+        encoding="utf-8",
+    )
+    input_path = data_dir / "normalized/classification_corpus/records.jsonl"
+    write_jsonl(
+        input_path,
+        [corpus_record(data_dir, document_id="publication:pmid:1", text_path=text_path)],
+    )
+
+    result = prepare_openai_batch_requests(
+        storage=LocalStorage(data_dir),
+        input_path=input_path,
+        limit=50,
+        run_id="20260710T130000Z",
+        dataset_split="strict_classification_ready",
+        model="gpt-test",
+        max_completion_tokens=1234,
+    )
+
+    batch_requests = [
+        json.loads(line)
+        for line in Path(result["batch_input_path"]).read_text(encoding="utf-8").splitlines()
+    ]
+    manifest = [
+        json.loads(line)
+        for line in Path(result["manifest_path"]).read_text(encoding="utf-8").splitlines()
+    ]
+    summary = json.loads(Path(result["summary_path"]).read_text(encoding="utf-8"))
+    errors = Path(result["errors_path"]).read_text(encoding="utf-8").splitlines()
+
+    assert result["counts"]["batch_requests"] == 1
+    assert errors == []
+    assert batch_requests[0]["custom_id"] == (
+        "classification_batch:20260710T130000Z:publication_pmid_1"
+    )
+    assert batch_requests[0]["method"] == "POST"
+    assert batch_requests[0]["url"] == "/v1/chat/completions"
+    assert batch_requests[0]["body"]["model"] == "gpt-test"
+    assert batch_requests[0]["body"]["max_completion_tokens"] == 1234
+    assert batch_requests[0]["body"]["response_format"] == {"type": "json_object"}
+    assert len(batch_requests[0]["body"]["messages"]) == 2
+    assert manifest[0]["custom_id"] == batch_requests[0]["custom_id"]
+    assert manifest[0]["document_id"] == "publication:pmid:1"
+    assert manifest[0]["source_text_sha256"]
+    assert summary["completion_window"] == "24h"
+    assert summary["dataset_split_filter"] == "strict_classification_ready"
+    assert summary["estimated_tokens"]["max_completion"] == 1234
+
+
+def test_prepare_openai_batch_requests_can_filter_dataset_split(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    text_path = data_dir / "processed/source.txt"
+    text_path.parent.mkdir(parents=True, exist_ok=True)
+    text_path.write_text(
+        "Abstract Methods Results Cannabidiol was studied for pain in adult participants. "
+        * 20,
+        encoding="utf-8",
+    )
+    input_path = data_dir / "normalized/classification_corpus/records.jsonl"
+    write_jsonl(
+        input_path,
+        [
+            broader_corpus_record(
+                data_dir,
+                document_id="publication:pmid:broader",
+                text_path=text_path,
+            ),
+            corpus_record(data_dir, document_id="publication:pmid:strict", text_path=text_path),
+        ],
+    )
+
+    result = prepare_openai_batch_requests(
+        storage=LocalStorage(data_dir),
+        input_path=input_path,
+        limit=50,
+        run_id="20260710T130000Z",
+        dataset_split="strict_classification_ready",
+    )
+
+    manifest = [
+        json.loads(line)
+        for line in Path(result["manifest_path"]).read_text(encoding="utf-8").splitlines()
+    ]
+
+    assert result["counts"]["batch_requests"] == 1
+    assert manifest[0]["document_id"] == "publication:pmid:strict"

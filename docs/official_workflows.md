@@ -259,6 +259,32 @@ where available, and projected cost for the strict classification-ready corpus.
 Do not proceed to full-corpus candidate classification until the maintainer
 approves the canary report and any required credit top-up.
 
+Prepare a Batch-compatible input file locally, without upload or provider calls:
+
+```bash
+uv run marygenai classification prepare-batch \
+  --limit 50 \
+  --input-path <classification_corpus_records.jsonl> \
+  --dataset-split strict_classification_ready \
+  --model gpt-5.4-mini \
+  --max-source-chars 12000 \
+  --max-completion-tokens 3000
+```
+
+This command writes ignored artifacts under
+`data/normalized/classification_batches/`:
+
+- `<run_id>_openai_batch_input.jsonl`;
+- `<run_id>_openai_batch_manifest.jsonl`;
+- `<run_id>_openai_batch_prepare_summary.json`;
+- `<run_id>_openai_batch_prepare_errors.jsonl`.
+
+Each batch input line contains `custom_id`, `method`, `url`, and `body`, with
+`url=/v1/chat/completions`. The manifest maps `custom_id` back to the MaryGenAI
+document, packet, source hash, model, and provenance. Remote upload, batch
+creation, status polling, and result conversion require a separate explicit
+maintainer authorization.
+
 ## Read-Only MCP Prototype Workflow
 
 The first MCP milestone should be read-only over ignored local candidate

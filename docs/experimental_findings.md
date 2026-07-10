@@ -327,6 +327,11 @@ separate benchmarks before a patient-oriented MCP retrieval surface is ready.
   synchronous run would take roughly 6.45 hours if latency remains similar,
   making resumability or Batch preparation more important than further
   broad-versus-selective prompt research.
+- The first local OpenAI Batch preparation produced 50 Batch-compatible
+  requests and zero preparation errors without uploading files or calling a
+  provider. Each JSONL line contains `custom_id`, `method`, `url`, and `body`,
+  and the local manifest maps `custom_id` back to document identity, source
+  hash, packet identity, model, and provenance.
 
 ## Decisions Promoted Into The Product
 

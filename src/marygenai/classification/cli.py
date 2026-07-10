@@ -19,6 +19,7 @@ from marygenai.classification.pipeline import (
     DEFAULT_OPENAI_MODEL,
     DEFAULT_PROMPT_SOURCE_CHARS,
     build_classification_prompt_packets,
+    prepare_openai_batch_requests,
     run_classification_smoke,
 )
 from marygenai.classification.retrieval_baseline import (
@@ -144,6 +145,53 @@ def build_prompt_packets(
         target_model_provider=target_model_provider,
         target_model_name=target_model_name,
         dataset_split=dataset_split,
+    )
+    console.print(result)
+
+
+@app.command("prepare-batch")
+def prepare_batch(
+    limit: Annotated[
+        int,
+        typer.Option("--limit", min=1, max=50_000, help="Maximum records to prepare."),
+    ] = 50,
+    input_path: Annotated[
+        Path | None,
+        typer.Option("--input-path", help="Classification sample or corpus JSONL path."),
+    ] = None,
+    dataset_split: Annotated[
+        str | None,
+        typer.Option(
+            "--dataset-split",
+            help=(
+                "Optional corpus split filter. Supported values: "
+                f"{', '.join(sorted(CLASSIFICATION_DATASET_SPLITS))}."
+            ),
+        ),
+    ] = None,
+    max_source_chars: Annotated[
+        int,
+        typer.Option("--max-source-chars", min=1_000, max=80_000),
+    ] = DEFAULT_PROMPT_SOURCE_CHARS,
+    model: Annotated[
+        str,
+        typer.Option("--model", help="OpenAI model to place in each batch request."),
+    ] = DEFAULT_OPENAI_MODEL,
+    max_completion_tokens: Annotated[
+        int,
+        typer.Option("--max-completion-tokens", min=500, max=8_000),
+    ] = DEFAULT_MAX_COMPLETION_TOKENS,
+) -> None:
+    """Prepare OpenAI Batch JSONL locally without uploading or calling a model."""
+    settings = get_settings()
+    result = prepare_openai_batch_requests(
+        storage=LocalStorage(settings.data_dir),
+        limit=limit,
+        input_path=input_path,
+        dataset_split=dataset_split,
+        max_source_chars=max_source_chars,
+        model=model,
+        max_completion_tokens=max_completion_tokens,
     )
     console.print(result)
 

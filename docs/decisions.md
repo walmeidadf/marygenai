@@ -32,6 +32,20 @@ as reviewed knowledge. The one schema error and the 10 evaluator-selected rerun
 documents should feed targeted prompt/schema hardening and human review, not a
 return to broad architecture exploration.
 
+Before spending additional provider credit on the full corpus, MaryGenAI should
+prepare and validate a small OpenAI Batch-compatible input file locally using
+the same broad/v3 prompt payload. This tests the operational format intended for
+the full dataset while preserving the review boundary. Local batch preparation
+does not upload files, create a remote batch, call a provider, mutate SQLite, or
+create reviewed knowledge.
+
+The first local Batch preparation created 50 `strict_classification_ready`
+requests with zero preparation errors, `url=/v1/chat/completions`, and unique
+`custom_id` values mapped back to MaryGenAI document identity, packet identity,
+source hashes, model, and provenance through a local manifest. This is the
+correct next operational artifact to submit only after explicit maintainer
+authorization.
+
 ## 2026-07-10: Ship A First Broad Candidate Base And Read-Only MCP Before More V4 Optimization
 
 The next product milestone is a demonstrable read-only retrieval surface for the

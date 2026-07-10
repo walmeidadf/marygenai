@@ -124,6 +124,8 @@ estimated cost of about USD 0.51. Measured usage projects the 3,149-record
 strict corpus at about USD 32.01 through standard synchronous calls, or about
 USD 16.01 if a Batch-compatible workflow is implemented. The next gate is now
 resumable or batch-oriented execution plus a read-only retrieval/MCP prototype.
+Local Batch-compatible JSONL preparation is therefore part of the MVP execution
+path before another paid provider run.
 
 ## MVP Workstreams
 

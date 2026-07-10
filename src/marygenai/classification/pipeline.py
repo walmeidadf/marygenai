@@ -36,6 +36,7 @@ DRY_RUN_PROVIDER = "dry_run"
 DRY_RUN_MODEL = "deterministic_mock_classifier"
 DEFAULT_PROMPT_SOURCE_CHARS = 12_000
 OPENAI_CHAT_COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions"
+OPENAI_BATCH_CHAT_COMPLETIONS_ENDPOINT = "/v1/chat/completions"
 DEFAULT_OPENAI_MODEL = "gpt-5.4-mini"
 DEFAULT_MAX_COMPLETION_TOKENS = 3000
 CLASSIFICATION_DATASET_SPLITS = {
@@ -723,6 +724,246 @@ def build_openai_chat_request(
         "temperature": 0,
         "max_completion_tokens": max_completion_tokens,
         "response_format": {"type": "json_object"},
+    }
+
+
+def batch_custom_id(*, run_id: str, document_id: str) -> str:
+    return f"classification_batch:{run_id}:{safe_id_fragment(document_id)}"
+
+
+def build_openai_batch_request(
+    packet: CandidateClassificationPromptPacket,
+    *,
+    run_id: str,
+    model: str,
+    max_completion_tokens: int,
+) -> dict[str, Any]:
+    return {
+        "custom_id": batch_custom_id(run_id=run_id, document_id=packet.document_id),
+        "method": "POST",
+        "url": OPENAI_BATCH_CHAT_COMPLETIONS_ENDPOINT,
+        "body": build_openai_chat_request(
+            packet,
+            model=model,
+            max_completion_tokens=max_completion_tokens,
+        ),
+    }
+
+
+def summarize_batch_requests(
+    *,
+    run_id: str,
+    input_path: Path,
+    batch_input_path: Path,
+    manifest_path: Path,
+    errors_path: Path,
+    batch_requests: list[dict[str, Any]],
+    packets: list[CandidateClassificationPromptPacket],
+    errors: list[ClassificationRunError],
+    started_at: datetime,
+    completed_at: datetime,
+    model: str,
+    max_source_chars: int,
+    max_completion_tokens: int,
+    dataset_split: str | None,
+) -> dict[str, Any]:
+    request_body_chars = sum(
+        len(json.dumps(request["body"], ensure_ascii=False, sort_keys=True))
+        for request in batch_requests
+    )
+    estimated_input_tokens = request_body_chars // 4
+    return {
+        "run_id": run_id,
+        "started_at": started_at.isoformat(),
+        "completed_at": completed_at.isoformat(),
+        "input_path": str(input_path),
+        "dataset_split_filter": dataset_split,
+        "batch_input_path": str(batch_input_path),
+        "manifest_path": str(manifest_path),
+        "errors_path": str(errors_path),
+        "endpoint": OPENAI_BATCH_CHAT_COMPLETIONS_ENDPOINT,
+        "completion_window": "24h",
+        "model": model,
+        "max_source_chars": max_source_chars,
+        "max_completion_tokens_per_request": max_completion_tokens,
+        "counts": {
+            "input_records": len(packets) + len(errors),
+            "batch_requests": len(batch_requests),
+            "errors": len(errors),
+        },
+        "source_excerpt_chars": {
+            "min": min((packet.source_text_excerpt_chars for packet in packets), default=0),
+            "max": max((packet.source_text_excerpt_chars for packet in packets), default=0),
+            "total": sum(packet.source_text_excerpt_chars for packet in packets),
+        },
+        "prompt_chars": {
+            "system_total": sum(len(packet.system_prompt) for packet in packets),
+            "user_total": sum(len(packet.user_prompt) for packet in packets),
+        },
+        "batch_request_body_chars": request_body_chars,
+        "estimated_tokens": {
+            "method": "chars_divided_by_4.v1",
+            "input": estimated_input_tokens,
+            "max_completion": len(batch_requests) * max_completion_tokens,
+        },
+        "notes": [
+            "Batch input was prepared locally only; no file was uploaded and no batch was created.",
+            "Each JSONL line follows the OpenAI Batch request shape with custom_id, method, url, "
+            "and body.",
+            "This command does not call an LLM.",
+            "This command does not mutate SQLite, review queues, review decisions, "
+            "or reviewed knowledge.",
+        ],
+    }
+
+
+def prepare_openai_batch_requests(
+    *,
+    storage: LocalStorage,
+    limit: int = 50,
+    input_path: Path | None = None,
+    run_id: str | None = None,
+    max_source_chars: int = DEFAULT_PROMPT_SOURCE_CHARS,
+    model: str = DEFAULT_OPENAI_MODEL,
+    max_completion_tokens: int = DEFAULT_MAX_COMPLETION_TOKENS,
+    dataset_split: str | None = None,
+) -> dict[str, Any]:
+    resolved_run_id = run_id or new_run_id()
+    started_at = datetime.now(UTC)
+    corpus_records, resolved_input_path = load_smoke_corpus_records(
+        data_dir=storage.root,
+        input_path=input_path,
+        limit=limit,
+        dataset_split=dataset_split,
+    )
+    legacy_english_indexes = load_legacy_english_context_index(storage.root)
+    packets: list[CandidateClassificationPromptPacket] = []
+    batch_requests: list[dict[str, Any]] = []
+    manifest_records: list[dict[str, Any]] = []
+    errors: list[ClassificationRunError] = []
+    seen_custom_ids: set[str] = set()
+    for corpus_record in corpus_records:
+        try:
+            packet = build_prompt_packet(
+                record=corpus_record,
+                run_id=resolved_run_id,
+                data_dir=storage.root,
+                created_at=started_at,
+                max_source_chars=max_source_chars,
+                target_model_provider="openai",
+                target_model_name=model,
+                legacy_english_indexes=legacy_english_indexes,
+            )
+            request = build_openai_batch_request(
+                packet,
+                run_id=resolved_run_id,
+                model=model,
+                max_completion_tokens=max_completion_tokens,
+            )
+            if request["custom_id"] in seen_custom_ids:
+                msg = f"Duplicate batch custom_id: {request['custom_id']}."
+                raise ValueError(msg)
+            seen_custom_ids.add(request["custom_id"])
+            packets.append(packet)
+            batch_requests.append(request)
+            manifest_records.append(
+                {
+                    "batch_run_id": resolved_run_id,
+                    "custom_id": request["custom_id"],
+                    "document_id": packet.document_id,
+                    "packet_id": packet.packet_id,
+                    "source_record_id": corpus_record.legacy_study_id,
+                    "source_text_path": packet.source_text_path,
+                    "source_text_sha256": packet.source_text_sha256,
+                    "classification_dataset_split": corpus_record.classification_dataset_split,
+                    "source_strategy": corpus_record.source_strategy,
+                    "primary_title": corpus_record.primary_title,
+                    "publication_year": corpus_record.publication_year,
+                    "model": model,
+                    "max_completion_tokens": max_completion_tokens,
+                    "provenance": {
+                        "method": "openai_batch_candidate_classification_prepare",
+                        "does_not_call_llm": True,
+                        "does_not_upload_file": True,
+                        "does_not_create_batch": True,
+                        "does_not_mutate_sqlite": True,
+                    },
+                }
+            )
+        except (FileNotFoundError, ValidationError, ValueError) as exc:
+            errors.append(
+                ClassificationRunError(
+                    classification_run_id=resolved_run_id,
+                    document_id=corpus_record.document_id,
+                    source_record_id=corpus_record.legacy_study_id,
+                    error_type=type(exc).__name__,
+                    message=str(exc),
+                    provenance={
+                        "method": "openai_batch_candidate_classification_prepare_error",
+                        "does_not_call_llm": True,
+                        "does_not_upload_file": True,
+                        "does_not_create_batch": True,
+                        "does_not_mutate_sqlite": True,
+                    },
+                )
+            )
+
+    if not corpus_records:
+        errors.append(
+            ClassificationRunError(
+                classification_run_id=resolved_run_id,
+                error_type="empty_input",
+                message="No source-ready records were selected for batch preparation.",
+                provenance={
+                    "method": "openai_batch_candidate_classification_prepare_input_selection",
+                    "does_not_call_llm": True,
+                },
+            )
+        )
+
+    output_dir = storage.path(Path("normalized/classification_batches"))
+    batch_input_path = write_dict_jsonl(
+        output_dir / f"{resolved_run_id}_openai_batch_input.jsonl",
+        batch_requests,
+    )
+    manifest_path = write_dict_jsonl(
+        output_dir / f"{resolved_run_id}_openai_batch_manifest.jsonl",
+        manifest_records,
+    )
+    errors_path = storage.write_jsonl(
+        Path("normalized/classification_batches")
+        / f"{resolved_run_id}_openai_batch_prepare_errors.jsonl",
+        errors,
+    )
+    completed_at = datetime.now(UTC)
+    summary = summarize_batch_requests(
+        run_id=resolved_run_id,
+        input_path=resolved_input_path,
+        batch_input_path=batch_input_path,
+        manifest_path=manifest_path,
+        errors_path=errors_path,
+        batch_requests=batch_requests,
+        packets=packets,
+        errors=errors,
+        started_at=started_at,
+        completed_at=completed_at,
+        model=model,
+        max_source_chars=max_source_chars,
+        max_completion_tokens=max_completion_tokens,
+        dataset_split=dataset_split,
+    )
+    summary_path = storage.write_json(
+        Path("normalized/classification_batches")
+        / f"{resolved_run_id}_openai_batch_prepare_summary.json",
+        summary,
+    )
+    return {
+        "run_id": resolved_run_id,
+        "batch_input_path": str(batch_input_path),
+        "manifest_path": str(manifest_path),
+        "summary_path": str(summary_path),
+        "errors_path": str(errors_path),
+        "counts": summary["counts"],
     }
 
 

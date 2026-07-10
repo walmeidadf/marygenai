@@ -73,6 +73,11 @@ uv run marygenai classification run-smoke \
   --no-dry-run \
   --provider openai \
   --model gpt-5.4-mini
+uv run marygenai classification prepare-batch \
+  --limit 50 \
+  --input-path <classification_corpus_records.jsonl> \
+  --dataset-split strict_classification_ready \
+  --model gpt-5.4-mini
 uv run marygenai classification profile-retrieval-fields --sample-size 12
 uv run marygenai classification extract-retrieval-metadata \
   --input-path <retrieval_field_validation_sample.jsonl>
@@ -126,6 +131,10 @@ reused with `--manifest-path`. It never calls a provider.
 
 Selective-v4 work is documented as a future optimization path, not a blocker for
 the first candidate-classified base or read-only MCP demonstration.
+
+`classification prepare-batch` writes OpenAI Batch-compatible JSONL plus a local
+manifest for later submission. It does not upload files, create a remote batch,
+call a provider, mutate SQLite, or create reviewed knowledge.
 
 The benchmark evaluator measures deterministic candidates against append-only,
 human-confirmed review decisions. The holdout builder freezes a separate
