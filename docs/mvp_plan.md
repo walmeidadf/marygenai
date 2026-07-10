@@ -127,6 +127,13 @@ resumable or batch-oriented execution plus a read-only retrieval/MCP prototype.
 Local Batch-compatible JSONL preparation is therefore part of the MVP execution
 path before another paid provider run.
 
+The first remote 50-document Batch later completed successfully and converted to
+50/50 strict-valid records after deterministic technical uncertainty-marker
+repair. Measured Batch cost projects the strict corpus at about USD 16.07. The
+next full-corpus requirement is operational monitoring and targeted review of
+the eight canary documents selected by the evaluator, not another prompt
+architecture comparison.
+
 ## MVP Workstreams
 
 1. Freeze selective-v4 work as documented findings and future optimization.

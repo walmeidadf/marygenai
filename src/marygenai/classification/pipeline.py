@@ -734,6 +734,77 @@ def build_openai_chat_request(
     }
 
 
+def repair_required_uncertainty_markers(payload: dict[str, Any]) -> dict[str, Any]:
+    repaired = dict(payload)
+    fields = [
+        str(field)
+        for field in repaired.get("missing_or_uncertain_fields") or []
+        if field is not None
+    ]
+    required_fields = [
+        field_name
+        for field_name, cannot_determine in (
+            (
+                "study_design_category",
+                repaired.get("study_design_category") == "cannot_determine",
+            ),
+            (
+                "study_design_subtype",
+                repaired.get("study_design_subtype") == "cannot_determine",
+            ),
+            ("evidence_context", repaired.get("evidence_context") == "cannot_determine"),
+            (
+                "intervention_or_exposure_role",
+                repaired.get("intervention_or_exposure_role") == "cannot_determine",
+            ),
+            (
+                "population_or_model",
+                (repaired.get("population_or_model") or {}).get("category")
+                == "cannot_determine",
+            ),
+            ("overall_direction", repaired.get("overall_direction") == "cannot_determine"),
+            ("medical_conditions", not repaired.get("medical_conditions")),
+            ("cannabinoids_or_exposures", not repaired.get("cannabinoids_or_exposures")),
+            ("outcome_domains", not repaired.get("outcome_domains")),
+        )
+        if cannot_determine
+    ]
+    repaired_fields: list[str] = []
+    duplicate_fields: list[str] = []
+    for field in [*fields, *required_fields]:
+        if field in repaired_fields:
+            duplicate_fields.append(field)
+            continue
+        repaired_fields.append(field)
+    added_fields = sorted(set(required_fields) - set(fields))
+    if added_fields or duplicate_fields:
+        repaired["missing_or_uncertain_fields"] = repaired_fields
+        provenance = dict(repaired.get("provenance") or {})
+        repairs = list(provenance.get("technical_schema_repairs") or [])
+        if added_fields:
+            repairs.append(
+                {
+                    "repair_type": "added_missing_uncertainty_fields",
+                    "fields": added_fields,
+                    "reason": (
+                        "Candidate output contained cannot_determine or empty retrieval "
+                        "fields without the required uncertainty marker."
+                    ),
+                }
+            )
+        if duplicate_fields:
+            repairs.append(
+                {
+                    "repair_type": "deduplicated_uncertainty_fields",
+                    "fields": sorted(set(duplicate_fields)),
+                    "reason": "Candidate output repeated uncertainty markers.",
+                }
+            )
+        provenance["technical_schema_repairs"] = repairs
+        repaired["provenance"] = provenance
+    return repaired
+
+
 def batch_custom_id(*, run_id: str, document_id: str) -> str:
     return f"classification_batch:{run_id}:{safe_id_fragment(document_id)}"
 
@@ -1152,7 +1223,7 @@ def normalize_batch_model_payload(
     usage: dict[str, Any],
 ) -> dict[str, Any]:
     document_id = str(manifest_record["document_id"])
-    normalized = dict(payload)
+    normalized = repair_required_uncertainty_markers(payload)
     normalized.update(
         {
             "classification_id": f"classification:{run_id}:{safe_id_fragment(document_id)}",
@@ -1170,7 +1241,7 @@ def normalize_batch_model_payload(
             "requires_human_review": True,
             "review_state": "needs_review",
             "provenance": {
-                **dict(payload.get("provenance") or {}),
+                **dict(normalized.get("provenance") or {}),
                 "method": "openai_batch_candidate_classification",
                 "prompt_packet_id": manifest_record.get("packet_id"),
                 "provider": "openai",
@@ -1535,7 +1606,7 @@ def normalize_model_payload(
     latency_seconds: float,
     usage: dict[str, Any],
 ) -> dict[str, Any]:
-    normalized = dict(payload)
+    normalized = repair_required_uncertainty_markers(payload)
     normalized.update(
         {
             "classification_id": f"classification:{run_id}:{safe_id_fragment(packet.document_id)}",
@@ -1553,7 +1624,7 @@ def normalize_model_payload(
             "requires_human_review": True,
             "review_state": "needs_review",
             "provenance": {
-                **dict(payload.get("provenance") or {}),
+                **dict(normalized.get("provenance") or {}),
                 "method": "openai_candidate_classification",
                 "prompt_packet_id": packet.packet_id,
                 "prompt_packet_run_id": packet.prompt_packet_run_id,

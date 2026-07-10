@@ -443,15 +443,7 @@ def test_convert_openai_batch_outputs_writes_candidate_artifacts(tmp_path: Path)
                 "evidence_text": "Cannabidiol was studied for pain.",
             }
         ],
-        "cannabinoids_or_exposures": [
-            {
-                "normalized_label": "cannabidiol",
-                "free_text_label": "Cannabidiol",
-                "ontology_entity_id": None,
-                "confidence": "medium",
-                "evidence_text": "Cannabidiol was studied.",
-            }
-        ],
+        "cannabinoids_or_exposures": [],
         "intervention_or_exposure_role": "therapeutic_intervention",
         "population_or_model": {
             "category": "adult_humans",
@@ -520,6 +512,10 @@ def test_convert_openai_batch_outputs_writes_candidate_artifacts(tmp_path: Path)
     assert records[0]["document_id"] == "publication:pmid:1"
     assert records[0]["model_provider"] == "openai"
     assert records[0]["model_name"] == "gpt-test"
+    assert records[0]["missing_or_uncertain_fields"] == ["cannabinoids_or_exposures"]
+    assert records[0]["provenance"]["technical_schema_repairs"][0]["fields"] == [
+        "cannabinoids_or_exposures"
+    ]
     assert records[0]["provenance"]["method"] == "openai_batch_candidate_classification"
     assert records[0]["provenance"]["batch_id"] == "batch_test"
     assert raw_responses[0]["batch_custom_id"] == custom_id

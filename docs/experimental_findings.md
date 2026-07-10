@@ -337,6 +337,27 @@ separate benchmarks before a patient-oriented MCP retrieval surface is ready.
   required to upload Batch input JSONL through the Files API. No remote Batch was
   created, no classification output was produced, and SQLite remained
   unchanged.
+- After enabling the required file-write permission, the same 50-document
+  mini-Batch completed successfully: 50 completed requests, zero failed
+  requests, and no Batch error file.
+- The completed Batch used 318,522 input tokens and 60,343 output tokens. The
+  Batch-cost estimate was about USD 0.2552 for 50 records, or about USD 0.0051
+  per input document. This projects the 3,149-record strict corpus at about
+  USD 16.07 and the 3,374-record broader source-ready corpus at about USD 17.22
+  under the same pricing assumption.
+- Batch wall time was about 688 seconds from creation to completion: 62 seconds
+  validating and 626 seconds in progress. For the full corpus, use polling or a
+  scheduled monitor rather than keeping an interactive terminal session open.
+- The first conversion surfaced three schema validation errors caused by missing
+  uncertainty markers for empty or `cannot_determine` retrieval fields. A local
+  deterministic repair that only adds required `missing_or_uncertain_fields`
+  markers or deduplicates repeated markers converted the same output to 50/50
+  strict-valid records. Repairs are recorded in provenance and do not change
+  scientific field values.
+- Final Batch evaluation reported 223 evidence spans, 220 grounded with
+  extraction tolerance, three spans requiring grounding review, 50/50 records
+  with source traceability, and eight documents selected for targeted rerun or
+  review.
 
 ## Decisions Promoted Into The Product
 

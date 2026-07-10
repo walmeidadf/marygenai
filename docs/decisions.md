@@ -59,6 +59,32 @@ Batch submission and retrieval must preserve a local audit chain:
 The converted records must use the same candidate schema and evaluator contract
 as synchronous runs so Batch and non-Batch quality can be compared directly.
 
+The first remote mini-Batch was completed on 2026-07-10 with 50
+`strict_classification_ready` requests. Platform status was 50 completed, zero
+failed, and no error file. The Batch used 318,522 input tokens and 60,343 output
+tokens. At the standard `gpt-5.4-mini` rates verified that day, the equivalent
+synchronous cost was about USD 0.510435; applying Batch's half-price assumption
+projects about USD 0.255217 for the 50-document Batch.
+
+Measured Batch projection:
+
+- 3,149 strict classification-ready records: about USD 16.07;
+- 3,374 broader source-ready records: about USD 17.22.
+
+The Batch spent 62 seconds validating before entering progress and 626 seconds
+in progress before completion, for 688 seconds total from creation to completed
+status. This is acceptable for asynchronous execution, but a full-corpus run
+should be monitored by status polling rather than an interactive terminal loop.
+
+Initial conversion produced three strict schema validation errors caused by
+missing uncertainty markers for empty or `cannot_determine` retrieval fields.
+MaryGenAI now applies a deterministic technical repair that only adds missing
+required entries to `missing_or_uncertain_fields` or deduplicates repeated
+uncertainty markers. It does not invent or change scientific field values. The
+repair is recorded in candidate provenance under `technical_schema_repairs`.
+After repair, the same Batch output converted to 50/50 strict-valid candidate
+records with zero conversion errors.
+
 ## 2026-07-10: Ship A First Broad Candidate Base And Read-Only MCP Before More V4 Optimization
 
 The next product milestone is a demonstrable read-only retrieval surface for the

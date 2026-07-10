@@ -313,6 +313,12 @@ into the standard candidate-classification artifacts under
 normal evaluator. If the Batch is still running, the command writes only a
 status snapshot and can be re-run later.
 
+During conversion, deterministic technical schema repair may add required
+`missing_or_uncertain_fields` markers when a candidate response already contains
+an empty retrieval list or `cannot_determine` value but omitted the required
+uncertainty marker. This repair is provenance-recorded and does not change
+scientific field values.
+
 ## Read-Only MCP Prototype Workflow
 
 The first MCP milestone should be read-only over ignored local candidate
