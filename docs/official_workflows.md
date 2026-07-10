@@ -263,7 +263,7 @@ Prepare a Batch-compatible input file locally, without upload or provider calls:
 
 ```bash
 uv run marygenai classification prepare-batch \
-  --limit 50 \
+  --limit 150 \
   --offset 0 \
   --input-path <classification_corpus_records.jsonl> \
   --dataset-split strict_classification_ready \
@@ -286,6 +286,14 @@ document, packet, source hash, model, and provenance. Use `--offset` with
 `--limit` to prepare non-overlapping chunks after the dataset split filter has
 been applied. Remote upload, batch creation, status polling, and result
 conversion require a separate explicit maintainer authorization.
+
+Batch requests are constrained by provider-side enqueued-token limits. The
+preparation command estimates input tokens from request body characters, adds
+the max completion ceiling, and blocks locally when the result exceeds the
+default 1,800,000-token guard. For the current broad/v3 prompt shape and
+`gpt-5.4-mini` organization limit of 2,000,000 enqueued tokens observed on
+2026-07-10, use about 150 records per submitted Batch and submit only one
+sub-batch at a time.
 
 Submit a prepared mini-Batch only after reviewing the local input and manifest:
 

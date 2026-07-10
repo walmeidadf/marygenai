@@ -353,6 +353,13 @@ separate benchmarks before a patient-oriented MCP retrieval surface is ready.
   immediate local retrieval/conversion on terminal status, and a local watch log.
   This lowers the risk of duplicate corpus slices and missed output retrieval
   during the provider-side retention window.
+- A 500-document Batch attempt on 2026-07-10 failed during provider validation
+  with `token_limit_exceeded` before any request execution. The observed
+  `gpt-5.4-mini` organization limit was 2,000,000 enqueued tokens; the prepared
+  500-document file estimated about 3.59M input tokens and a 1.5M-token
+  completion ceiling. This produced zero remote usage and confirms that
+  MaryGenAI must size Batch chunks by estimated enqueued tokens, not only by
+  request count.
 - The first conversion surfaced three schema validation errors caused by missing
   uncertainty markers for empty or `cannot_determine` retrieval fields. A local
   deterministic repair that only adds required `missing_or_uncertain_fields`

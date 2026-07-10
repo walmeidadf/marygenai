@@ -131,9 +131,9 @@ The first remote 50-document Batch later completed successfully and converted to
 50/50 strict-valid records after deterministic technical uncertainty-marker
 repair. Measured Batch cost projects the strict corpus at about USD 16.07. The
 next full-corpus requirement is chunked Batch execution with local manifests,
-status monitoring, prompt/evidence evaluation, and targeted review of the eight
-canary documents selected by the evaluator, not another prompt architecture
-comparison.
+status monitoring, enqueued-token guardrails, prompt/evidence evaluation, and
+targeted review of the eight canary documents selected by the evaluator, not
+another prompt architecture comparison.
 
 ## MVP Workstreams
 

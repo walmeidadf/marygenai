@@ -496,6 +496,34 @@ def test_prepare_openai_batch_requests_can_offset_after_dataset_split(tmp_path: 
     assert summary["offset"] == 1
 
 
+def test_prepare_openai_batch_requests_blocks_large_estimated_enqueued_token_batch(
+    tmp_path: Path,
+) -> None:
+    data_dir = tmp_path / "data"
+    text_path = data_dir / "processed/source.txt"
+    text_path.parent.mkdir(parents=True, exist_ok=True)
+    text_path.write_text(
+        "Abstract Methods Results Cannabidiol was studied for pain in adult participants. "
+        * 20,
+        encoding="utf-8",
+    )
+    input_path = data_dir / "normalized/classification_corpus/records.jsonl"
+    write_jsonl(
+        input_path,
+        [corpus_record(data_dir, document_id="publication:pmid:1", text_path=text_path)],
+    )
+
+    with pytest.raises(ValueError, match="enqueued-token guard"):
+        prepare_openai_batch_requests(
+            storage=LocalStorage(data_dir),
+            input_path=input_path,
+            limit=1,
+            run_id="20260710T132000Z",
+            dataset_split="strict_classification_ready",
+            max_estimated_enqueued_tokens=1,
+        )
+
+
 def test_watch_openai_batch_stops_at_terminal_status(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

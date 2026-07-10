@@ -93,12 +93,20 @@ remote Batch completes. `retrieve-batch` remains the manual one-shot fallback
 for status checks or next-day collection.
 
 Operationally, the next maintainer-run gate should be a 500-document strict
-classification-ready Batch. If its status, conversion, evaluation, evidence
-grounding, and cost remain consistent with the 50-document Batch, the remaining
-strict corpus can be prepared as one 2,649-document Batch or as additional
-500-document chunks to reduce blast radius. All outputs remain ignored local
-candidate evidence and must not mutate SQLite, review queues, review decisions,
-or reviewed knowledge.
+classification-ready tranche executed as sequential sub-batches. A direct
+500-request Batch on 2026-07-10 failed during provider validation with
+`token_limit_exceeded`: the organization limit for `gpt-5.4-mini` was
+2,000,000 enqueued tokens, while the local preparation estimated about
+3,593,250 input tokens plus a 1,500,000-token completion ceiling. The remote
+Batch reported zero usage and created no output file.
+
+MaryGenAI should therefore cap each submitted Batch below the provider-side
+enqueued-token limit. The local preparation command now includes a default
+1,800,000 estimated enqueued-token guard using estimated input tokens plus max
+completion tokens. For the current prompt shape, the practical execution plan is
+to submit one sub-batch at a time, wait for completion/retrieval, then submit
+the next offset chunk. All outputs remain ignored local candidate evidence and
+must not mutate SQLite, review queues, review decisions, or reviewed knowledge.
 
 ## 2026-07-10: Ship A First Broad Candidate Base And Read-Only MCP Before More V4 Optimization
 

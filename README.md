@@ -74,7 +74,7 @@ uv run marygenai classification run-smoke \
   --provider openai \
   --model gpt-5.4-mini
 uv run marygenai classification prepare-batch \
-  --limit 50 \
+  --limit 150 \
   --offset 0 \
   --input-path <classification_corpus_records.jsonl> \
   --dataset-split strict_classification_ready \
@@ -144,9 +144,10 @@ the first candidate-classified base or read-only MCP demonstration.
 
 `classification prepare-batch` writes OpenAI Batch-compatible JSONL plus a local
 manifest for later submission. Use `--offset` with `--limit` to prepare
-non-overlapping corpus chunks after the dataset split filter is applied. It
-does not upload files, create a remote batch, call a provider, mutate SQLite,
-or create reviewed knowledge.
+non-overlapping corpus chunks after the dataset split filter is applied. It has
+a local estimated enqueued-token guard so oversized batches fail before upload.
+It does not upload files, create a remote batch, call a provider, mutate
+SQLite, or create reviewed knowledge.
 
 `classification submit-batch`, `classification retrieve-batch`, and
 `classification watch-batch` are explicit provider-backed operations.

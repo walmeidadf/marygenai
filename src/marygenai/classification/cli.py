@@ -16,6 +16,7 @@ from marygenai.classification.evaluation import evaluate_classification_run
 from marygenai.classification.pipeline import (
     CLASSIFICATION_DATASET_SPLITS,
     DEFAULT_MAX_COMPLETION_TOKENS,
+    DEFAULT_MAX_ESTIMATED_BATCH_ENQUEUED_TOKENS,
     DEFAULT_OPENAI_MODEL,
     DEFAULT_PROMPT_SOURCE_CHARS,
     build_classification_prompt_packets,
@@ -210,19 +211,35 @@ def prepare_batch(
         int,
         typer.Option("--max-completion-tokens", min=500, max=8_000),
     ] = DEFAULT_MAX_COMPLETION_TOKENS,
+    max_estimated_enqueued_tokens: Annotated[
+        int,
+        typer.Option(
+            "--max-estimated-enqueued-tokens",
+            min=0,
+            help=(
+                "Local guard for estimated input plus max completion tokens. "
+                "Use 0 to disable."
+            ),
+        ),
+    ] = DEFAULT_MAX_ESTIMATED_BATCH_ENQUEUED_TOKENS,
 ) -> None:
     """Prepare OpenAI Batch JSONL locally without uploading or calling a model."""
     settings = get_settings()
-    result = prepare_openai_batch_requests(
-        storage=LocalStorage(settings.data_dir),
-        limit=limit,
-        input_path=input_path,
-        dataset_split=dataset_split,
-        offset=offset,
-        max_source_chars=max_source_chars,
-        model=model,
-        max_completion_tokens=max_completion_tokens,
-    )
+    try:
+        result = prepare_openai_batch_requests(
+            storage=LocalStorage(settings.data_dir),
+            limit=limit,
+            input_path=input_path,
+            dataset_split=dataset_split,
+            offset=offset,
+            max_source_chars=max_source_chars,
+            model=model,
+            max_completion_tokens=max_completion_tokens,
+            max_estimated_enqueued_tokens=max_estimated_enqueued_tokens,
+        )
+    except ValueError as exc:
+        console.print({"error": str(exc)})
+        raise typer.Exit(1) from exc
     console.print(result)
 
 

@@ -40,6 +40,7 @@ OPENAI_API_BASE_URL = "https://api.openai.com/v1"
 OPENAI_BATCH_CHAT_COMPLETIONS_ENDPOINT = "/v1/chat/completions"
 DEFAULT_OPENAI_MODEL = "gpt-5.4-mini"
 DEFAULT_MAX_COMPLETION_TOKENS = 3000
+DEFAULT_MAX_ESTIMATED_BATCH_ENQUEUED_TOKENS = 1_800_000
 CLASSIFICATION_DATASET_SPLITS = {
     "strict_classification_ready",
     "broader_source_ready",
@@ -855,12 +856,15 @@ def summarize_batch_requests(
     max_completion_tokens: int,
     dataset_split: str | None,
     offset: int,
+    max_estimated_enqueued_tokens: int,
 ) -> dict[str, Any]:
     request_body_chars = sum(
         len(json.dumps(request["body"], ensure_ascii=False, sort_keys=True))
         for request in batch_requests
     )
     estimated_input_tokens = request_body_chars // 4
+    estimated_max_completion_tokens = len(batch_requests) * max_completion_tokens
+    estimated_enqueued_tokens = estimated_input_tokens + estimated_max_completion_tokens
     return {
         "run_id": run_id,
         "started_at": started_at.isoformat(),
@@ -894,7 +898,9 @@ def summarize_batch_requests(
         "estimated_tokens": {
             "method": "chars_divided_by_4.v1",
             "input": estimated_input_tokens,
-            "max_completion": len(batch_requests) * max_completion_tokens,
+            "max_completion": estimated_max_completion_tokens,
+            "enqueued_total": estimated_enqueued_tokens,
+            "max_enqueued_guard": max_estimated_enqueued_tokens,
         },
         "notes": [
             "Batch input was prepared locally only; no file was uploaded and no batch was created.",
@@ -918,6 +924,7 @@ def prepare_openai_batch_requests(
     max_completion_tokens: int = DEFAULT_MAX_COMPLETION_TOKENS,
     dataset_split: str | None = None,
     offset: int = 0,
+    max_estimated_enqueued_tokens: int = DEFAULT_MAX_ESTIMATED_BATCH_ENQUEUED_TOKENS,
 ) -> dict[str, Any]:
     resolved_run_id = run_id or new_run_id()
     started_at = datetime.now(UTC)
@@ -1015,6 +1022,27 @@ def prepare_openai_batch_requests(
             )
         )
 
+    request_body_chars = sum(
+        len(json.dumps(request["body"], ensure_ascii=False, sort_keys=True))
+        for request in batch_requests
+    )
+    estimated_input_tokens = request_body_chars // 4
+    estimated_max_completion_tokens = len(batch_requests) * max_completion_tokens
+    estimated_enqueued_tokens = estimated_input_tokens + estimated_max_completion_tokens
+    exceeds_enqueued_guard = (
+        max_estimated_enqueued_tokens > 0
+        and estimated_enqueued_tokens > max_estimated_enqueued_tokens
+    )
+    if exceeds_enqueued_guard:
+        msg = (
+            "Prepared OpenAI Batch would exceed the local estimated enqueued-token guard: "
+            f"{estimated_enqueued_tokens:,} estimated tokens > "
+            f"{max_estimated_enqueued_tokens:,} allowed. Reduce --limit, "
+            "--max-source-chars, or --max-completion-tokens, or pass "
+            "--max-estimated-enqueued-tokens 0 to disable this local guard."
+        )
+        raise ValueError(msg)
+
     output_dir = storage.path(Path("normalized/classification_batches"))
     batch_input_path = write_dict_jsonl(
         output_dir / f"{resolved_run_id}_openai_batch_input.jsonl",
@@ -1046,6 +1074,7 @@ def prepare_openai_batch_requests(
         max_completion_tokens=max_completion_tokens,
         dataset_split=dataset_split,
         offset=offset,
+        max_estimated_enqueued_tokens=max_estimated_enqueued_tokens,
     )
     summary_path = storage.write_json(
         Path("normalized/classification_batches")
