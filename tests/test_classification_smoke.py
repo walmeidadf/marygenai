@@ -531,9 +531,13 @@ def test_repair_required_uncertainty_markers_normalizes_safe_invalid_enum_values
             "study_design_subtype": "in_vitro_or_cellular",
             "evidence_context": "in_vitro_or_cellular",
             "overall_direction": "negative",
+            "population_or_model": {
+                "category": "plants",
+                "description": "Cannabis sativa flowers",
+            },
             "medical_conditions": [{"free_text_label": "pain"}],
             "cannabinoids_or_exposures": [{"free_text_label": "CBD"}],
-            "outcome_domains": ["efficacy"],
+            "outcome_domains": ["use_pattern", "mental_health", "public_health"],
             "missing_or_uncertain_fields": [],
             "provenance": {},
         }
@@ -542,9 +546,13 @@ def test_repair_required_uncertainty_markers_normalizes_safe_invalid_enum_values
     assert repaired["study_design_subtype"] == "other"
     assert repaired["evidence_context"] == "in_vitro_or_cellular"
     assert repaired["overall_direction"] == "cannot_determine"
+    assert repaired["population_or_model"]["category"] == "cannot_determine"
+    assert repaired["outcome_domains"] == ["use_pattern", "public_health"]
     assert repaired["missing_or_uncertain_fields"] == [
+        "outcome_domains",
         "study_design_subtype",
         "overall_direction",
+        "population_or_model",
     ]
     enum_repairs = [
         repair
@@ -554,8 +562,15 @@ def test_repair_required_uncertainty_markers_normalizes_safe_invalid_enum_values
     assert [repair["field"] for repair in enum_repairs] == [
         "study_design_subtype",
         "overall_direction",
+        "population_or_model",
     ]
     assert enum_repairs[1]["repaired_value"] == "cannot_determine"
+    removed_value_repairs = [
+        repair
+        for repair in repaired["provenance"]["technical_schema_repairs"]
+        if repair["repair_type"] == "removed_invalid_enum_values"
+    ]
+    assert removed_value_repairs[0]["original_values"] == ["mental_health"]
 
 
 def test_watch_openai_batch_stops_at_terminal_status(

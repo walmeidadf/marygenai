@@ -753,6 +753,42 @@ def repair_required_uncertainty_markers(payload: dict[str, Any]) -> dict[str, An
         if field is not None
     ]
     technical_repairs: list[dict[str, Any]] = []
+    valid_outcome_domains = {
+        "efficacy",
+        "safety",
+        "adverse_events",
+        "biomarker",
+        "cognition",
+        "mechanism",
+        "pharmacokinetics",
+        "public_health",
+        "use_pattern",
+    }
+    outcome_domains = list(repaired.get("outcome_domains") or [])
+    invalid_outcome_domains = [
+        str(value)
+        for value in outcome_domains
+        if value is not None and str(value) not in valid_outcome_domains
+    ]
+    if invalid_outcome_domains:
+        repaired["outcome_domains"] = [
+            value for value in outcome_domains if str(value) in valid_outcome_domains
+        ]
+        fields.append("outcome_domains")
+        technical_repairs.append(
+            {
+                "repair_type": "removed_invalid_enum_values",
+                "field": "outcome_domains",
+                "original_values": invalid_outcome_domains,
+                "repaired_value": repaired["outcome_domains"],
+                "reason": (
+                    "Candidate output included outcome-domain labels outside the "
+                    "retrieval schema. Unsupported values were removed and the field "
+                    "was marked uncertain rather than silently mapped to another "
+                    "scientific meaning."
+                ),
+            }
+        )
     if repaired.get("study_design_subtype") == "in_vitro_or_cellular":
         repaired["study_design_subtype"] = "other"
         fields.append("study_design_subtype")
@@ -782,6 +818,26 @@ def repair_required_uncertainty_markers(payload: dict[str, Any]) -> dict[str, An
                     "Candidate output used an unsupported direction label. It was mapped "
                     "conservatively to cannot_determine rather than inferring clinical "
                     "benefit or harm."
+                ),
+            }
+        )
+    population_or_model = repaired.get("population_or_model")
+    if isinstance(population_or_model, dict) and population_or_model.get("category") == "plants":
+        repaired["population_or_model"] = {
+            **population_or_model,
+            "category": "cannot_determine",
+        }
+        fields.append("population_or_model")
+        technical_repairs.append(
+            {
+                "repair_type": "normalized_invalid_enum_value",
+                "field": "population_or_model",
+                "original_value": "plants",
+                "repaired_value": "cannot_determine",
+                "reason": (
+                    "Candidate output used a plant model category that is not supported "
+                    "by the current population/model schema. It was mapped "
+                    "conservatively to cannot_determine."
                 ),
             }
         )

@@ -122,6 +122,19 @@ harm. These repairs are provenance-recorded under `technical_schema_repairs`.
 Reconversion of the same downloaded output produced 150/150 strict-valid
 candidate records with zero schema errors.
 
+The second 150-document sub-batch also completed with 150 remote requests
+completed and zero remote failures. Initial local conversion had two schema
+errors caused by unsupported values: `outcome_domains=mental_health` inside a
+multi-value outcome list, and `population_or_model.category=plants` for a plant
+laboratory study. MaryGenAI now removes unsupported outcome-domain labels,
+marks `outcome_domains` uncertain, preserves valid sibling outcome domains, and
+records the removed raw value in provenance. Plant population/model categories
+are mapped conservatively to `cannot_determine` with `population_or_model`
+marked uncertain because the current schema does not encode plant models.
+Reconversion of the downloaded output produced 150/150 strict-valid candidate
+records. The raw invalid outcome value remains visible in evaluation as a schema
+evolution signal rather than silently becoming reviewed knowledge.
+
 ## 2026-07-10: Ship A First Broad Candidate Base And Read-Only MCP Before More V4 Optimization
 
 The next product milestone is a demonstrable read-only retrieval surface for the

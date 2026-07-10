@@ -369,6 +369,13 @@ separate benchmarks before a patient-oriented MCP retrieval surface is ready.
   strict-valid candidate records. The direction repair maps to
   `cannot_determine`, not `harmful`, to avoid silently changing clinical
   meaning.
+- A second 150-document sub-batch completed with 150/150 remote requests and
+  converted to 150/150 strict-valid records after conservative local repairs for
+  two new unsupported schema values: `outcome_domains=mental_health` and
+  `population_or_model.category=plants`. Unsupported outcome-domain labels are
+  removed while valid sibling domains are preserved and the field is marked
+  uncertain; plant model categories are mapped to `cannot_determine` because the
+  current population/model schema does not encode plant studies.
 - The first conversion surfaced three schema validation errors caused by missing
   uncertainty markers for empty or `cannot_determine` retrieval fields. A local
   deterministic repair that only adds required `missing_or_uncertain_fields`
