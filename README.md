@@ -75,12 +75,17 @@ uv run marygenai classification run-smoke \
   --model gpt-5.4-mini
 uv run marygenai classification prepare-batch \
   --limit 50 \
+  --offset 0 \
   --input-path <classification_corpus_records.jsonl> \
   --dataset-split strict_classification_ready \
   --model gpt-5.4-mini
 uv run marygenai classification submit-batch \
   --batch-input-path <openai_batch_input.jsonl> \
   --manifest-path <openai_batch_manifest.jsonl>
+uv run marygenai classification watch-batch \
+  --submission-path <openai_batch_submission.json> \
+  --interval-seconds 300 \
+  --max-checks 288
 uv run marygenai classification retrieve-batch \
   --submission-path <openai_batch_submission.json>
 uv run marygenai classification profile-retrieval-fields --sample-size 12
@@ -138,13 +143,18 @@ Selective-v4 work is documented as a future optimization path, not a blocker for
 the first candidate-classified base or read-only MCP demonstration.
 
 `classification prepare-batch` writes OpenAI Batch-compatible JSONL plus a local
-manifest for later submission. It does not upload files, create a remote batch,
-call a provider, mutate SQLite, or create reviewed knowledge.
+manifest for later submission. Use `--offset` with `--limit` to prepare
+non-overlapping corpus chunks after the dataset split filter is applied. It
+does not upload files, create a remote batch, call a provider, mutate SQLite,
+or create reviewed knowledge.
 
-`classification submit-batch` and `classification retrieve-batch` are explicit
-provider-backed operations. They write ignored local audit artifacts and convert
-completed Batch outputs into the same candidate-classification run format used
-by synchronous validation. Outputs remain candidate evidence.
+`classification submit-batch`, `classification retrieve-batch`, and
+`classification watch-batch` are explicit provider-backed operations.
+`watch-batch` polls status, downloads the output as soon as the remote Batch
+completes, and writes a local watch log. They write ignored local audit
+artifacts and convert completed Batch outputs into the same
+candidate-classification run format used by synchronous validation. Outputs
+remain candidate evidence.
 
 The benchmark evaluator measures deterministic candidates against append-only,
 human-confirmed review decisions. The holdout builder freezes a separate

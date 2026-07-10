@@ -10,6 +10,7 @@ from marygenai.classification.pipeline import (
     convert_openai_batch_outputs,
     prepare_openai_batch_requests,
     run_classification_smoke,
+    watch_openai_batch,
 )
 from marygenai.storage import LocalStorage
 
@@ -196,6 +197,50 @@ def test_run_classification_smoke_can_filter_dataset_split(tmp_path: Path) -> No
     assert result["counts"]["valid_classification_records"] == 1
     assert records[0]["document_id"] == "publication:pmid:strict"
     assert summary["dataset_split_filter"] == "strict_classification_ready"
+
+
+def test_run_classification_smoke_can_offset_after_dataset_split(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    text_path = data_dir / "processed/source.txt"
+    text_path.parent.mkdir(parents=True, exist_ok=True)
+    text_path.write_text(
+        "Abstract Methods Results Cannabidiol was studied for pain in adult participants. "
+        * 20,
+        encoding="utf-8",
+    )
+    input_path = data_dir / "normalized/classification_corpus/records.jsonl"
+    write_jsonl(
+        input_path,
+        [
+            broader_corpus_record(
+                data_dir,
+                document_id="publication:pmid:broader",
+                text_path=text_path,
+            ),
+            corpus_record(data_dir, document_id="publication:pmid:strict-1", text_path=text_path),
+            corpus_record(data_dir, document_id="publication:pmid:strict-2", text_path=text_path),
+        ],
+    )
+
+    result = run_classification_smoke(
+        storage=LocalStorage(data_dir),
+        input_path=input_path,
+        limit=1,
+        offset=1,
+        run_id="20260615T131500Z",
+        dataset_split="strict_classification_ready",
+    )
+
+    records = [
+        json.loads(line)
+        for line in Path(result["records_path"]).read_text(encoding="utf-8").splitlines()
+    ]
+    summary = json.loads(Path(result["summary_path"]).read_text(encoding="utf-8"))
+
+    assert result["counts"]["valid_classification_records"] == 1
+    assert records[0]["document_id"] == "publication:pmid:strict-2"
+    assert summary["dataset_split_filter"] == "strict_classification_ready"
+    assert summary["offset"] == 1
 
 
 def test_build_classification_prompt_packets_writes_prompt_and_schema(tmp_path: Path) -> None:
@@ -405,6 +450,93 @@ def test_prepare_openai_batch_requests_can_filter_dataset_split(tmp_path: Path) 
 
     assert result["counts"]["batch_requests"] == 1
     assert manifest[0]["document_id"] == "publication:pmid:strict"
+
+
+def test_prepare_openai_batch_requests_can_offset_after_dataset_split(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    text_path = data_dir / "processed/source.txt"
+    text_path.parent.mkdir(parents=True, exist_ok=True)
+    text_path.write_text(
+        "Abstract Methods Results Cannabidiol was studied for pain in adult participants. "
+        * 20,
+        encoding="utf-8",
+    )
+    input_path = data_dir / "normalized/classification_corpus/records.jsonl"
+    write_jsonl(
+        input_path,
+        [
+            broader_corpus_record(
+                data_dir,
+                document_id="publication:pmid:broader",
+                text_path=text_path,
+            ),
+            corpus_record(data_dir, document_id="publication:pmid:strict-1", text_path=text_path),
+            corpus_record(data_dir, document_id="publication:pmid:strict-2", text_path=text_path),
+        ],
+    )
+
+    result = prepare_openai_batch_requests(
+        storage=LocalStorage(data_dir),
+        input_path=input_path,
+        limit=1,
+        offset=1,
+        run_id="20260710T131500Z",
+        dataset_split="strict_classification_ready",
+    )
+
+    manifest = [
+        json.loads(line)
+        for line in Path(result["manifest_path"]).read_text(encoding="utf-8").splitlines()
+    ]
+    summary = json.loads(Path(result["summary_path"]).read_text(encoding="utf-8"))
+
+    assert result["counts"]["batch_requests"] == 1
+    assert manifest[0]["document_id"] == "publication:pmid:strict-2"
+    assert summary["dataset_split_filter"] == "strict_classification_ready"
+    assert summary["offset"] == 1
+
+
+def test_watch_openai_batch_stops_at_terminal_status(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    data_dir = tmp_path / "data"
+    submission_path = (
+        data_dir / "normalized/classification_batches/run_openai_batch_submission.json"
+    )
+    submission_path.parent.mkdir(parents=True, exist_ok=True)
+    submission_path.write_text("{}", encoding="utf-8")
+    calls = []
+
+    def fake_retrieve_and_convert_openai_batch(**kwargs: object) -> dict:
+        calls.append(kwargs)
+        return {
+            "run_id": "run",
+            "batch_id": "batch_test",
+            "status": "completed",
+            "status_path": str(data_dir / "status.json"),
+            "output_path": str(data_dir / "output.jsonl"),
+            "conversion": {"counts": {"valid_classification_records": 1}},
+        }
+
+    monkeypatch.setattr(
+        "marygenai.classification.pipeline.retrieve_and_convert_openai_batch",
+        fake_retrieve_and_convert_openai_batch,
+    )
+
+    result = watch_openai_batch(
+        storage=LocalStorage(data_dir),
+        submission_path=submission_path,
+        interval_seconds=30,
+        max_checks=5,
+    )
+
+    watch = json.loads(Path(result["watch_path"]).read_text(encoding="utf-8"))
+
+    assert len(calls) == 1
+    assert result["status"] == "completed"
+    assert result["checks"] == 1
+    assert watch["checks"][0]["converted"] is True
 
 
 def test_convert_openai_batch_outputs_writes_candidate_artifacts(tmp_path: Path) -> None:

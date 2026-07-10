@@ -94,6 +94,7 @@ def load_smoke_corpus_records(
     input_path: Path | None,
     limit: int,
     dataset_split: str | None = None,
+    offset: int = 0,
 ) -> tuple[list[ClassificationCorpusRecord], Path]:
     if dataset_split is not None and dataset_split not in CLASSIFICATION_DATASET_SPLITS:
         allowed = ", ".join(sorted(CLASSIFICATION_DATASET_SPLITS))
@@ -105,6 +106,7 @@ def load_smoke_corpus_records(
     )
     rows = read_jsonl(path)
     records: list[ClassificationCorpusRecord] = []
+    skipped = 0
     for row in rows:
         if "corpus_record" in row:
             record = ClassificationSampleRecord.model_validate(row).corpus_record
@@ -112,6 +114,9 @@ def load_smoke_corpus_records(
             record = ClassificationCorpusRecord.model_validate(row)
         if record.source_ready:
             if dataset_split is not None and record.classification_dataset_split != dataset_split:
+                continue
+            if skipped < offset:
+                skipped += 1
                 continue
             records.append(record)
         if len(records) >= limit:
@@ -561,6 +566,7 @@ def summarize_prompt_packets(
     completed_at: datetime,
     max_source_chars: int,
     dataset_split: str | None,
+    offset: int,
 ) -> dict[str, Any]:
     return {
         "run_id": run_id,
@@ -568,6 +574,7 @@ def summarize_prompt_packets(
         "completed_at": completed_at.isoformat(),
         "input_path": str(input_path),
         "dataset_split_filter": dataset_split,
+        "offset": offset,
         "packets_path": str(packets_path),
         "errors_path": str(errors_path),
         "max_source_chars": max_source_chars,
@@ -604,6 +611,7 @@ def build_classification_prompt_packets(
     target_model_provider: str | None = None,
     target_model_name: str | None = None,
     dataset_split: str | None = None,
+    offset: int = 0,
 ) -> dict[str, Any]:
     resolved_run_id = run_id or new_run_id()
     started_at = datetime.now(UTC)
@@ -612,6 +620,7 @@ def build_classification_prompt_packets(
         input_path=input_path,
         limit=limit,
         dataset_split=dataset_split,
+        offset=offset,
     )
     legacy_english_indexes = load_legacy_english_context_index(storage.root)
     packets: list[CandidateClassificationPromptPacket] = []
@@ -668,6 +677,7 @@ def build_classification_prompt_packets(
         completed_at=completed_at,
         max_source_chars=max_source_chars,
         dataset_split=dataset_split,
+        offset=offset,
     )
     summary_path = storage.write_json(
         Path("normalized/classification_runs")
@@ -844,6 +854,7 @@ def summarize_batch_requests(
     max_source_chars: int,
     max_completion_tokens: int,
     dataset_split: str | None,
+    offset: int,
 ) -> dict[str, Any]:
     request_body_chars = sum(
         len(json.dumps(request["body"], ensure_ascii=False, sort_keys=True))
@@ -856,6 +867,7 @@ def summarize_batch_requests(
         "completed_at": completed_at.isoformat(),
         "input_path": str(input_path),
         "dataset_split_filter": dataset_split,
+        "offset": offset,
         "batch_input_path": str(batch_input_path),
         "manifest_path": str(manifest_path),
         "errors_path": str(errors_path),
@@ -905,6 +917,7 @@ def prepare_openai_batch_requests(
     model: str = DEFAULT_OPENAI_MODEL,
     max_completion_tokens: int = DEFAULT_MAX_COMPLETION_TOKENS,
     dataset_split: str | None = None,
+    offset: int = 0,
 ) -> dict[str, Any]:
     resolved_run_id = run_id or new_run_id()
     started_at = datetime.now(UTC)
@@ -913,6 +926,7 @@ def prepare_openai_batch_requests(
         input_path=input_path,
         limit=limit,
         dataset_split=dataset_split,
+        offset=offset,
     )
     legacy_english_indexes = load_legacy_english_context_index(storage.root)
     packets: list[CandidateClassificationPromptPacket] = []
@@ -1031,6 +1045,7 @@ def prepare_openai_batch_requests(
         max_source_chars=max_source_chars,
         max_completion_tokens=max_completion_tokens,
         dataset_split=dataset_split,
+        offset=offset,
     )
     summary_path = storage.write_json(
         Path("normalized/classification_batches")
@@ -1533,6 +1548,64 @@ def retrieve_and_convert_openai_batch(
     return result
 
 
+TERMINAL_BATCH_STATUSES = {"completed", "failed", "expired", "cancelled"}
+
+
+def watch_openai_batch(
+    *,
+    storage: LocalStorage,
+    submission_path: Path,
+    manifest_path: Path | None = None,
+    interval_seconds: int = 300,
+    max_checks: int = 288,
+) -> dict[str, Any]:
+    checks: list[dict[str, Any]] = []
+    last_result: dict[str, Any] | None = None
+    for check_number in range(1, max_checks + 1):
+        last_result = retrieve_and_convert_openai_batch(
+            storage=storage,
+            submission_path=submission_path,
+            manifest_path=manifest_path,
+        )
+        checks.append(
+            {
+                "check_number": check_number,
+                "checked_at": datetime.now(UTC).isoformat(),
+                "status": last_result.get("status"),
+                "status_path": last_result.get("status_path"),
+                "output_path": last_result.get("output_path"),
+                "converted": bool(last_result.get("conversion")),
+            }
+        )
+        if str(last_result.get("status")) in TERMINAL_BATCH_STATUSES:
+            break
+        if check_number < max_checks:
+            time.sleep(interval_seconds)
+
+    run_id = str(last_result.get("run_id")) if last_result else infer_batch_run_id(submission_path)
+    watch_path = storage.write_json(
+        Path("normalized/classification_batches") / f"{run_id}_openai_batch_watch.json",
+        {
+            "run_id": run_id,
+            "submission_path": str(submission_path),
+            "manifest_path": str(manifest_path) if manifest_path else None,
+            "interval_seconds": interval_seconds,
+            "max_checks": max_checks,
+            "checks": checks,
+            "last_result": last_result,
+            "notes": [
+                "Batch watch polls status and retrieves outputs when the remote Batch completes.",
+                "No SQLite, review queue, review decision, or reviewed knowledge state is mutated.",
+            ],
+        },
+    )
+    return {
+        **(last_result or {}),
+        "checks": len(checks),
+        "watch_path": str(watch_path),
+    }
+
+
 def retry_wait_seconds(response: httpx.Response, attempt_number: int) -> float:
     retry_after = response.headers.get("retry-after")
     if retry_after:
@@ -1733,6 +1806,7 @@ def summarize_smoke_run(
     provider: str | None = None,
     model: str | None = None,
     dataset_split: str | None = None,
+    offset: int = 0,
 ) -> dict[str, Any]:
     field_cannot_determine_counts: Counter[str] = Counter()
     for record in records:
@@ -1756,6 +1830,7 @@ def summarize_smoke_run(
         "completed_at": completed_at.isoformat(),
         "input_path": str(input_path),
         "dataset_split_filter": dataset_split,
+        "offset": offset,
         "records_path": str(records_path),
         "errors_path": str(errors_path),
         "raw_responses_path": str(raw_responses_path) if raw_responses_path else None,
@@ -1803,6 +1878,7 @@ def run_classification_smoke(
     max_source_chars: int = 6_000,
     max_completion_tokens: int = DEFAULT_MAX_COMPLETION_TOKENS,
     dataset_split: str | None = None,
+    offset: int = 0,
 ) -> dict[str, Any]:
     if not dry_run and provider != "openai":
         msg = "Only provider='openai' is implemented for the first real smoke run."
@@ -1816,6 +1892,7 @@ def run_classification_smoke(
         input_path=input_path,
         limit=limit,
         dataset_split=dataset_split,
+        offset=offset,
     )
     legacy_english_indexes = load_legacy_english_context_index(storage.root)
     records: list[CandidateStudyClassification] = []
@@ -1939,6 +2016,7 @@ def run_classification_smoke(
         provider=provider if not dry_run else None,
         model=model if not dry_run else None,
         dataset_split=dataset_split,
+        offset=offset,
     )
     summary_path = storage.write_json(
         Path("normalized/classification_runs")

@@ -23,6 +23,7 @@ from marygenai.classification.pipeline import (
     retrieve_and_convert_openai_batch,
     run_classification_smoke,
     submit_openai_batch,
+    watch_openai_batch,
 )
 from marygenai.classification.retrieval_baseline import (
     run_retrieval_metadata_baseline,
@@ -67,6 +68,14 @@ def run_smoke(
             ),
         ),
     ] = None,
+    offset: Annotated[
+        int,
+        typer.Option(
+            "--offset",
+            min=0,
+            help="Skip this many source-ready records after applying the dataset split filter.",
+        ),
+    ] = 0,
     dry_run: Annotated[
         bool,
         typer.Option("--dry-run/--no-dry-run", help="Use deterministic mock outputs."),
@@ -100,6 +109,7 @@ def run_smoke(
         max_source_chars=max_source_chars,
         max_completion_tokens=max_completion_tokens,
         dataset_split=dataset_split,
+        offset=offset,
     )
     console.print(result)
 
@@ -124,6 +134,14 @@ def build_prompt_packets(
             ),
         ),
     ] = None,
+    offset: Annotated[
+        int,
+        typer.Option(
+            "--offset",
+            min=0,
+            help="Skip this many source-ready records after applying the dataset split filter.",
+        ),
+    ] = 0,
     max_source_chars: Annotated[
         int,
         typer.Option("--max-source-chars", min=1_000, max=80_000),
@@ -147,6 +165,7 @@ def build_prompt_packets(
         target_model_provider=target_model_provider,
         target_model_name=target_model_name,
         dataset_split=dataset_split,
+        offset=offset,
     )
     console.print(result)
 
@@ -171,6 +190,14 @@ def prepare_batch(
             ),
         ),
     ] = None,
+    offset: Annotated[
+        int,
+        typer.Option(
+            "--offset",
+            min=0,
+            help="Skip this many source-ready records after applying the dataset split filter.",
+        ),
+    ] = 0,
     max_source_chars: Annotated[
         int,
         typer.Option("--max-source-chars", min=1_000, max=80_000),
@@ -191,6 +218,7 @@ def prepare_batch(
         limit=limit,
         input_path=input_path,
         dataset_split=dataset_split,
+        offset=offset,
         max_source_chars=max_source_chars,
         model=model,
         max_completion_tokens=max_completion_tokens,
@@ -246,6 +274,49 @@ def retrieve_batch(
             storage=LocalStorage(settings.data_dir),
             submission_path=submission_path,
             manifest_path=manifest_path,
+        )
+    except RuntimeError as exc:
+        console.print({"error": str(exc)})
+        raise typer.Exit(1) from exc
+    console.print(result)
+
+
+@app.command("watch-batch")
+def watch_batch(
+    submission_path: Annotated[
+        Path,
+        typer.Option("--submission-path", help="Local OpenAI Batch submission JSON path."),
+    ],
+    manifest_path: Annotated[
+        Path | None,
+        typer.Option("--manifest-path", help="Override manifest path for conversion."),
+    ] = None,
+    interval_seconds: Annotated[
+        int,
+        typer.Option(
+            "--interval-seconds",
+            min=30,
+            help="Seconds to wait between remote Batch status checks.",
+        ),
+    ] = 300,
+    max_checks: Annotated[
+        int,
+        typer.Option(
+            "--max-checks",
+            min=1,
+            help="Maximum status checks before stopping if the Batch is still non-terminal.",
+        ),
+    ] = 288,
+) -> None:
+    """Poll a remote Batch and retrieve outputs as soon as it reaches a terminal state."""
+    settings = get_settings()
+    try:
+        result = watch_openai_batch(
+            storage=LocalStorage(settings.data_dir),
+            submission_path=submission_path,
+            manifest_path=manifest_path,
+            interval_seconds=interval_seconds,
+            max_checks=max_checks,
         )
     except RuntimeError as exc:
         console.print({"error": str(exc)})

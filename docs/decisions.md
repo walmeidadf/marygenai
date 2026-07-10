@@ -85,6 +85,21 @@ repair is recorded in candidate provenance under `technical_schema_repairs`.
 After repair, the same Batch output converted to 50/50 strict-valid candidate
 records with zero conversion errors.
 
+The first larger-run execution path should therefore be chunked and monitored:
+prepare non-overlapping Batch inputs with `--limit` and `--offset`, submit only
+after local input and manifest review, and use `classification watch-batch` for
+unattended status polling plus immediate output retrieval/conversion when the
+remote Batch completes. `retrieve-batch` remains the manual one-shot fallback
+for status checks or next-day collection.
+
+Operationally, the next maintainer-run gate should be a 500-document strict
+classification-ready Batch. If its status, conversion, evaluation, evidence
+grounding, and cost remain consistent with the 50-document Batch, the remaining
+strict corpus can be prepared as one 2,649-document Batch or as additional
+500-document chunks to reduce blast radius. All outputs remain ignored local
+candidate evidence and must not mutate SQLite, review queues, review decisions,
+or reviewed knowledge.
+
 ## 2026-07-10: Ship A First Broad Candidate Base And Read-Only MCP Before More V4 Optimization
 
 The next product milestone is a demonstrable read-only retrieval surface for the

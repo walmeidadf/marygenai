@@ -130,17 +130,18 @@ path before another paid provider run.
 The first remote 50-document Batch later completed successfully and converted to
 50/50 strict-valid records after deterministic technical uncertainty-marker
 repair. Measured Batch cost projects the strict corpus at about USD 16.07. The
-next full-corpus requirement is operational monitoring and targeted review of
-the eight canary documents selected by the evaluator, not another prompt
-architecture comparison.
+next full-corpus requirement is chunked Batch execution with local manifests,
+status monitoring, prompt/evidence evaluation, and targeted review of the eight
+canary documents selected by the evaluator, not another prompt architecture
+comparison.
 
 ## MVP Workstreams
 
 1. Freeze selective-v4 work as documented findings and future optimization.
 2. Preserve the 50-document broad/v3 canary artifacts and use them as the first
    MCP-demo candidate base.
-3. Add resumable or Batch-compatible execution before any full strict-corpus
-   classification run.
+3. Use chunked Batch preparation plus `watch-batch` monitoring before any full
+   strict-corpus classification run.
 4. After approval and credit top-up if needed, run the first strict-corpus
    candidate-classification batch.
 5. Build a read-only retrieval index over candidate records, source identity,

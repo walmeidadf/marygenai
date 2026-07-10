@@ -264,6 +264,7 @@ Prepare a Batch-compatible input file locally, without upload or provider calls:
 ```bash
 uv run marygenai classification prepare-batch \
   --limit 50 \
+  --offset 0 \
   --input-path <classification_corpus_records.jsonl> \
   --dataset-split strict_classification_ready \
   --model gpt-5.4-mini \
@@ -281,9 +282,10 @@ This command writes ignored artifacts under
 
 Each batch input line contains `custom_id`, `method`, `url`, and `body`, with
 `url=/v1/chat/completions`. The manifest maps `custom_id` back to the MaryGenAI
-document, packet, source hash, model, and provenance. Remote upload, batch
-creation, status polling, and result conversion require a separate explicit
-maintainer authorization.
+document, packet, source hash, model, and provenance. Use `--offset` with
+`--limit` to prepare non-overlapping chunks after the dataset split filter has
+been applied. Remote upload, batch creation, status polling, and result
+conversion require a separate explicit maintainer authorization.
 
 Submit a prepared mini-Batch only after reviewing the local input and manifest:
 
@@ -312,6 +314,26 @@ into the standard candidate-classification artifacts under
 `data/normalized/classification_runs/`, and preserves raw responses for the
 normal evaluator. If the Batch is still running, the command writes only a
 status snapshot and can be re-run later.
+
+For unattended execution, prefer the watcher:
+
+```bash
+uv run marygenai classification watch-batch \
+  --submission-path <openai_batch_submission.json> \
+  --interval-seconds 300 \
+  --max-checks 288
+```
+
+The watcher polls remote status, writes a local watch log, and calls the same
+retrieve-and-convert path as soon as the Batch reaches a terminal status. With
+the default five-minute interval and 288 checks, it can monitor a full 24-hour
+completion window. It does not mutate SQLite, review queues, review decisions,
+or reviewed knowledge.
+
+Provider-side Batch and File objects expose `expires_at` timestamps. Treat those
+timestamps as the authoritative retrieval deadline for a specific run and keep
+`watch-batch` running when possible so completed outputs are copied into local
+ignored artifacts before the provider-side retention window closes.
 
 During conversion, deterministic technical schema repair may add required
 `missing_or_uncertain_fields` markers when a candidate response already contains

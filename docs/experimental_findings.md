@@ -348,6 +348,11 @@ separate benchmarks before a patient-oriented MCP retrieval surface is ready.
 - Batch wall time was about 688 seconds from creation to completion: 62 seconds
   validating and 626 seconds in progress. For the full corpus, use polling or a
   scheduled monitor rather than keeping an interactive terminal session open.
+- The supported Batch workflow now includes chunking with `--limit` and
+  `--offset`, plus `classification watch-batch` for unattended polling,
+  immediate local retrieval/conversion on terminal status, and a local watch log.
+  This lowers the risk of duplicate corpus slices and missed output retrieval
+  during the provider-side retention window.
 - The first conversion surfaced three schema validation errors caused by missing
   uncertainty markers for empty or `cannot_determine` retrieval fields. A local
   deterministic repair that only adds required `missing_or_uncertain_fields`
