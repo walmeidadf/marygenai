@@ -298,9 +298,9 @@ separate benchmarks before a patient-oriented MCP retrieval surface is ready.
   eight-document packet projection were not yet tied to inference-quality gains
   or reviewer adoption.
 - The next product learning should come from a read-only MCP prototype over
-  candidate evidence, using the broad/v3 canary output as an initial demo base.
-  This better tests whether physicians and prospective human reviewers find the
-  retrieval surface valuable.
+  candidate evidence, using the 500-document broad/v3 Batch tranche as the
+  initial demo base. This better tests whether physicians and prospective human
+  reviewers find the retrieval surface valuable.
 - A 50-document broad/v3 provider canary ran on 2026-07-10 using only
   `strict_classification_ready` records. It produced 50 HTTP 200 responses,
   50 valid JSON responses, 49 strict schema-valid records, no provider errors,

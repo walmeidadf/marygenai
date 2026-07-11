@@ -21,42 +21,41 @@ Completed in the v4 preparation cycle:
 - initial parser-versus-legacy guardrail comparison;
 - broad-v4 versus selective field-family packet and cost projection;
 - contrast-aware manifest and deterministic selective assembly.
+- broad/v3 Batch execution for a first 500-document strict
+  classification-ready candidate base.
 
-The next step is to stop treating selective-v4 optimization as an MVP blocker.
-Use the broad `candidate_study_classification.v3` contract for the first
-provider-backed candidate base, then expose it through a read-only MCP
-prototype for medical-team demonstration and human-review recruitment.
+The next step is to expose the first 500 candidate records through a read-only
+MCP prototype for medical-team demonstration and human-review recruitment.
+Selective-v4 optimization remains a future optimization path, not an MVP
+blocker.
 
 1. Freeze the v4 selective work as documented architecture findings and future
    optimization.
-2. Build a 50- to 100-document broad/v3 canary from strict classification-ready
-   records.
-3. Run the canary only with explicit maintainer authorization and available API
-   balance guardrails.
-4. Evaluate real usage, cost, strict schema validity, retry behavior, latency,
-   evidence grounding, and field coverage.
-5. Project full strict-corpus and broader-source-ready costs from measured
-   canary usage, not only from prompt estimates.
-6. Add resumable or Batch-compatible execution before any full strict-corpus
-   classification run.
-7. Build a local read-only retrieval index over candidate records, source
+2. Preserve the 500-document broad/v3 Batch tranche as the first local
+   candidate base.
+3. Build a local read-only retrieval index over candidate records, source
    identity, evidence spans, uncertainty, and provenance.
-8. Implement a read-only MCP surface with structured filters and study-detail
+4. Implement a read-only MCP surface with structured filters and study-detail
    inspection.
-9. Prepare medical-team demo journeys and reviewer-facing exports for targeted
+5. Prepare medical-team demo journeys and reviewer-facing exports for targeted
    human review.
-10. Continue field-scoped validation where it directly improves reviewer
+6. Continue remaining strict-corpus Batch classification in the background only
+   with explicit maintainer authorization and sequential enqueued-token-safe
+   chunks.
+7. Continue field-scoped validation where it directly improves reviewer
     workflows or MCP retrieval quality.
 
 ## Next: Bounded Scale
 
-1. Run the strict-corpus candidate batch only after the canary passes technical
-   and cost gates.
-2. Measure quality by field family, condition, study type, source strategy, and
+1. Continue the remaining strict-corpus candidate batches only after the
+   maintainer confirms budget and priority.
+2. Use sequential chunks sized by estimated enqueued tokens; the current safe
+   default is about 150 records per submitted Batch.
+3. Measure quality by field family, condition, study type, source strategy, and
    source quality.
-3. Test broad-recall versus high-confidence retrieval behavior.
-4. Estimate full-corpus cost and failure handling.
-5. Establish resumable, idempotent batch execution.
+4. Test broad-recall versus high-confidence retrieval behavior.
+5. Keep cost, failure handling, and repair provenance visible.
+6. Preserve resumable, idempotent batch execution.
 
 ## Next: Continuous Source Growth
 
@@ -89,9 +88,9 @@ prototype for medical-team demonstration and human-review recruitment.
 
 Mass classification is justified when:
 
-- the 50- to 100-document canary fits the maintainer-approved cost guardrail;
-- execution is resumable and idempotent;
-- strict validation and retry policy are measured;
+- the 500-document Batch tranche fits the maintainer-approved cost guardrail;
+- execution is resumable, idempotent, and constrained by enqueued-token guards;
+- strict validation and retry/repair policy are measured;
 - retrieval usefulness is demonstrated, not only label agreement;
 - confidence and uncertainty have stable semantics;
 - source, evidence, model, prompt, and cost provenance are complete;

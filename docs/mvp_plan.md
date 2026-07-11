@@ -122,10 +122,10 @@ The first 50-document broad/v3 canary completed on 2026-07-10. It produced
 49 strict-valid candidate records, one validation error, no retries, and an
 estimated cost of about USD 0.51. Measured usage projects the 3,149-record
 strict corpus at about USD 32.01 through standard synchronous calls, or about
-USD 16.01 if a Batch-compatible workflow is implemented. The next gate is now
-resumable or batch-oriented execution plus a read-only retrieval/MCP prototype.
-Local Batch-compatible JSONL preparation is therefore part of the MVP execution
-path before another paid provider run.
+USD 16.01 if a Batch-compatible workflow is implemented. At that point, the
+next gate became resumable or batch-oriented execution plus a read-only
+retrieval/MCP prototype. Local Batch-compatible JSONL preparation therefore
+became part of the MVP execution path before another paid provider run.
 
 The first remote 50-document Batch later completed successfully and converted to
 50/50 strict-valid records after deterministic technical uncertainty-marker

@@ -222,7 +222,7 @@ uv run marygenai classification run-smoke \
 Provider-backed output is candidate evidence. It is written under ignored
 `data/normalized/classification_runs/` and does not become reviewed knowledge.
 
-Run the first broad/v3 cost-and-quality canary only after maintainer
+Run a small broad/v3 cost-and-quality validation only after maintainer
 authorization:
 
 ```bash
@@ -237,9 +237,9 @@ uv run marygenai classification run-smoke \
   --max-completion-tokens 3000
 ```
 
-The command currently accepts at most 100 records. Use 50 documents when the
-available API balance is the primary guardrail; increase to 100 only when the
-maintainer confirms the remaining balance is sufficient.
+The command currently accepts at most 100 records. Use it for targeted
+validation or reruns, not for the already-completed first candidate base. Batch
+execution is the supported path for larger tranches.
 
 Evaluate the canary before any larger run:
 
@@ -253,11 +253,11 @@ uv run marygenai classification evaluate \
   --legacy-context-path <legacy_english_context_records.jsonl>
 ```
 
-The canary must report real provider usage and cost, strict-valid records,
+Any provider validation must report real provider usage and cost, strict-valid records,
 errors and retries, latency, evidence grounding, legacy-reference agreement
 where available, and projected cost for the strict classification-ready corpus.
-Do not proceed to full-corpus candidate classification until the maintainer
-approves the canary report and any required credit top-up.
+Do not proceed to additional paid classification unless the maintainer approves
+the run scope and any required credit top-up.
 
 Prepare a Batch-compatible input file locally, without upload or provider calls:
 
@@ -294,6 +294,14 @@ default 1,800,000-token guard. For the current broad/v3 prompt shape and
 `gpt-5.4-mini` organization limit of 2,000,000 enqueued tokens observed on
 2026-07-10, use about 150 records per submitted Batch and submit only one
 sub-batch at a time.
+
+The first 500-document strict classification-ready tranche is complete using
+offsets 0, 150, 300, and 450. It produced 500/500 strict-valid candidate records
+after deterministic technical repairs. To continue with the next 500 records,
+use offsets 500, 650, 800, and 950 with limits 150, 150, 150, and 50,
+respectively. The measured Batch cost for the first 500 was about USD 2.52, or
+about USD 0.00504 per document. See
+`docs/2026-07-11_batch_and_mcp_handoff.md` before continuing Batch work.
 
 Submit a prepared mini-Batch only after reviewing the local input and manifest:
 
@@ -354,6 +362,11 @@ scientific field values.
 The first MCP milestone should be read-only over ignored local candidate
 classification artifacts. It must not mutate SQLite review queues, review
 decisions, or reviewed knowledge.
+
+The initial MCP demo should use the completed 500-document Batch tranche listed
+in `docs/2026-07-11_batch_and_mcp_handoff.md`. The records are sufficient for a
+medical-team demonstration and reviewer-recruitment workflow, even though they
+remain candidate evidence.
 
 Initial MCP capabilities should support:
 

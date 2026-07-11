@@ -65,6 +65,9 @@ Evaluate classification work in three groups:
 - Keep the product contract aligned with `docs/product_value.md`.
 - Keep implementation priorities aligned with `docs/mvp_plan.md` and
   `docs/roadmap.md`.
+- For the current Batch/MCP handoff state, read
+  `docs/2026-07-11_batch_and_mcp_handoff.md` before planning more
+  classification or MCP work.
 
 ## Protected State
 
@@ -127,6 +130,30 @@ uv run marygenai classification --help
 uv run ruff check .
 uv run pytest
 ```
+
+Current Batch operating pattern:
+
+```bash
+uv run marygenai classification prepare-batch \
+  --limit 150 \
+  --offset <offset> \
+  --input-path data/normalized/classification_corpus/20260617T142419Z_classification_corpus_records.jsonl \
+  --dataset-split strict_classification_ready \
+  --model gpt-5.4-mini \
+  --max-source-chars 12000 \
+  --max-completion-tokens 3000
+uv run marygenai classification submit-batch \
+  --batch-input-path data/normalized/classification_batches/<run_id>_openai_batch_input.jsonl \
+  --manifest-path data/normalized/classification_batches/<run_id>_openai_batch_manifest.jsonl
+uv run marygenai classification watch-batch \
+  --submission-path data/normalized/classification_batches/<run_id>_openai_batch_submission.json \
+  --interval-seconds 300 \
+  --max-checks 288
+```
+
+Submit only one Batch sub-batch at a time unless the maintainer confirms a
+higher provider-side enqueued-token limit. The completed first 500-document
+tranche used offsets 0, 150, 300, and 450.
 
 Maintainer-only bootstrap:
 

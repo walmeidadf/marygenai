@@ -47,6 +47,20 @@ uv run marygenai info
 uv run marygenai --help
 ```
 
+Current handoff state:
+
+- a first 500-document strict classification-ready Batch tranche is complete;
+- the tranche produced 500/500 strict-valid candidate records after
+  deterministic provenance-recorded technical repairs;
+- measured Batch cost was about USD 2.52, or about USD 0.00504 per document;
+- the recommended next product step is a read-only retrieval/MCP demo over
+  those 500 candidate records while optional remaining-corpus Batch work
+  continues in sequential chunks.
+
+See [2026-07-11 Batch And MCP Handoff](docs/2026-07-11_batch_and_mcp_handoff.md)
+for run IDs, costs, artifact paths, continuation prompts, and Batch operating
+rules.
+
 Core source-intelligence flow:
 
 ```bash
@@ -110,11 +124,10 @@ uv run marygenai classification evaluate
 requires `--no-dry-run`, a configured `OPENAI_API_KEY`, and an explicit model.
 All outputs remain candidate evidence.
 
-The first product-oriented provider run should be a broad/v3 canary of 50 to
-100 strict classification-ready documents. Use the canary to measure real cost,
-latency, strict schema validity, retries, evidence grounding, and full-corpus
-cost projection before funding or running a larger candidate-classification
-batch.
+The first product-oriented broad/v3 Batch tranche is complete with 500 strict
+classification-ready documents. Use it as the first MCP-demo candidate base.
+Further classification should use sequential Batch chunks sized by estimated
+enqueued tokens, normally 150 records for the current prompt shape.
 
 `classification evaluate` is local-only. It separates technical validity,
 retrieval utility, and inference quality, compares against normalized English
@@ -208,6 +221,7 @@ history remains available through Git.
 - [Product Value](docs/product_value.md)
 - [Project Brief](docs/project_brief.md)
 - [Official Workflows](docs/official_workflows.md)
+- [2026-07-11 Batch And MCP Handoff](docs/2026-07-11_batch_and_mcp_handoff.md)
 - [Architecture](docs/architecture.md)
 - [Classification Architecture](docs/classification_architecture.md)
 - [Classification Contract](docs/classification_dataset_plan.md)

@@ -182,6 +182,10 @@ maintainer-authorized provider canary and then a first local candidate base. The
 v4 selective field-family architecture remains a documented finding and future
 optimization path, but it is no longer a blocker for the MVP.
 
+Current status: the canary and first local candidate base steps described below
+have been completed. The current demo base is the 500-document broad/v3 Batch
+tranche documented in `docs/2026-07-11_batch_and_mcp_handoff.md`.
+
 This changes the near-term priority order:
 
 1. run a bounded provider-backed canary of 50 to 100 strict
