@@ -147,6 +147,30 @@ invalid uncertainty marker and marks `outcome_domains` uncertain. The misplaced
 candidate records. Raw unsupported outcome values such as `behavior` and `pain`
 remain visible in evaluation as schema-evolution signals.
 
+The first 500-document strict classification-ready tranche is now complete as
+four sequential sub-batches: 150 + 150 + 150 + 50. Across the tranche, remote
+Batch status reported 500 completed requests and zero failed requests. After
+deterministic provenance-recorded technical repairs, local conversion produced
+500/500 strict-valid candidate records, zero schema errors, 500 records with
+evidence spans, and 270 records with declared uncertainty. Measured usage was
+3,251,515 input tokens and 578,801 output tokens, for 3,830,316 total tokens.
+At the standard `gpt-5.4-mini` rates used in the prior cost model, the standard
+equivalent cost is about USD 5.04; with the Batch half-price assumption, the
+measured cost is about USD 2.52, or about USD 0.00504 per candidate-classified
+document.
+
+This updates the Batch cost projection:
+
+- 3,149 strict classification-ready records: about USD 15.88;
+- the remaining 2,649 strict classification-ready records after the 500-document
+  tranche: about USD 13.36.
+
+The 500-document tranche is sufficient evidence that broad/v3 Batch execution is
+operationally viable for the first candidate-classified base. The next spending
+decision is no longer whether Batch works, but whether to continue the remaining
+strict corpus now or pause to build the read-only retrieval/MCP demonstration
+over the first 500 candidate records.
+
 ## 2026-07-10: Ship A First Broad Candidate Base And Read-Only MCP Before More V4 Optimization
 
 The next product milestone is a demonstrable read-only retrieval surface for the

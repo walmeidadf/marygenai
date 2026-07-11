@@ -382,6 +382,15 @@ separate benchmarks before a patient-oriented MCP retrieval surface is ready.
   `study_design_subtype=meta_analysis`. The run also surfaced raw unsupported
   outcome-domain values `behavior` and `pain`; they are removed from candidate
   records and retained by evaluation as schema-evolution signals.
+- The first 500-document strict classification-ready tranche completed as four
+  sequential Batch sub-batches: 150 + 150 + 150 + 50. Remote status reported
+  500 completed requests and zero failed requests. After deterministic
+  provenance-recorded technical repairs, local conversion produced 500/500
+  strict-valid candidate records and 500/500 records with evidence spans.
+  Measured usage was 3,251,515 input tokens and 578,801 output tokens. The
+  Batch-cost estimate is about USD 2.52, or about USD 0.00504 per document,
+  projecting the 3,149-record strict corpus at about USD 15.88 and the remaining
+  2,649 strict records at about USD 13.36.
 - The first conversion surfaced three schema validation errors caused by missing
   uncertainty markers for empty or `cannot_determine` retrieval fields. A local
   deterministic repair that only adds required `missing_or_uncertain_fields`

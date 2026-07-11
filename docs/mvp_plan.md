@@ -130,20 +130,24 @@ path before another paid provider run.
 The first remote 50-document Batch later completed successfully and converted to
 50/50 strict-valid records after deterministic technical uncertainty-marker
 repair. Measured Batch cost projects the strict corpus at about USD 16.07. The
-next full-corpus requirement is chunked Batch execution with local manifests,
-status monitoring, enqueued-token guardrails, prompt/evidence evaluation, and
-targeted review of the eight canary documents selected by the evaluator, not
-another prompt architecture comparison.
+first 500-document strict classification-ready tranche later completed as four
+sequential sub-batches with 500/500 strict-valid candidate records after
+deterministic provenance-recorded technical repairs. Measured Batch cost for
+the 500-document tranche was about USD 2.52, projecting the strict corpus at
+about USD 15.88. The next full-corpus requirement is a product decision:
+continue the remaining strict corpus now, or first build the read-only
+retrieval/MCP demonstration over the 500-record candidate base to recruit
+medical review support.
 
 ## MVP Workstreams
 
 1. Freeze selective-v4 work as documented findings and future optimization.
-2. Preserve the 50-document broad/v3 canary artifacts and use them as the first
-   MCP-demo candidate base.
-3. Use chunked Batch preparation plus `watch-batch` monitoring before any full
-   strict-corpus classification run.
-4. After approval and credit top-up if needed, run the first strict-corpus
-   candidate-classification batch.
+2. Preserve the 500-document broad/v3 Batch tranche as the first MCP-demo
+   candidate base.
+3. Decide whether to classify the remaining strict corpus immediately or first
+   demo the 500-record candidate base to recruit human reviewers.
+4. Continue remaining strict-corpus classification with chunked Batch
+   preparation plus `watch-batch` monitoring when approved.
 5. Build a read-only retrieval index over candidate records, source identity,
    evidence spans, uncertainty, and provenance.
 6. Design and implement a read-only MCP retrieval contract.
