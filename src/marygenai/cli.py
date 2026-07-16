@@ -7,8 +7,10 @@ from marygenai.analytics.cli import app as analytics_app
 from marygenai.classification.cli import app as classification_app
 from marygenai.classification_corpus.cli import app as classification_corpus_app
 from marygenai.initial_load.cli import app as initial_load_app
+from marygenai.mcp_server.cli import app as mcp_app
 from marygenai.persistence.cli import app as db_app
 from marygenai.pubmed_discovery.cli import app as pubmed_discovery_app
+from marygenai.retrieval.cli import app as retrieval_app
 from marygenai.review.cli import app as review_app
 from marygenai.review_api.cli import app as review_api_app
 from marygenai.review_ui.cli import app as review_ui_app
@@ -29,6 +31,8 @@ app.add_typer(analytics_app, name="analytics")
 app.add_typer(review_app, name="review")
 app.add_typer(review_api_app, name="review-api")
 app.add_typer(review_ui_app, name="review-ui")
+app.add_typer(retrieval_app, name="retrieval")
+app.add_typer(mcp_app, name="mcp")
 
 
 @app.callback()

@@ -39,6 +39,10 @@ candidate studies rather than replacing patient-condition relevance.
 - frozen patient-oriented retrieval-field sample builder;
 - deterministic metadata/parser candidate extraction;
 - broad-v4 versus selective field-family packet and cost comparison;
+- first isolated 500-document read-only retrieval index;
+- retrieval build, inspect, facets, detail, search, and capabilities contracts;
+- local MCP stdio server with runtime read-only enforcement;
+- clinical-question acceptance research and retrieval backlog;
 - review CLI, API, and local UI for explicit review workflows.
 
 ## Current Local Dataset
@@ -135,7 +139,7 @@ sequential sub-batches with 500/500 strict-valid candidate records after
 deterministic provenance-recorded technical repairs. Measured Batch cost for
 the 500-document tranche was about USD 2.52, projecting the strict corpus at
 about USD 15.88. The next full-corpus requirement is a product decision:
-continue the remaining strict corpus now, or first build the read-only
+continue the remaining strict corpus now, or use the implemented read-only
 retrieval/MCP demonstration over the 500-record candidate base to recruit
 medical review support.
 
@@ -148,9 +152,10 @@ medical review support.
    demo the 500-record candidate base to recruit human reviewers.
 4. Continue remaining strict-corpus classification with chunked Batch
    preparation plus `watch-batch` monitoring when approved.
-5. Build a read-only retrieval index over candidate records, source identity,
-   evidence spans, uncertainty, and provenance.
-6. Design and implement a read-only MCP retrieval contract.
+5. Validate the implemented read-only retrieval index and MCP contract with
+   physician-authored acceptance questions.
+6. Use the preserved clinical-question matrix to prioritize missing retrieval
+   fields and deterministic aliases.
 7. Prepare medical-team demo journeys and targeted human-review exports.
 8. Use reviewer feedback to prioritize field-scoped improvements for
     condition, anatomy, cannabinoid role, population, study structure, and

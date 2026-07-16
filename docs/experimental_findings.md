@@ -54,6 +54,41 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
   classification-ready documents and about 3,374 broader source-ready documents
   after deduplication.
 
+## Read-Only Candidate Retrieval
+
+- The first isolated DuckDB index was built from the four completed broad/v3
+  Batch runs, the classification corpus, and the latest evaluation report for
+  each run. It contains 500 unique candidate documents and retrieval-confidence
+  records for all 500.
+- The index carries 127 evidence spans selected by evaluation for grounding
+  review across 76 documents. A record that was not selected for the worklist
+  is not described as human reviewed or proven grounded.
+- Candidate condition and exposure labels require a conservative alias layer.
+  Case and trailing-abbreviation variants such as `Cannabidiol`,
+  `Cannabidiol (CBD)`, and `cannabidiol` can share one retrieval key while their
+  original values remain visible in detail and provenance.
+- Strict clinical-question probes against the 500-record index returned four
+  pediatric Dravet/CBD records with both efficacy and safety outcome domains,
+  eight exact-Pain human therapeutic records, and ten obesity records with a
+  mechanism or biomarker domain. These are retrieval checks, not inference
+  quality judgments or evidence-strength assessments.
+- Exact facet matching intentionally does not expand `Pain` to `Pain - Chronic`
+  or other narrower labels. Ontology expansion must be versioned, visible in the
+  effective query, and evaluated for false exclusion before it becomes a
+  default.
+- Realistic physician questions confirm that v3 supports broad condition,
+  exposure, evidence-context, study-type, population-category, outcome-domain,
+  and uncertainty retrieval. Dose, route, formulation, comparator, duration,
+  detailed age, comorbidity, and outcome entities remain visible schema gaps.
+- Effective-query trace, unsupported-dimension reporting, deterministic match
+  explanations, and empty-result diagnostics are more important for the first
+  clinical demo than an opaque semantic score.
+- MCP references over PubMed, Europe PMC, and Semantic Scholar commonly separate
+  search, paper detail, full text, citations, references, terminology, and
+  identifier conversion. Related studies and citations are valuable future
+  MaryGenAI tools, but the first server remains a closed local index with no
+  network or provider calls.
+
 ## Classification
 
 - Strict Pydantic validation is effective at exposing schema and prompt defects.

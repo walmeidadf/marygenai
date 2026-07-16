@@ -14,6 +14,46 @@ uv run marygenai --help
 Configuration belongs in an ignored `.env` file. Never commit credentials,
 generated data, raw source payloads, PDFs, or private legacy exports.
 
+## Read-Only Retrieval And MCP Workflow
+
+Build the isolated candidate index from the four completed first-500 runs, the
+classification corpus, and their latest evaluation reports:
+
+```bash
+uv run marygenai retrieval build-index
+```
+
+Inspect build provenance, limitations, capabilities, and top facets:
+
+```bash
+uv run marygenai retrieval inspect-index
+```
+
+Run a local search through the same query service used by MCP:
+
+```bash
+uv run marygenai retrieval search \
+  --condition "Dravet syndrome" \
+  --cannabinoid Cannabidiol \
+  --population pediatric_humans \
+  --outcome-domain efficacy \
+  --outcome-domain safety
+```
+
+Serve the closed local index to an MCP host over stdio:
+
+```bash
+uv run marygenai mcp serve
+```
+
+The generated DuckDB index and manifest remain ignored under
+`data/normalized/retrieval_indexes/`. Build and runtime do not open or mutate
+MaryGenAI SQLite, review queues, review decisions, or reviewed knowledge. The
+runtime opens DuckDB with `read_only=True` and exposes no provider or network
+tool. See `docs/mcp_retrieval_contract.md` for the contract and
+`docs/mcp_clinical_retrieval_research.md` for clinical acceptance questions and
+the future backlog.
+
 ## Public Source Workflow
 
 Initialize local operational storage:

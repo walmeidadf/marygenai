@@ -1,5 +1,58 @@
 # Decision Log
 
+## 2026-07-16: Ship A Closed Read-Only Retrieval Index And Minimal MCP Contract
+
+MaryGenAI's first MCP implementation uses an isolated ignored DuckDB index over
+the 500-document broad/v3 candidate tranche. The index is built from candidate
+records, classification-corpus identity, and the latest evaluation report for
+each included run. It does not reuse or mutate MaryGenAI SQLite, review queues,
+review decisions, or reviewed knowledge.
+
+The supported interfaces are `marygenai retrieval build-index`,
+`inspect-index`, and `search`, plus `marygenai mcp serve` over stdio. The MCP
+surface exposes four read-only tools: study search, study detail, facets, and
+search capabilities. It also exposes manifest, capabilities, and templated
+study-detail resources.
+
+MCP annotations declare the tools read-only, non-destructive, idempotent, and
+closed-world. The actual enforcement boundary is deterministic: runtime queries
+open only the generated DuckDB index with `read_only=True`, and the server has no
+provider, network, SQLite, review, or persistence tool.
+
+The MCP host, not MaryGenAI, translates a physician's natural-language question
+into non-identifying structured retrieval dimensions. MaryGenAI does not receive
+a patient record and does not decide whether a document applies clinically to a
+specific patient. Search responses echo requested and applied filters, never
+silently relax filters, preserve host-declared unsupported dimensions, and
+explain deterministic matches.
+
+Multi-value filters support explicit `any` and `all` semantics. A conservative
+case-folded alias key consolidates case and trailing-abbreviation variants for
+matching and facets, while original candidate values remain unchanged in study
+detail and provenance. More aggressive ontology expansion is deferred until it
+can be versioned and evaluated for false exclusion and false inclusion.
+
+Search returns compact candidate metadata and a detail URI. Detail preserves
+source identity, source text path and hash, evidence spans, missing or uncertain
+fields, warnings, grounding-review worklist status, retrieval confidence, model,
+prompt, schema, extractor, Batch and technical-repair provenance, review state,
+and trust language.
+
+The first index has 500 unique documents, retrieval-confidence records for all
+500, and 127 evidence spans selected for grounding review across 76 documents.
+Absence from the grounding-review worklist is not represented as human review or
+proof of grounding.
+
+Clinical-question research is preserved in
+`docs/mcp_clinical_retrieval_research.md`. It establishes an acceptance matrix
+across neurology, psychiatry, pain, oncology, endocrinology, pediatrics, and
+safety, and records a backlog for query diagnostics, richer v4 fields,
+terminology, related studies, citations, and evidence-navigation tools.
+
+The stable MCP Python SDK v1 line is used with an explicit `<2` dependency bound
+because the v2 line is prerelease and breaking. Candidate evidence remains the
+only trust level exposed by this first server.
+
 ## 2026-07-10: Use Canary Results To Plan First Broad Candidate Base
 
 A maintainer-authorized broad/v3 provider canary ran on 50

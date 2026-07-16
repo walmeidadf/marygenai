@@ -143,6 +143,28 @@ size, geography, study period, conflicting evidence, and related publications.
 The MCP server should expose retrieval evidence. It must not convert retrieval
 rank into a treatment recommendation.
 
+## Implemented Read-Only V1 Retrieval Layer
+
+The first retrieval layer materializes candidate v3 records, corpus identity,
+and evaluation outputs into an isolated ignored DuckDB artifact. It exposes
+search, detail, facets, and capabilities through the supported `marygenai` CLI
+and MCP stdio server.
+
+V1 uses deterministic case-folded alias keys, explicit `any` or `all` facet
+semantics, opaque build-bound pagination cursors, and no silent filter
+relaxation. Original candidate labels remain unchanged in detail responses.
+Every response preserves candidate trust language and review state. Detail also
+returns source path and hash, evidence spans, grounding-review worklist status,
+retrieval-confidence semantics, versions, and provenance.
+
+Question decomposition remains the MCP host's responsibility. MaryGenAI does
+not receive a patient record, call an LLM, or infer treatment applicability.
+The host should send only non-identifying scientific retrieval dimensions.
+
+The current lexical index does not close the v3 field gaps described above.
+Those gaps, realistic clinical acceptance questions, and external MCP research
+are preserved in `docs/mcp_clinical_retrieval_research.md`.
+
 ## Ranking Components
 
 Ranking should remain decomposable:

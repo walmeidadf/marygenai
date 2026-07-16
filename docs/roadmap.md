@@ -20,30 +20,31 @@ Completed in the v4 preparation cycle:
 - deterministic metadata/parser baseline with evidence candidates;
 - initial parser-versus-legacy guardrail comparison;
 - broad-v4 versus selective field-family packet and cost projection;
-- contrast-aware manifest and deterministic selective assembly.
+- contrast-aware manifest and deterministic selective assembly;
 - broad/v3 Batch execution for a first 500-document strict
   classification-ready candidate base.
 
-The next step is to expose the first 500 candidate records through a read-only
-MCP prototype for medical-team demonstration and human-review recruitment.
-Selective-v4 optimization remains a future optimization path, not an MVP
-blocker.
+The first 500 candidate records are now exposed through an isolated local
+read-only index and MCP stdio prototype. The next product step is medical-team
+demonstration, physician-authored acceptance testing, and human-review
+recruitment. Selective-v4 optimization remains a future optimization path, not
+an MVP blocker.
 
 1. Freeze the v4 selective work as documented architecture findings and future
    optimization.
 2. Preserve the 500-document broad/v3 Batch tranche as the first local
    candidate base.
-3. Build a local read-only retrieval index over candidate records, source
-   identity, evidence spans, uncertainty, and provenance.
-4. Implement a read-only MCP surface with structured filters and study-detail
-   inspection.
+3. Preserve and rebuild the implemented local index from ignored candidate,
+   corpus, and evaluation artifacts.
+4. Validate MCP search, detail, facets, capabilities, and trust language with
+   physician-authored questions.
 5. Prepare medical-team demo journeys and reviewer-facing exports for targeted
    human review.
 6. Continue remaining strict-corpus Batch classification in the background only
    with explicit maintainer authorization and sequential enqueued-token-safe
    chunks.
 7. Continue field-scoped validation where it directly improves reviewer
-    workflows or MCP retrieval quality.
+   workflows or MCP retrieval quality.
 
 ## Next: Bounded Scale
 
@@ -68,13 +69,17 @@ blocker.
 
 ## Next: Read-Only Retrieval
 
-1. Define an MCP resource and query contract.
-2. Support structured filters over condition, pathology, anatomy, organ system,
+1. Extend the implemented MCP contract from strict filter groups to required,
+   preferred, and excluded dimensions with explicit query diagnostics.
+2. Add structured filters over pathology, anatomy, organ system,
    cannabinoid and role, study type, population, geography, publication period,
    outcome, source readiness, and confidence.
-3. Return evidence spans, source identity, provenance, and trust level.
+3. Preserve the existing evidence spans, source identity, provenance, grounding
+   worklists, review state, and trust level as the contract evolves.
 4. Add lexical and ontology-aware retrieval before introducing vector search.
 5. Evaluate hybrid retrieval and ranking with realistic physician queries.
+6. Evaluate related studies, citations, references, and terminology resolution
+   as separate future tools.
 
 ## Later: Reviewed Public Baseline
 

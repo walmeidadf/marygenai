@@ -53,9 +53,19 @@ Current handoff state:
 - the tranche produced 500/500 strict-valid candidate records after
   deterministic provenance-recorded technical repairs;
 - measured Batch cost was about USD 2.52, or about USD 0.00504 per document;
-- the recommended next product step is a read-only retrieval/MCP demo over
-  those 500 candidate records while optional remaining-corpus Batch work
-  continues in sequential chunks.
+- the next product validation step is a medical-team demo of the implemented
+  read-only retrieval/MCP surface over those 500 candidate records;
+- optional remaining-corpus Batch work may continue in sequential chunks only
+  with explicit authorization.
+
+That read-only retrieval/MCP milestone now has a first implementation:
+
+- an isolated ignored DuckDB index over the four completed candidate runs;
+- local build, inspect, and search commands;
+- MCP search, detail, facets, and capabilities tools over stdio;
+- runtime `read_only=True` enforcement with no SQLite, review, provider, or
+  network surface;
+- clinical-question research and a preserved retrieval backlog.
 
 See [2026-07-11 Batch And MCP Handoff](docs/2026-07-11_batch_and_mcp_handoff.md)
 for run IDs, costs, artifact paths, continuation prompts, and Batch operating
@@ -73,6 +83,23 @@ uv run marygenai pubmed-discovery run \
 uv run marygenai access-enrichment run --limit 50
 uv run marygenai access-enrichment audit-artifacts
 ```
+
+First read-only candidate retrieval and MCP flow:
+
+```bash
+uv run marygenai retrieval build-index
+uv run marygenai retrieval inspect-index
+uv run marygenai retrieval search \
+  --condition "Dravet syndrome" \
+  --cannabinoid Cannabidiol \
+  --population pediatric_humans
+uv run marygenai mcp serve
+```
+
+The generated index remains under ignored `data/` and contains candidate
+evidence, not reviewed knowledge. See
+[Read-Only MCP Retrieval Contract](docs/mcp_retrieval_contract.md) and
+[MCP Clinical Retrieval Research](docs/mcp_clinical_retrieval_research.md).
 
 Classification preparation, validation, and the first candidate-base canary:
 
@@ -222,6 +249,8 @@ history remains available through Git.
 - [Project Brief](docs/project_brief.md)
 - [Official Workflows](docs/official_workflows.md)
 - [2026-07-11 Batch And MCP Handoff](docs/2026-07-11_batch_and_mcp_handoff.md)
+- [Read-Only MCP Retrieval Contract](docs/mcp_retrieval_contract.md)
+- [MCP Clinical Retrieval Research](docs/mcp_clinical_retrieval_research.md)
 - [Architecture](docs/architecture.md)
 - [Classification Architecture](docs/classification_architecture.md)
 - [Classification Contract](docs/classification_dataset_plan.md)

@@ -44,6 +44,7 @@ LOCAL_DATA_DIRECTORIES = (
     "normalized/classification_corpus",
     "normalized/classification_runs",
     "normalized/classification_evaluations",
+    "normalized/retrieval_indexes",
     "reviewed/snapshots",
     "reviewed/reviewed_fields",
     "reviewed/knowledge_exports",
