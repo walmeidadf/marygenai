@@ -91,6 +91,17 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
 
 ## Classification
 
+- The offset-650, limit-150 Batch run (`20260717T111520Z`) completed 150/150
+  remote requests with HTTP 200 and `finish_reason=stop`, zero failed requests,
+  and no Batch error file. It used 1,045,488 input tokens and 163,595 output
+  tokens, for 1,209,083 total tokens. Under the standing half-price Batch cost
+  assumption, estimated cost was about USD 0.760, or USD 0.00507 per document.
+- Local conversion produced 150/150 strict schema-valid candidate records,
+  150/150 records with evidence spans, 586 evidence spans total, and 97/150
+  records with declared uncertainty. Fifty-three records carried 54 recorded
+  technical repairs: 52 uncertainty-marker deduplications and two
+  required-marker additions. The run exposed no unsupported enum or new repair
+  family and did not require a targeted rerun.
 - The offset-500, limit-150 Batch run (`20260716T191943Z`) completed 150/150
   remote requests with HTTP 200 and `finish_reason=stop`, zero failed requests,
   and no Batch error file. It used 1,048,914 input tokens and 161,024 output
