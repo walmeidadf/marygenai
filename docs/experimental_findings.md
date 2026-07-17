@@ -91,6 +91,18 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
 
 ## Classification
 
+- The offset-500, limit-150 Batch run (`20260716T191943Z`) completed 150/150
+  remote requests with HTTP 200 and `finish_reason=stop`, zero failed requests,
+  and no Batch error file. It used 1,048,914 input tokens and 161,024 output
+  tokens, for 1,209,938 total tokens. Under the standing half-price Batch cost
+  assumption, estimated cost was about USD 0.756, or USD 0.00504 per document.
+- Local conversion produced 150/150 strict schema-valid candidate records,
+  150/150 records with evidence spans, 559 evidence spans total, and 122/150
+  records with declared uncertainty. Eighty-six records carried 92 recorded
+  technical repairs: 84 uncertainty-marker deduplications, five required-marker
+  additions, and three removals of unsupported `outcome_domains=behavior`.
+  These were existing deterministic repair families; the run exposed no new
+  schema-repair case and did not require a targeted rerun.
 - Strict Pydantic validation is effective at exposing schema and prompt defects.
 - Candidate classifications should preserve evidence spans, source hashes,
   model, prompt, schema, usage, latency, warnings, and uncertainty.

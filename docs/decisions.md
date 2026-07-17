@@ -1,5 +1,21 @@
 # Decision Log
 
+## 2026-07-17: Continue Strict-Corpus Batch Expansion In Sequential 150-Record Chunks
+
+The first post-handoff chunk, offset 500 and limit 150, completed all 150 remote
+requests without a failed request or Batch error file. Local conversion produced
+150/150 strict schema-valid candidate records and evidence spans for every
+record. The run stayed below the existing 1.8-million estimated enqueued-token
+guard, so the established sequential 150-record operating pattern remains
+appropriate for the current prompt shape and provider limit.
+
+Conversion required no new repair family. It reused only deterministic,
+provenance-recorded repairs already accepted by the pipeline: deduplicating
+uncertainty markers, adding required markers without changing scientific field
+values, and removing unsupported `outcome_domains=behavior` while preserving
+valid sibling values and marking the field uncertain. Candidate classifications
+remain ignored local evidence and are not reviewed knowledge.
+
 ## 2026-07-16: Ship A Closed Read-Only Retrieval Index And Minimal MCP Contract
 
 MaryGenAI's first MCP implementation uses an isolated ignored DuckDB index over
