@@ -56,19 +56,20 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
 
 ## Read-Only Candidate Retrieval
 
-- The first isolated DuckDB index was built from the four completed broad/v3
-  Batch runs, the classification corpus, and the latest evaluation report for
-  each run. It contains 500 unique candidate documents and retrieval-confidence
-  records for all 500.
-- The index carries 127 evidence spans selected by evaluation for grounding
-  review across 76 documents. A record that was not selected for the worklist
-  is not described as human reviewed or proven grounded.
+- The isolated DuckDB index was rebuilt from eight completed broad/v3 Batch
+  runs, the classification corpus, and the latest evaluation report for each
+  run. It contains 1,100 unique candidate documents and retrieval-confidence
+  records for all 1,100.
+- The four 150-record continuation runs contributed 600/600 strict-valid
+  records with evidence spans. Their local evaluations selected 477 spans for
+  grounding review. A record or span not selected for a worklist is not
+  described as human reviewed or proven grounded.
 - Candidate condition and exposure labels require a conservative alias layer.
   Case and trailing-abbreviation variants such as `Cannabidiol`,
   `Cannabidiol (CBD)`, and `cannabidiol` can share one retrieval key while their
   original values remain visible in detail and provenance.
-- Strict clinical-question probes against the 500-record index returned four
-  pediatric Dravet/CBD records with both efficacy and safety outcome domains,
+- Strict clinical-question probes against the initial 500-record index returned
+  four pediatric Dravet/CBD records with both efficacy and safety outcome domains,
   eight exact-Pain human therapeutic records, and ten obesity records with a
   mechanism or biomarker domain. These are retrieval checks, not inference
   quality judgments or evidence-strength assessments.

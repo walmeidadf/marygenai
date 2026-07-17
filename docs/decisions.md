@@ -57,10 +57,11 @@ fields, warnings, grounding-review worklist status, retrieval confidence, model,
 prompt, schema, extractor, Batch and technical-repair provenance, review state,
 and trust language.
 
-The first index has 500 unique documents, retrieval-confidence records for all
-500, and 127 evidence spans selected for grounding review across 76 documents.
-Absence from the grounding-review worklist is not represented as human review or
-proof of grounding.
+The index was expanded on 2026-07-17 to 1,100 unique documents across eight
+Batch runs, with retrieval-confidence records for all 1,100. The four
+continuation runs added 600 strict-valid candidate records and 477 evidence
+spans selected for grounding review. Absence from the grounding-review worklist
+is not represented as human review or proof of grounding.
 
 Clinical-question research is preserved in
 `docs/mcp_clinical_retrieval_research.md`. It establishes an acceptance matrix

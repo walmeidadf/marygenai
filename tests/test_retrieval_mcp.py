@@ -185,6 +185,10 @@ def retrieval_index(tmp_path: Path) -> Path:
         evaluation_report_paths=[report_path],
     )
     assert manifest.document_count == 3
+    assert "The indexed candidate corpus is bounded and may not be representative." in (
+        manifest.limitations
+    )
+    assert all("500-document" not in limitation for limitation in manifest.limitations)
     return output_path
 
 

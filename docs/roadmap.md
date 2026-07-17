@@ -21,10 +21,10 @@ Completed in the v4 preparation cycle:
 - initial parser-versus-legacy guardrail comparison;
 - broad-v4 versus selective field-family packet and cost projection;
 - contrast-aware manifest and deterministic selective assembly;
-- broad/v3 Batch execution for a first 500-document strict
+- broad/v3 Batch execution for a 1,100-document strict
   classification-ready candidate base.
 
-The first 500 candidate records are now exposed through an isolated local
+The first 1,100 candidate records are now exposed through an isolated local
 read-only index and MCP stdio prototype. The next product step is medical-team
 demonstration, physician-authored acceptance testing, and human-review
 recruitment. Selective-v4 optimization remains a future optimization path, not
@@ -32,7 +32,7 @@ an MVP blocker.
 
 1. Freeze the v4 selective work as documented architecture findings and future
    optimization.
-2. Preserve the 500-document broad/v3 Batch tranche as the first local
+2. Preserve the growing broad/v3 Batch tranche as the local
    candidate base.
 3. Preserve and rebuild the implemented local index from ignored candidate,
    corpus, and evaluation artifacts.

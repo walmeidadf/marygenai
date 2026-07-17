@@ -23,6 +23,10 @@ DEFAULT_CLASSIFICATION_RUN_IDS = (
     "20260710T180539Z",
     "20260710T211154Z",
     "20260711T153044Z",
+    "20260716T191943Z",
+    "20260717T111520Z",
+    "20260717T113729Z",
+    "20260717T120705Z",
 )
 DEFAULT_INDEX_RELATIVE_PATH = Path(
     "normalized/retrieval_indexes/marygenai_candidate_retrieval_v1.duckdb"
@@ -443,7 +447,7 @@ def build_retrieval_index(
     temporary_path.replace(resolved_output_path)
     limitations = [
         "The index contains AI-classified candidate evidence, not reviewed knowledge.",
-        "The first 500-document tranche is a bounded demo base and may not be representative.",
+        "The indexed candidate corpus is bounded and may not be representative.",
         "The v3 schema does not structure dose, route, comparator, duration, or specific outcomes.",
         "Classification confidence is categorical and is not a calibrated probability.",
         "Retrieval confidence is a deterministic heuristic ranking signal, not evidence strength.",
