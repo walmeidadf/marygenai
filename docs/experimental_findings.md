@@ -60,6 +60,31 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
   runs, the classification corpus, and the latest evaluation report for each
   run. It contains 1,100 unique candidate documents and retrieval-confidence
   records for all 1,100.
+- The structured identity columns in the 1,100-record index contain 378 DOI
+  values, no PMID values, 722 PMCID values, 1,100 canonical URLs, and 1,100
+  source URLs. SQLite and the classification corpus contain the same sparse
+  identity values, so the index did not drop fields that were already present
+  there.
+- The zero structured-PMID count is a selection and projection artifact. Batch
+  offsets consumed a corpus ordered by `document_id`, producing 378
+  `publication:doi` records followed by 722 `publication:pmcid` records before
+  any `publication:pmid` records. Access routing still used richer identifiers
+  found in local metadata without projecting them back into corpus identity.
+- A read-only reconciliation of primary HTML/NXML article metadata, source
+  URLs, cached Europe PMC metadata, and cached OpenAlex metadata recovered PMID
+  for 1,087 documents, PMCID for 990, and DOI for 1,071. The resulting identity
+  combinations were 958 documents with all three identifiers, 132 with two,
+  and 10 with one. No conflicts remained after known URL-route normalization.
+- Ninety-eight of the 378 structured DOI strings incorrectly include a trailing
+  Frontiers `/full` route segment. This is a deterministic DOI extraction defect
+  and should be normalized with provenance rather than represented as
+  scientific uncertainty.
+- Canonical and source URL coverage is 1,100/1,100. Canonical URLs are unique;
+  1,098 use HTTPS and two use HTTP. All source URLs use HTTPS, but 483 are PMC
+  OAI machine endpoints. Physician-facing responses should expose labeled
+  PubMed, PMC full-text, DOI, and canonical links instead of treating an
+  acquisition endpoint as the preferred access page. No live URL health check
+  was part of this local audit.
 - The four 150-record continuation runs contributed 600/600 strict-valid
   records with evidence spans. Their local evaluations selected 477 spans for
   grounding review. A record or span not selected for a worklist is not

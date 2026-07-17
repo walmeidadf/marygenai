@@ -68,6 +68,9 @@ Evaluate classification work in three groups:
 - For the current Batch/MCP handoff state, read
   `docs/2026-07-11_batch_and_mcp_handoff.md` before planning more
   classification or MCP work.
+- For the current retrieval-identity audit and MCP identity handoff, also read
+  `docs/2026-07-17_identity_and_mcp_handoff.md` before changing source identity
+  or access-link behavior.
 
 ## Protected State
 

@@ -1,5 +1,33 @@
 # Decision Log
 
+## 2026-07-17: Treat Retrieval Identity Completeness As A Read-Only Projection
+
+The 1,100-document retrieval index faithfully copies the sparse bibliographic
+identity stored in the classification corpus: 378 non-empty DOI values, 722
+PMCID values, no PMID values, and 1,100 canonical URLs. The same sparse values
+are present in SQLite `document`, SQLite `document_identity`, the classification
+corpus, and DuckDB. This is not the full locally available identity.
+
+A read-only reconciliation of retrieved primary-article metadata and cached
+Europe PMC and OpenAlex metadata recovered, without a provider or network call,
+PMID for 1,087 documents, PMCID for 990, and DOI for 1,071. After removing the
+known Frontiers `/full` route suffix from DOI-shaped URL paths, the local sources
+had no conflicting identifier values. The current gap is therefore an identity
+projection and normalization defect, not general source-identity absence.
+
+The retrieval layer should build a versioned identity projection from the
+existing local artifacts without rewriting SQLite, review queues, review
+decisions, candidate classifications, or reviewed knowledge. Each projected
+identifier must preserve its source artifact and derivation method. Conflicting
+values must remain explicit audit findings and must not be silently merged.
+Known publisher route suffix cleanup is a deterministic technical
+normalization, not an AI inference.
+
+The MCP contract should expose labeled PubMed, PMC full-text, DOI resolver,
+canonical publisher, and source-acquisition URLs where available. A machine
+acquisition endpoint such as PMC OAI must not be presented as the only
+physician-facing link when a stable article page can be derived locally.
+
 ## 2026-07-17: Continue Strict-Corpus Batch Expansion In Sequential 150-Record Chunks
 
 The first two post-handoff chunks, offsets 500 and 650 with limit 150 each,

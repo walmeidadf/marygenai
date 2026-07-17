@@ -49,18 +49,21 @@ uv run marygenai --help
 
 Current handoff state:
 
-- a first 500-document strict classification-ready Batch tranche is complete;
-- the tranche produced 500/500 strict-valid candidate records after
-  deterministic provenance-recorded technical repairs;
-- measured Batch cost was about USD 2.52, or about USD 0.00504 per document;
-- the next product validation step is a medical-team demo of the implemented
-  read-only retrieval/MCP surface over those 500 candidate records;
+- eight Batch runs produced 1,100/1,100 strict-valid candidate records with
+  evidence spans;
+- the isolated read-only retrieval index contains all 1,100 records and their
+  retrieval-confidence evaluations;
+- the next retrieval correction is to project locally available PMID, PMCID,
+  DOI, and physician-facing access URLs into the index with identifier-level
+  provenance;
+- the identity projection must remain local and read-only and must not update
+  SQLite, review state, or reviewed knowledge;
 - optional remaining-corpus Batch work may continue in sequential chunks only
   with explicit authorization.
 
 That read-only retrieval/MCP milestone now has a first implementation:
 
-- an isolated ignored DuckDB index over the four completed candidate runs;
+- an isolated ignored DuckDB index over eight completed candidate runs;
 - local build, inspect, and search commands;
 - MCP search, detail, facets, and capabilities tools over stdio;
 - runtime `read_only=True` enforcement with no SQLite, review, provider, or
@@ -69,7 +72,10 @@ That read-only retrieval/MCP milestone now has a first implementation:
 
 See [2026-07-11 Batch And MCP Handoff](docs/2026-07-11_batch_and_mcp_handoff.md)
 for run IDs, costs, artifact paths, continuation prompts, and Batch operating
-rules.
+rules. See
+[2026-07-17 Identity And MCP Handoff](docs/2026-07-17_identity_and_mcp_handoff.md)
+for the 1,100-record identity audit, URL findings, and the next implementation
+scope.
 
 Core source-intelligence flow:
 
