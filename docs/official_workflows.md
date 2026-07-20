@@ -387,6 +387,17 @@ the default five-minute interval and 288 checks, it can monitor a full 24-hour
 completion window. It does not mutate SQLite, review queues, review decisions,
 or reviewed knowledge.
 
+For the standard 150-record sequential workflow, the thin orchestration script
+accepts only the dataset offset and runs prepare, submit, and watch in order:
+
+```bash
+uv run python scripts/run_classification_batch.py 1400
+```
+
+The script extracts the generated run ID from `prepare-batch`, verifies the
+expected local artifacts before each remote step, and preserves the same
+one-sub-batch-at-a-time operating rule.
+
 Provider-side Batch and File objects expose `expires_at` timestamps. Treat those
 timestamps as the authoritative retrieval deadline for a specific run and keep
 `watch-batch` running when possible so completed outputs are copied into local
