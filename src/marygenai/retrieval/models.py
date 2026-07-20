@@ -4,8 +4,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-RETRIEVAL_INDEX_SCHEMA_VERSION = "candidate_retrieval_index.v1"
-RETRIEVAL_API_VERSION = "candidate_retrieval_api.v1"
+RETRIEVAL_INDEX_SCHEMA_VERSION = "candidate_retrieval_index.v2"
+RETRIEVAL_API_VERSION = "candidate_retrieval_api.v2"
 RETRIEVAL_CONFIDENCE_SEMANTICS = (
     "Deterministic heuristic retrieval-ranking signal; not a calibrated probability "
     "and not clinical evidence strength."
@@ -125,6 +125,51 @@ class SourceIdentity(BaseModel):
     publication_year: int | None = None
 
 
+class IdentifierProvenance(BaseModel):
+    source_kind: str
+    source_artifact_path: str
+    extraction_method: str
+    raw_value: str
+    normalization_rule: str | None = None
+
+
+class IdentifierCandidateValue(BaseModel):
+    value: str
+    provenance: list[IdentifierProvenance]
+
+
+class ProjectedIdentifier(BaseModel):
+    identifier_type: Literal["pmid", "pmcid", "doi"]
+    value: str | None = None
+    status: Literal["accepted", "conflict", "unavailable"]
+    candidate_values: list[IdentifierCandidateValue]
+
+
+class IdentifierConflict(BaseModel):
+    identifier_type: Literal["pmid", "pmcid", "doi"]
+    candidate_values: list[IdentifierCandidateValue]
+
+
+class IdentityUrl(BaseModel):
+    label: str
+    url: str
+    url_kind: Literal["pubmed", "pmc_full_text", "doi", "canonical", "source"]
+    physician_facing: bool
+    derived_from: dict[str, str] | None = None
+    selection_rule: str | None = None
+
+
+class ProjectedIdentity(BaseModel):
+    pmid: str | None = None
+    pmcid: str | None = None
+    doi: str | None = None
+    status: Literal["consistent", "conflict"]
+    identifiers: list[ProjectedIdentifier]
+    conflicts: list[IdentifierConflict]
+    identity_urls: list[IdentityUrl]
+    preferred_access_url: IdentityUrl | None = None
+
+
 class RetrievalConfidence(BaseModel):
     score: float | None = None
     band: str | None = None
@@ -142,6 +187,8 @@ class StudySearchResult(BaseModel):
     document_id: str
     classification_id: str
     source_identity: SourceIdentity
+    original_corpus_identity: SourceIdentity
+    projected_identity: ProjectedIdentity
     retrieval_metadata: dict[str, Any]
     classification_confidence: str
     retrieval_confidence: RetrievalConfidence
@@ -191,6 +238,8 @@ class StudyDetailResponse(BaseModel):
     api_version: str = RETRIEVAL_API_VERSION
     document_id: str
     source_identity: SourceIdentity
+    original_corpus_identity: SourceIdentity
+    projected_identity: ProjectedIdentity
     source_text_path: str
     source_text_sha256: str
     source_trust_level: str | None = None

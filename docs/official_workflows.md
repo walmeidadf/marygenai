@@ -16,8 +16,8 @@ generated data, raw source payloads, PDFs, or private legacy exports.
 
 ## Read-Only Retrieval And MCP Workflow
 
-Build the isolated candidate index from the eight currently approved runs (the
-first 500 records plus four 150-record continuation chunks), the classification
+Build the isolated candidate index from the ten currently approved runs (the
+first 500 records plus six 150-record continuation chunks), the classification
 corpus, and their latest evaluation reports:
 
 ```bash

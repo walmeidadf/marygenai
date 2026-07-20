@@ -1,5 +1,19 @@
 # 2026-07-17 Identity And MCP Handoff
 
+## 2026-07-20 Implementation Update
+
+The proposed read-only identity projection is implemented in retrieval index
+schema v2. The original 1,100-record audit reproduced exactly after structured
+source parsing: PMID 1,087, PMCID 990, DOI 1,071, with 958 documents carrying
+all three identifiers, 132 carrying two, 10 carrying one, and no conflicts.
+
+Two later 150-record Batch runs at offsets 1,100 and 1,250 completed and were
+retrieved before expiry. The rebuilt ignored index now contains 1,400 candidates
+with projected coverage PMID 1,387, PMCID 1,290, and DOI 1,368. It exposes
+original corpus identity separately from projected identity, identifier-level
+provenance, conflicts, labeled identity URLs, and a deterministic preferred
+physician-facing link. SQLite and review state remain untouched.
+
 ## Session Outcome
 
 MaryGenAI's ignored read-only DuckDB index contains 1,100 unique

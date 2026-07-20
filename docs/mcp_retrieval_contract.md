@@ -3,7 +3,7 @@
 ## Status
 
 This document describes the first implemented MaryGenAI retrieval-index and MCP
-contract over the 500-document broad/v3 candidate tranche.
+contract over the current 1,400-document broad/v3 candidate tranche.
 
 The interface returns AI-classified candidate evidence. It does not return
 reviewed clinical truth, medical advice, or treatment recommendations.
@@ -26,7 +26,7 @@ review, or persistence tools.
 
 ## Supported Commands
 
-Build the default first-500 index:
+Build the default 1,400-document index:
 
 ```bash
 uv run marygenai retrieval build-index
@@ -108,6 +108,9 @@ The response includes:
 - host-declared unsupported dimensions;
 - an empty `relaxations` list in v1;
 - compact source identity and candidate retrieval metadata;
+- original corpus identity and the separate projected bibliographic identity;
+- identifier-level provenance, explicit conflicts, labeled identity URLs, and
+  the deterministic preferred physician-facing access URL;
 - classification and retrieval confidence with separate semantics;
 - declared uncertainty and review state;
 - deterministic match explanations;
@@ -122,7 +125,11 @@ probability or clinical evidence strength.
 
 Returns one complete candidate record with:
 
-- bibliographic identity;
+- original corpus identity and projected bibliographic identity;
+- every PMID, PMCID, and DOI candidate with source artifact, extraction method,
+  raw value, normalization rule, and conflict status;
+- labeled PubMed, PMC full-text, DOI, canonical, and acquisition URLs;
+- a deterministic `preferred_access_url` that never prefers a machine endpoint;
 - source text path and SHA-256;
 - source trust level;
 - every v3 candidate field and evidence span;
@@ -136,6 +143,30 @@ Returns one complete candidate record with:
 
 `not_flagged_for_review` means only that the evaluator did not place a span on
 the grounding-review worklist. It is not a human-review claim.
+
+## Bibliographic Identity And Access Links
+
+`original_corpus_identity` preserves the source corpus values unchanged.
+`projected_identity` is derived locally from structured corpus fields,
+primary-article HTML/NXML metadata, source-routing records, and cached
+enrichment metadata. The projection does not update SQLite, candidate records,
+review state, or reviewed knowledge.
+
+An identifier is projected only when all accepted local evidence normalizes to
+one value. Multiple distinct normalized values produce `status=conflict`, a
+null projected value, and explicit candidate values with provenance. Source
+precedence never resolves a conflict silently. The narrow
+`frontiers_full_route_suffix.v1` rule removes `/full` only from DOI-shaped
+Frontiers article routes.
+
+`identity_urls` labels PubMed, PMC full-text, DOI resolver, canonical, and
+source-acquisition links. `preferred_access_url` selects the first available
+physician-facing link in this order: PMC full text, PubMed, DOI, canonical, then
+source. PMC OAI and other machine acquisition endpoints remain visible for
+provenance but are never preferred. The contract does not claim URL health,
+open-access status, or full-text availability without supporting provenance.
+
+## Remaining MCP Tools
 
 ### `get_facets`
 
@@ -176,7 +207,7 @@ Every response states:
 
 ## Known V1 Limits
 
-- The index covers a bounded 500-document tranche, not the complete corpus.
+- The index covers a bounded 1,400-document tranche, not the complete corpus.
 - V3 does not reliably structure dose, route, formulation, comparator, duration,
   study period, detailed age group, sex or gender, sample size, country,
   comorbidity, outcome entity, or adverse-event entity.

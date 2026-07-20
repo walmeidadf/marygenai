@@ -1,5 +1,32 @@
 # Decision Log
 
+## 2026-07-20: Project Bibliographic Identity Without Rewriting Corpus State
+
+The retrieval index now builds a separate `projected_identity` from existing
+local structured metadata while preserving `original_corpus_identity`
+unchanged. Identifier candidates retain source artifact, extraction method, raw
+value, and normalization rule. Multiple distinct normalized values create an
+explicit conflict and suppress the singular projected value; source precedence
+does not resolve conflicts silently.
+
+The response contract exposes labeled PubMed, PMC full-text, DOI, canonical,
+and acquisition URLs. The preferred physician-facing link order is PMC full
+text, PubMed, DOI, canonical, then a non-machine source URL. Machine acquisition
+routes remain provenance only. No URL is represented as live or open access
+without indexed support.
+
+The rebuilt ignored index contains 1,400 unique candidates from ten completed
+Batch runs. Local identity projection yields PMID for 1,387 documents, PMCID for
+1,290, and DOI for 1,368: 1,255 documents have all three identifiers, 135 have
+two, and 10 have one. No conflicts remain after conservative source parsing and
+the narrow Frontiers `/full` normalization.
+
+The two newest runs, offsets 1,100 and 1,250, completed 300/300 remote requests
+with zero failures and converted to 300 strict-valid candidate records with
+evidence spans. Their outputs were retrieved before provider expiry. Candidate
+records and identity projections remain ignored local evidence, not reviewed
+knowledge.
+
 ## 2026-07-17: Treat Retrieval Identity Completeness As A Read-Only Projection
 
 The 1,100-document retrieval index faithfully copies the sparse bibliographic

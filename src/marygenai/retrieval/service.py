@@ -13,6 +13,7 @@ from marygenai.retrieval.models import (
     FacetsResponse,
     FacetValue,
     MatchExplanation,
+    ProjectedIdentity,
     RetrievalConfidence,
     SearchCapabilities,
     SearchRequest,
@@ -187,6 +188,12 @@ class RetrievalService:
         )
 
     @staticmethod
+    def _identity_contract(row: dict[str, Any]) -> tuple[SourceIdentity, ProjectedIdentity]:
+        original = SourceIdentity.model_validate(json.loads(row["original_corpus_identity_json"]))
+        projected = ProjectedIdentity.model_validate(json.loads(row["projected_identity_json"]))
+        return original, projected
+
+    @staticmethod
     def _matched_filters(request: SearchRequest) -> list[str]:
         matched: list[str] = []
         for field_name in FILTER_FAMILIES:
@@ -217,7 +224,8 @@ class RetrievalService:
                     d.canonical_url, d.source_url, d.publication_year,
                     d.classification_confidence, d.retrieval_confidence_score,
                     d.retrieval_confidence_band, d.retrieval_confidence_version,
-                    d.has_uncertainty, d.review_state, d.classification_json
+                    d.has_uncertainty, d.review_state, d.classification_json,
+                    d.original_corpus_identity_json, d.projected_identity_json
                 FROM documents d
                 WHERE {where_clause}
                 ORDER BY d.retrieval_confidence_score DESC NULLS LAST,
@@ -236,11 +244,14 @@ class RetrievalService:
         matched = self._matched_filters(request)
         for row in rows:
             classification = json.loads(row.pop("classification_json"))
+            original_identity, projected_identity = self._identity_contract(row)
             results.append(
                 StudySearchResult(
                     document_id=row["document_id"],
                     classification_id=row["classification_id"],
                     source_identity=self._source_identity(row),
+                    original_corpus_identity=original_identity,
+                    projected_identity=projected_identity,
                     retrieval_metadata={
                         "medical_conditions": classification["medical_conditions"],
                         "cannabinoids_or_exposures": classification["cannabinoids_or_exposures"],
@@ -337,9 +348,12 @@ class RetrievalService:
             else None
         )
         review_rows = json.loads(row["grounding_review_json"])
+        original_identity, projected_identity = self._identity_contract(row)
         return StudyDetailResponse(
             document_id=document_id,
             source_identity=self._source_identity(row),
+            original_corpus_identity=original_identity,
+            projected_identity=projected_identity,
             source_text_path=row["source_text_path"],
             source_text_sha256=row["source_text_sha256"],
             source_trust_level=row["source_trust_level"],
@@ -374,6 +388,52 @@ class RetrievalService:
         if manifest_path.exists():
             return json.loads(manifest_path.read_text(encoding="utf-8"))
         return dict(self._metadata)
+
+    def identity_coverage(self) -> dict[str, Any]:
+        connection = self._connect()
+        try:
+            row = connection.execute(
+                """
+                SELECT
+                    COUNT(*) AS document_count,
+                    COUNT(pmid) AS pmid_count,
+                    COUNT(pmcid) AS pmcid_count,
+                    COUNT(doi) AS doi_count,
+                    SUM(
+                        CASE WHEN identity_status = 'conflict' THEN 1 ELSE 0 END
+                    ) AS conflict_documents,
+                    SUM(identity_conflict_count) AS identifier_conflicts,
+                    SUM(
+                        CASE WHEN pmid IS NOT NULL AND pmcid IS NOT NULL
+                            AND doi IS NOT NULL THEN 1 ELSE 0 END
+                    ) AS all_three,
+                    SUM(
+                        CASE WHEN ((pmid IS NOT NULL)::INTEGER
+                            + (pmcid IS NOT NULL)::INTEGER
+                            + (doi IS NOT NULL)::INTEGER) = 2 THEN 1 ELSE 0 END
+                    ) AS two_identifiers,
+                    SUM(
+                        CASE WHEN ((pmid IS NOT NULL)::INTEGER
+                            + (pmcid IS NOT NULL)::INTEGER
+                            + (doi IS NOT NULL)::INTEGER) = 1 THEN 1 ELSE 0 END
+                    ) AS one_identifier
+                FROM documents
+                """
+            ).fetchone()
+        finally:
+            connection.close()
+        names = (
+            "document_count",
+            "pmid",
+            "pmcid",
+            "doi",
+            "conflict_documents",
+            "identifier_conflicts",
+            "all_three_identifiers",
+            "two_identifiers",
+            "one_identifier",
+        )
+        return dict(zip(names, row, strict=True))
 
     def capabilities(self) -> SearchCapabilities:
         connection = self._connect()

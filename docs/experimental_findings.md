@@ -56,6 +56,16 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
 
 ## Read-Only Candidate Retrieval
 
+- The implemented identity projection and two additional 150-record Batch runs
+  expanded the ignored index to 1,400 unique candidates across ten runs. PMID
+  is projected for 1,387 documents, PMCID for 1,290, and DOI for 1,368. The
+  combinations are 1,255 documents with all three identifiers, 135 with two,
+  and 10 with one; conservative parsing reports zero conflicts.
+- The offset-1,100 and offset-1,250 Batches completed 300/300 requests with zero
+  remote failures. Local conversion produced 300 strict-valid records and
+  evidence spans for all 300. Provider expiry did not affect either run because
+  both output files were retrieved and converted locally after completion.
+
 - The isolated DuckDB index was rebuilt from eight completed broad/v3 Batch
   runs, the classification corpus, and the latest evaluation report for each
   run. It contains 1,100 unique candidate documents and retrieval-confidence

@@ -73,6 +73,7 @@ def inspect_index(
         {
             "manifest": service.manifest(),
             "capabilities": service.capabilities().model_dump(mode="json"),
+            "identity_coverage": service.identity_coverage(),
             "facets": service.facets(empty_request, top=15).model_dump(mode="json"),
         }
     )

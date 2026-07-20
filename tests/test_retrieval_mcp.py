@@ -10,6 +10,12 @@ from mcp.client.session import ClientSession
 from mcp.shared.memory import create_connected_server_and_client_session
 
 from marygenai.mcp_server import create_mcp_server
+from marygenai.retrieval.identity import (
+    build_identity_urls,
+    choose_preferred_access_url,
+    normalize_identifier,
+    project_bibliographic_identities,
+)
 from marygenai.retrieval.index import build_retrieval_index, normalize_match_key
 from marygenai.retrieval.models import FilterGroup, SearchFilters, SearchRequest
 from marygenai.retrieval.service import RetrievalService
@@ -128,7 +134,7 @@ def retrieval_index(tmp_path: Path) -> Path:
                 "document_id": record["document_id"],
                 "primary_title": f"Title for {record['document_id']}",
                 "doi": f"10.1000/{index}",
-                "pmid": str(1000 + index),
+                "pmid": str(10000 + index),
                 "pmcid": None,
                 "canonical_url": f"https://doi.org/10.1000/{index}",
                 "source_url": f"https://example.test/{index}",
@@ -198,6 +204,59 @@ def test_normalize_match_key_consolidates_case_and_trailing_abbreviations() -> N
     assert normalize_match_key("Cannabinoid (unspecified)") == "cannabinoid unspecified"
 
 
+def test_identity_normalization_and_physician_facing_link_selection() -> None:
+    assert normalize_identifier("doi", "10.3389/fneur.2022.818522/full") == (
+        "10.3389/fneur.2022.818522",
+        "frontiers_full_route_suffix.v1",
+    )
+    assert normalize_identifier("doi", "10.1000/example/full") == (
+        "10.1000/example/full",
+        "lowercase_and_trim_punctuation.v1",
+    )
+    urls = build_identity_urls(
+        {
+            "canonical_url": "https://publisher.test/article",
+            "source_url": "https://pmc.ncbi.nlm.nih.gov/api/oai/v1/mh/?verb=GetRecord",
+        },
+        {"pmid": "12345678", "pmcid": "PMC123456", "doi": "10.1000/example"},
+    )
+    preferred = choose_preferred_access_url(urls)
+    assert preferred is not None
+    assert preferred["url_kind"] == "pmc_full_text"
+    assert next(row for row in urls if row["url_kind"] == "source")["physician_facing"] is False
+
+
+def test_identity_projection_preserves_original_conflicts_explicitly(tmp_path: Path) -> None:
+    source = tmp_path / "article.nxml"
+    source.write_text(
+        '<article-meta><article-id pub-id-type="doi">10.1000/source</article-id>'
+        "</article-meta>",
+        encoding="utf-8",
+    )
+    document_id = "publication:test:conflict"
+    projection = project_bibliographic_identities(
+        data_dir=tmp_path,
+        corpus={
+            document_id: {
+                "document_id": document_id,
+                "doi": "10.1000/corpus",
+                "pmid": None,
+                "pmcid": None,
+                "canonical_url": "https://publisher.test/article",
+                "source_url": None,
+            }
+        },
+        candidates=[{"document_id": document_id, "source_text_path": str(source)}],
+    )[document_id]
+    assert projection["status"] == "conflict"
+    assert projection["doi"] is None
+    assert {row["value"] for row in projection["conflicts"][0]["candidate_values"]} == {
+        "10.1000/corpus",
+        "10.1000/source",
+    }
+    assert all(row["url_kind"] != "doi" for row in projection["identity_urls"])
+
+
 def test_search_supports_aliases_all_filters_pagination_and_trace(
     retrieval_index: Path,
 ) -> None:
@@ -220,6 +279,9 @@ def test_search_supports_aliases_all_filters_pagination_and_trace(
     assert response.next_cursor is None
     assert response.results[0].document_id == "publication:test:1"
     assert response.results[0].match.not_represented == ["dose", "comparator"]
+    assert response.results[0].original_corpus_identity.pmid == "10001"
+    assert response.results[0].projected_identity.pmid == "10001"
+    assert response.results[0].projected_identity.preferred_access_url is not None
     assert response.search_trace.relaxations == []
     assert response.trust_boundary.medical_advice is False
 
@@ -253,6 +315,9 @@ def test_facets_consolidate_aliases_and_detail_preserves_candidate_provenance(
     assert detail.grounding_review["flagged_span_count"] == 1
     assert detail.candidate_classification["evidence_spans"]
     assert detail.provenance["prompt_version"] == "candidate_study_classification_prompt.v5"
+    assert detail.original_corpus_identity.doi == "10.1000/1"
+    assert detail.projected_identity.doi == "10.1000/1"
+    assert service.identity_coverage()["identifier_conflicts"] == 0
 
 
 def test_retrieval_runtime_connection_rejects_writes(retrieval_index: Path) -> None:
@@ -312,4 +377,6 @@ async def test_mcp_exposes_only_read_only_candidate_retrieval_tools(
     )
     assert result.isError is False
     assert result.structuredContent["total"] == 1
+    projected = result.structuredContent["results"][0]["projected_identity"]
+    assert projected["preferred_access_url"]["url_kind"] == "pubmed"
     assert result.structuredContent["trust_boundary"]["medical_advice"] is False

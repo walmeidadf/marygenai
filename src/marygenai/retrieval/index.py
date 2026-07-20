@@ -12,6 +12,7 @@ from typing import Any
 import duckdb
 
 from marygenai.classification.models import CandidateStudyClassification
+from marygenai.retrieval.identity import project_bibliographic_identities
 from marygenai.retrieval.models import (
     RETRIEVAL_INDEX_SCHEMA_VERSION,
     TRUST_NOTICE,
@@ -27,6 +28,8 @@ DEFAULT_CLASSIFICATION_RUN_IDS = (
     "20260717T111520Z",
     "20260717T113729Z",
     "20260717T120705Z",
+    "20260717T210755Z",
+    "20260718T160108Z",
 )
 DEFAULT_INDEX_RELATIVE_PATH = Path(
     "normalized/retrieval_indexes/marygenai_candidate_retrieval_v1.duckdb"
@@ -225,6 +228,9 @@ def build_retrieval_index(
         raise ValueError(
             f"Candidate documents missing from the source corpus: {', '.join(missing_corpus[:10])}"
         )
+    identity_projections = project_bibliographic_identities(
+        data_dir=data_dir, corpus=corpus, candidates=candidates
+    )
 
     resolved_report_paths = _resolve_report_paths(
         data_dir,
@@ -336,7 +342,11 @@ def build_retrieval_index(
                 corpus_json VARCHAR NOT NULL,
                 retrieval_confidence_json VARCHAR,
                 grounding_review_json VARCHAR NOT NULL,
-                grounding_review_count INTEGER NOT NULL
+                grounding_review_count INTEGER NOT NULL,
+                original_corpus_identity_json VARCHAR NOT NULL,
+                projected_identity_json VARCHAR NOT NULL,
+                identity_status VARCHAR NOT NULL,
+                identity_conflict_count INTEGER NOT NULL
             );
             CREATE TABLE facets (
                 document_id VARCHAR NOT NULL,
@@ -368,6 +378,7 @@ def build_retrieval_index(
         for record in sorted(candidates, key=lambda item: item["document_id"]):
             document_id = record["document_id"]
             corpus_row = corpus[document_id]
+            identity = identity_projections[document_id]
             confidence = retrieval_confidence.get(document_id)
             review_rows = grounding_review.get(document_id, [])
             condition_text = [
@@ -401,9 +412,9 @@ def build_retrieval_index(
                     record["classification_id"],
                     record["classification_run_id"],
                     corpus_row.get("primary_title"),
-                    corpus_row.get("doi"),
-                    corpus_row.get("pmid"),
-                    corpus_row.get("pmcid"),
+                    identity.get("doi"),
+                    identity.get("pmid"),
+                    identity.get("pmcid"),
                     corpus_row.get("canonical_url"),
                     corpus_row.get("source_url"),
                     corpus_row.get("publication_year"),
@@ -430,11 +441,26 @@ def build_retrieval_index(
                     _json(confidence) if confidence else None,
                     _json(review_rows),
                     len(review_rows),
+                    _json(
+                        {
+                            "document_id": document_id,
+                            "title": corpus_row.get("primary_title"),
+                            "doi": corpus_row.get("doi"),
+                            "pmid": corpus_row.get("pmid"),
+                            "pmcid": corpus_row.get("pmcid"),
+                            "canonical_url": corpus_row.get("canonical_url"),
+                            "source_url": corpus_row.get("source_url"),
+                            "publication_year": corpus_row.get("publication_year"),
+                        }
+                    ),
+                    _json(identity),
+                    identity["status"],
+                    len(identity["conflicts"]),
                 )
             )
             facet_rows.extend(_facet_rows(record))
 
-        placeholders = ", ".join("?" for _ in range(33))
+        placeholders = ", ".join("?" for _ in range(37))
         connection.executemany(
             f"INSERT INTO documents VALUES ({placeholders})",
             document_rows,
