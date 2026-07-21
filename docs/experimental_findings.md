@@ -57,10 +57,12 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
 ## Read-Only Candidate Retrieval
 
 - The implemented identity projection and two additional 150-record Batch runs
-  expanded the ignored index to 1,400 unique candidates across ten runs. PMID
-  is projected for 1,387 documents, PMCID for 1,290, and DOI for 1,368. The
-  combinations are 1,255 documents with all three identifiers, 135 with two,
-  and 10 with one; conservative parsing reports zero conflicts.
+  first expanded the ignored index to 1,400 unique candidates across ten runs.
+  After offsets 1,400 and 1,550 plus the targeted retry, the index contains
+  1,700 candidates across thirteen classification runs. PMID is projected for
+  1,687 documents, PMCID for 1,590, and DOI for 1,668. The combinations are
+  1,555 documents with all three identifiers, 135 with two, and 10 with one;
+  conservative parsing reports zero conflicts.
 - The offset-1,100 and offset-1,250 Batches completed 300/300 requests with zero
   remote failures. Local conversion produced 300 strict-valid records and
   evidence spans for all 300. Provider expiry did not affect either run because
@@ -132,6 +134,10 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
   successful responses converted to strict-valid candidate records, so the safe
   recovery is a targeted retry of the 33 failed custom IDs rather than repeating
   the full offset and duplicating successful inference cost.
+- The targeted retry completed 33/33 requests with zero errors. Combined with
+  the 117 original successes, offset 1,400 reached 150/150 strict-valid records.
+  Offset 1,550 separately reached 150/150, allowing the read-only retrieval
+  index to expand from 1,400 to 1,700 unique candidate documents.
 - The offset-650, limit-150 Batch run (`20260717T111520Z`) completed 150/150
   remote requests with HTTP 200 and `finish_reason=stop`, zero failed requests,
   and no Batch error file. It used 1,045,488 input tokens and 163,595 output

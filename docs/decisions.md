@@ -36,6 +36,14 @@ evidence spans. Their outputs were retrieved before provider expiry. Candidate
 records and identity projections remain ignored local evidence, not reviewed
 knowledge.
 
+The index was expanded to 1,700 unique candidates after offsets 1,400 and 1,550.
+The offset-1,400 Batch contributed 117 successful records and its targeted retry
+contributed the remaining 33; offset 1,550 contributed 150. All 300 combined
+records are strict-valid candidate evidence with evidence spans.
+
+The updated identity projection covers PMID for 1,687 documents, PMCID for
+1,590, and DOI for 1,668, with zero identifier conflicts.
+
 ## 2026-07-17: Treat Retrieval Identity Completeness As A Read-Only Projection
 
 The 1,100-document retrieval index faithfully copies the sparse bibliographic

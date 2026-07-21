@@ -30,6 +30,9 @@ DEFAULT_CLASSIFICATION_RUN_IDS = (
     "20260717T120705Z",
     "20260717T210755Z",
     "20260718T160108Z",
+    "20260720T133501Z",
+    "20260720T192132Z",
+    "20260721T145348Z",
 )
 DEFAULT_INDEX_RELATIVE_PATH = Path(
     "normalized/retrieval_indexes/marygenai_candidate_retrieval_v1.duckdb"

@@ -49,9 +49,9 @@ uv run marygenai --help
 
 Current handoff state:
 
-- ten Batch runs produced 1,400/1,400 strict-valid candidate records with
-  evidence spans;
-- the isolated read-only retrieval index contains all 1,400 records and their
+- thirteen Batch classification runs, including one targeted retry, produced
+  1,700/1,700 strict-valid candidate records with evidence spans;
+- the isolated read-only retrieval index contains all 1,700 records and their
   retrieval-confidence evaluations;
 - the index projects locally available PMID, PMCID, DOI, and physician-facing
   access URLs with identifier-level provenance and explicit conflict handling;
@@ -62,7 +62,7 @@ Current handoff state:
 
 That read-only retrieval/MCP milestone now has a first implementation:
 
-- an isolated ignored DuckDB index over ten completed candidate runs;
+- an isolated ignored DuckDB index over thirteen completed candidate runs;
 - local build, inspect, and search commands;
 - MCP search, detail, facets, and capabilities tools over stdio;
 - runtime `read_only=True` enforcement with no SQLite, review, provider, or
@@ -74,7 +74,7 @@ for run IDs, costs, artifact paths, continuation prompts, and Batch operating
 rules. See
 [2026-07-17 Identity And MCP Handoff](docs/2026-07-17_identity_and_mcp_handoff.md)
 for the original 1,100-record identity audit and URL findings. The implemented
-projection now covers 1,400 documents.
+projection now covers 1,700 documents.
 
 Core source-intelligence flow:
 
