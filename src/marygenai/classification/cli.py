@@ -20,6 +20,7 @@ from marygenai.classification.pipeline import (
     DEFAULT_OPENAI_MODEL,
     DEFAULT_PROMPT_SOURCE_CHARS,
     build_classification_prompt_packets,
+    prepare_failed_openai_batch_retry,
     prepare_openai_batch_requests,
     retrieve_and_convert_openai_batch,
     run_classification_smoke,
@@ -236,6 +237,33 @@ def prepare_batch(
             model=model,
             max_completion_tokens=max_completion_tokens,
             max_estimated_enqueued_tokens=max_estimated_enqueued_tokens,
+        )
+    except ValueError as exc:
+        console.print({"error": str(exc)})
+        raise typer.Exit(1) from exc
+    console.print(result)
+
+
+@app.command("prepare-batch-retry")
+def prepare_batch_retry(
+    batch_input_path: Annotated[
+        Path, typer.Option("--batch-input-path", help="Original Batch input JSONL path.")
+    ],
+    manifest_path: Annotated[
+        Path, typer.Option("--manifest-path", help="Original Batch manifest JSONL path.")
+    ],
+    error_output_path: Annotated[
+        Path, typer.Option("--error-output-path", help="Downloaded Batch error JSONL path.")
+    ],
+) -> None:
+    """Prepare a local retry Batch containing only remotely failed requests."""
+    settings = get_settings()
+    try:
+        result = prepare_failed_openai_batch_retry(
+            storage=LocalStorage(settings.data_dir),
+            batch_input_path=batch_input_path,
+            manifest_path=manifest_path,
+            error_output_path=error_output_path,
         )
     except ValueError as exc:
         console.print({"error": str(exc)})

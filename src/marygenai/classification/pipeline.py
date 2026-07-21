@@ -1235,6 +1235,94 @@ def prepare_openai_batch_requests(
     }
 
 
+def prepare_failed_openai_batch_retry(
+    *,
+    storage: LocalStorage,
+    batch_input_path: Path,
+    manifest_path: Path,
+    error_output_path: Path,
+    run_id: str | None = None,
+) -> dict[str, Any]:
+    """Prepare a new local Batch containing only remotely failed requests."""
+    resolved_run_id = run_id or new_run_id()
+    requests = read_jsonl(batch_input_path)
+    manifests = read_jsonl(manifest_path)
+    error_entries = read_jsonl(error_output_path)
+    failed_custom_ids = {
+        str(entry["custom_id"])
+        for entry in error_entries
+        if entry.get("custom_id")
+        and int((entry.get("response") or {}).get("status_code") or 0) >= 400
+    }
+    if not failed_custom_ids:
+        raise ValueError("The Batch error output contains no failed custom IDs.")
+
+    requests_by_id = {str(item["custom_id"]): item for item in requests}
+    manifests_by_id = {str(item["custom_id"]): item for item in manifests}
+    missing_requests = sorted(failed_custom_ids - requests_by_id.keys())
+    missing_manifests = sorted(failed_custom_ids - manifests_by_id.keys())
+    if missing_requests or missing_manifests:
+        raise ValueError(
+            "Failed custom IDs were not found in the original artifacts: "
+            f"missing_requests={missing_requests}, missing_manifests={missing_manifests}."
+        )
+
+    retry_requests: list[dict[str, Any]] = []
+    retry_manifests: list[dict[str, Any]] = []
+    for original_custom_id in sorted(failed_custom_ids):
+        custom_id_suffix = original_custom_id.rsplit(":", 1)[-1]
+        retry_custom_id = f"classification_batch:{resolved_run_id}:{custom_id_suffix}"
+        request = {**requests_by_id[original_custom_id], "custom_id": retry_custom_id}
+        manifest = {
+            **manifests_by_id[original_custom_id],
+            "batch_run_id": resolved_run_id,
+            "custom_id": retry_custom_id,
+            "provenance": {
+                **(manifests_by_id[original_custom_id].get("provenance") or {}),
+                "method": "openai_batch_failed_request_retry_prepare",
+                "retry_of_custom_id": original_custom_id,
+                "retry_error_output_path": str(error_output_path),
+                "does_not_call_llm": True,
+                "does_not_upload_file": True,
+                "does_not_create_batch": True,
+                "does_not_mutate_sqlite": True,
+            },
+        }
+        retry_requests.append(request)
+        retry_manifests.append(manifest)
+
+    output_dir = storage.path(Path("normalized/classification_batches"))
+    retry_input_path = write_dict_jsonl(
+        output_dir / f"{resolved_run_id}_openai_batch_input.jsonl", retry_requests
+    )
+    retry_manifest_path = write_dict_jsonl(
+        output_dir / f"{resolved_run_id}_openai_batch_manifest.jsonl", retry_manifests
+    )
+    summary = {
+        "run_id": resolved_run_id,
+        "retry_of_batch_input_path": str(batch_input_path),
+        "retry_of_manifest_path": str(manifest_path),
+        "retry_error_output_path": str(error_output_path),
+        "batch_input_path": str(retry_input_path),
+        "manifest_path": str(retry_manifest_path),
+        "counts": {
+            "failed_error_entries": len(error_entries),
+            "unique_failed_custom_ids": len(failed_custom_ids),
+            "batch_requests": len(retry_requests),
+        },
+        "notes": [
+            "Only remotely failed requests from the supplied Batch error output are included.",
+            "Preparation is local and does not call a model or mutate SQLite or review state.",
+        ],
+    }
+    summary_path = storage.write_json(
+        Path("normalized/classification_batches")
+        / f"{resolved_run_id}_openai_batch_retry_prepare_summary.json",
+        summary,
+    )
+    return {**summary, "summary_path": str(summary_path)}
+
+
 def openai_headers(api_key: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {api_key}"}
 

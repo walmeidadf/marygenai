@@ -127,6 +127,11 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
 
 ## Classification
 
+- A 150-request continuation Batch at offset 1,400 completed only 117 requests;
+  33 requests returned provider HTTP 500 `server_error` responses. The 117
+  successful responses converted to strict-valid candidate records, so the safe
+  recovery is a targeted retry of the 33 failed custom IDs rather than repeating
+  the full offset and duplicating successful inference cost.
 - The offset-650, limit-150 Batch run (`20260717T111520Z`) completed 150/150
   remote requests with HTTP 200 and `finish_reason=stop`, zero failed requests,
   and no Batch error file. It used 1,045,488 input tokens and 163,595 output

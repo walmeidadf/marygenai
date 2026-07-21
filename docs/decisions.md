@@ -1,5 +1,14 @@
 # Decision Log
 
+## 2026-07-21: Retry Only Remotely Failed Batch Requests
+
+When a completed provider Batch contains request-level remote failures,
+MaryGenAI prepares a new Batch from the failed `custom_id` values in the
+downloaded error file. Successful requests are excluded. Retry artifacts receive
+a new run ID and preserve the original custom ID and error artifact path in
+provenance. This avoids duplicate inference and cost while keeping the recovery
+auditable and separate from schema repair.
+
 ## 2026-07-20: Project Bibliographic Identity Without Rewriting Corpus State
 
 The retrieval index now builds a separate `projected_identity` from existing

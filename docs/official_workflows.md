@@ -358,6 +358,21 @@ record. It does not mutate SQLite or reviewed knowledge. The API key must have
 permission to write batch files and create/read batches; restricted keys without
 Files API write scope cannot submit Batch inputs.
 
+If a completed Batch contains remote request failures, prepare a retry containing
+only the failed `custom_id` values from the downloaded error file:
+
+```bash
+uv run marygenai classification prepare-batch-retry \
+  --batch-input-path <original_openai_batch_input.jsonl> \
+  --manifest-path <original_openai_batch_manifest.jsonl> \
+  --error-output-path <original_openai_batch_error_output.jsonl>
+```
+
+Review the reported counts, then submit the generated retry input and manifest
+with `submit-batch`. Retry preparation rewrites run-scoped custom IDs, records
+the original custom ID and error artifact in provenance, and excludes successful
+requests.
+
 Retrieve status and, when complete, download and convert results:
 
 ```bash

@@ -8,6 +8,7 @@ import pytest
 from marygenai.classification.pipeline import (
     build_classification_prompt_packets,
     convert_openai_batch_outputs,
+    prepare_failed_openai_batch_retry,
     prepare_openai_batch_requests,
     repair_required_uncertainty_markers,
     run_classification_smoke,
@@ -451,6 +452,62 @@ def test_prepare_openai_batch_requests_can_filter_dataset_split(tmp_path: Path) 
 
     assert result["counts"]["batch_requests"] == 1
     assert manifest[0]["document_id"] == "publication:pmid:strict"
+
+
+def test_prepare_failed_openai_batch_retry_selects_only_remote_failures(
+    tmp_path: Path,
+) -> None:
+    data_dir = tmp_path / "data"
+    batch_input_path = data_dir / "original_input.jsonl"
+    manifest_path = data_dir / "original_manifest.jsonl"
+    error_output_path = data_dir / "original_errors.jsonl"
+    failed_id = "classification_batch:original:publication_pmid_failed"
+    successful_id = "classification_batch:original:publication_pmid_success"
+    write_jsonl(
+        batch_input_path,
+        [
+            {"custom_id": failed_id, "method": "POST", "url": "/v1/chat/completions"},
+            {"custom_id": successful_id, "method": "POST", "url": "/v1/chat/completions"},
+        ],
+    )
+    write_jsonl(
+        manifest_path,
+        [
+            {"batch_run_id": "original", "custom_id": failed_id, "document_id": "failed"},
+            {
+                "batch_run_id": "original",
+                "custom_id": successful_id,
+                "document_id": "success",
+            },
+        ],
+    )
+    write_jsonl(
+        error_output_path,
+        [{"custom_id": failed_id, "response": {"status_code": 500}}],
+    )
+
+    result = prepare_failed_openai_batch_retry(
+        storage=LocalStorage(data_dir),
+        batch_input_path=batch_input_path,
+        manifest_path=manifest_path,
+        error_output_path=error_output_path,
+        run_id="20260721T100000Z",
+    )
+
+    retry_requests = [
+        json.loads(line)
+        for line in Path(result["batch_input_path"]).read_text(encoding="utf-8").splitlines()
+    ]
+    retry_manifests = [
+        json.loads(line)
+        for line in Path(result["manifest_path"]).read_text(encoding="utf-8").splitlines()
+    ]
+    assert result["counts"]["batch_requests"] == 1
+    assert retry_requests[0]["custom_id"] == (
+        "classification_batch:20260721T100000Z:publication_pmid_failed"
+    )
+    assert retry_manifests[0]["document_id"] == "failed"
+    assert retry_manifests[0]["provenance"]["retry_of_custom_id"] == failed_id
 
 
 def test_prepare_openai_batch_requests_can_offset_after_dataset_split(tmp_path: Path) -> None:
