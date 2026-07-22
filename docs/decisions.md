@@ -1,5 +1,28 @@
 # Decision Log
 
+## 2026-07-22: Reconvert Downloaded Batch Outputs Locally
+
+Already-downloaded Batch output is reconverted through the supported
+`marygenai classification convert-batch-output` command. The command performs
+no provider or network operation and preserves the original run ID, Batch ID,
+manifest, raw response, and technical-repair provenance. This gives deterministic
+schema-repair changes a supported replay path without retrieving an expired
+remote artifact or submitting duplicate inference.
+
+Five sequential 150-record chunks at offsets 1,700 through 2,300 completed
+750/750 remote requests and produced 750/750 strict-valid candidate records with
+evidence spans after local conversion. Offset 2,000 contained one misplaced
+`study_design_subtype=in_vitro` context marker. It was deterministically mapped
+to the broad valid subtype `other`, marked uncertain, and recorded with its
+original value while preserving `study_design_category=laboratory_study` and
+`evidence_context=in_vitro_or_cellular`.
+
+The ignored read-only retrieval index now contains 2,450 candidates across 18
+classification runs. The projected identity covers PMID for 2,437 documents,
+PMCID for 1,980, and DOI for 2,412. One document contains conflicting identifier
+candidates; the conflict remains explicit and the singular projected value is
+suppressed according to the existing identity contract.
+
 ## 2026-07-21: Retry Only Remotely Failed Batch Requests
 
 When a completed provider Batch contains request-level remote failures,
@@ -41,8 +64,8 @@ The offset-1,400 Batch contributed 117 successful records and its targeted retry
 contributed the remaining 33; offset 1,550 contributed 150. All 300 combined
 records are strict-valid candidate evidence with evidence spans.
 
-The updated identity projection covers PMID for 1,687 documents, PMCID for
-1,590, and DOI for 1,668, with zero identifier conflicts.
+At that milestone, the identity projection covered PMID for 1,687 documents,
+PMCID for 1,590, and DOI for 1,668, with zero identifier conflicts.
 
 ## 2026-07-17: Treat Retrieval Identity Completeness As A Read-Only Projection
 

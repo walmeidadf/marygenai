@@ -9,8 +9,9 @@ all three identifiers, 132 carrying two, 10 carrying one, and no conflicts.
 
 Four later 150-record chunks through offset 1,550 completed and were retrieved.
 The offset-1,400 chunk required a 33-request targeted retry after provider HTTP
-500 errors. The rebuilt ignored index now contains 1,700 candidates with
-projected coverage PMID 1,687, PMCID 1,590, and DOI 1,668. It exposes
+500 errors. Five additional chunks at offsets 1,700 through 2,300 also completed
+and were validated locally. The rebuilt ignored index now contains 2,450
+candidates with projected coverage PMID 2,437, PMCID 1,980, and DOI 2,412. It exposes
 original corpus identity separately from projected identity, identifier-level
 provenance, conflicts, labeled identity URLs, and a deterministic preferred
 physician-facing link. SQLite and review state remain untouched.

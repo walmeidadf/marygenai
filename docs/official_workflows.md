@@ -380,6 +380,17 @@ uv run marygenai classification retrieve-batch \
   --submission-path <openai_batch_submission.json>
 ```
 
+To reconvert an already-downloaded output after a deterministic technical
+repair, without a provider call:
+
+```bash
+uv run marygenai classification convert-batch-output \
+  --run-id <run_id> \
+  --batch-id <batch_id> \
+  --manifest-path <openai_batch_manifest.jsonl> \
+  --output-path <openai_batch_output.jsonl>
+```
+
 If the remote Batch has completed, the command downloads output and error files
 under `data/normalized/classification_batches/`, converts successful responses
 into the standard candidate-classification artifacts under

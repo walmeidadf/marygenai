@@ -59,10 +59,15 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
 - The implemented identity projection and two additional 150-record Batch runs
   first expanded the ignored index to 1,400 unique candidates across ten runs.
   After offsets 1,400 and 1,550 plus the targeted retry, the index contains
-  1,700 candidates across thirteen classification runs. PMID is projected for
-  1,687 documents, PMCID for 1,590, and DOI for 1,668. The combinations are
-  1,555 documents with all three identifiers, 135 with two, and 10 with one;
-  conservative parsing reports zero conflicts.
+  1,700 candidates across thirteen classification runs. Five later chunks at
+  offsets 1,700 through 2,300 expanded it to 2,450 candidates across eighteen
+  runs. PMID is projected for 2,437 documents, PMCID for 1,980, and DOI for
+  2,412. The combinations are 1,943 documents with all three identifiers, 493
+  with two, and 14 with one; conservative parsing preserves one explicit
+  identifier conflict. `publication:pmid:21885577` has two locally sourced DOI
+  candidates, `10.1176/appi.ps.62.9.1007` and
+  `10.1176/ps.62.9.pss6209_1007`; the index suppresses the singular DOI while
+  retaining both candidates and their provenance for identity review.
 - The offset-1,100 and offset-1,250 Batches completed 300/300 requests with zero
   remote failures. Local conversion produced 300 strict-valid records and
   evidence spans for all 300. Provider expiry did not affect either run because
@@ -129,6 +134,23 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
 
 ## Classification
 
+- The five 150-record Batches at offsets 1,700, 1,850, 2,000, 2,150, and 2,300
+  completed 750/750 remote requests with HTTP 200 and `finish_reason=stop`.
+  They used 4,780,210 prompt tokens and 826,806 completion tokens, or 5,607,016
+  total. Under the standing half-price Batch cost assumption, estimated cost is
+  about USD 3.653, or USD 0.00487 per document.
+- Local conversion produced 750/750 strict-valid candidate records, evidence
+  spans for all 750 records, and 3,058 non-empty evidence spans. Offset 2,000
+  initially exposed one invalid `study_design_subtype=in_vitro` value. The
+  source-supported category and evidence context already identified a cellular
+  laboratory study, so the misplaced context marker was deterministically
+  normalized to the broad subtype `other`, marked uncertain, and recorded in
+  technical-repair provenance. Local reconversion then reached 150/150 without
+  a provider call or targeted rerun.
+- Deterministic grounding evaluation found 2,848 of the 3,058 spans grounded
+  with extraction tolerance and selected 210 spans for grounding review. The
+  worklist is candidate-quality evidence only; selection or non-selection does
+  not imply human review or clinical validity.
 - A 150-request continuation Batch at offset 1,400 completed only 117 requests;
   33 requests returned provider HTTP 500 `server_error` responses. The 117
   successful responses converted to strict-valid candidate records, so the safe

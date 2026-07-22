@@ -658,6 +658,31 @@ def test_repair_required_uncertainty_markers_normalizes_misplaced_meta_analysis_
     assert repairs[0]["original_value"] == "meta_analysis"
 
 
+def test_repair_required_uncertainty_markers_normalizes_in_vitro_subtype() -> None:
+    repaired = repair_required_uncertainty_markers(
+        {
+            "study_design_category": "laboratory_study",
+            "study_design_subtype": "in_vitro",
+            "evidence_context": "in_vitro_or_cellular",
+            "medical_conditions": [{"free_text_label": "lung cancer"}],
+            "cannabinoids_or_exposures": [{"free_text_label": "JWH-133"}],
+            "outcome_domains": ["efficacy", "mechanism"],
+            "population_or_model": {"category": "cells"},
+            "overall_direction": "beneficial",
+            "missing_or_uncertain_fields": [],
+            "provenance": {},
+        }
+    )
+
+    assert repaired["study_design_category"] == "laboratory_study"
+    assert repaired["study_design_subtype"] == "other"
+    assert repaired["evidence_context"] == "in_vitro_or_cellular"
+    assert repaired["missing_or_uncertain_fields"] == ["study_design_subtype"]
+    repairs = repaired["provenance"]["technical_schema_repairs"]
+    assert repairs[0]["original_value"] == "in_vitro"
+    assert repairs[0]["repaired_value"] == "other"
+
+
 def test_watch_openai_batch_stops_at_terminal_status(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

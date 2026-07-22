@@ -20,6 +20,7 @@ from marygenai.classification.pipeline import (
     DEFAULT_OPENAI_MODEL,
     DEFAULT_PROMPT_SOURCE_CHARS,
     build_classification_prompt_packets,
+    convert_openai_batch_outputs,
     prepare_failed_openai_batch_retry,
     prepare_openai_batch_requests,
     retrieve_and_convert_openai_batch,
@@ -298,6 +299,27 @@ def submit_batch(
     except RuntimeError as exc:
         console.print({"error": str(exc)})
         raise typer.Exit(1) from exc
+    console.print(result)
+
+
+@app.command("convert-batch-output")
+def convert_batch_output(
+    run_id: Annotated[str, typer.Option("--run-id", help="Classification Batch run ID.")],
+    batch_id: Annotated[str, typer.Option("--batch-id", help="Remote Batch ID for provenance.")],
+    manifest_path: Annotated[Path, typer.Option("--manifest-path")],
+    output_path: Annotated[Path, typer.Option("--output-path")],
+    error_output_path: Annotated[Path | None, typer.Option("--error-output-path")] = None,
+) -> None:
+    """Convert already-downloaded Batch output without a provider call."""
+    settings = get_settings()
+    result = convert_openai_batch_outputs(
+        storage=LocalStorage(settings.data_dir),
+        run_id=run_id,
+        batch_id=batch_id,
+        manifest_path=manifest_path,
+        output_path=output_path,
+        error_output_path=error_output_path,
+    )
     console.print(result)
 
 

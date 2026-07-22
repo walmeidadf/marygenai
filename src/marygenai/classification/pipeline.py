@@ -826,19 +826,20 @@ def repair_required_uncertainty_markers(payload: dict[str, Any]) -> dict[str, An
                 ),
             }
         )
-    if repaired.get("study_design_subtype") == "in_vitro_or_cellular":
+    if repaired.get("study_design_subtype") in {"in_vitro", "in_vitro_or_cellular"}:
+        original_value = str(repaired["study_design_subtype"])
         repaired["study_design_subtype"] = "other"
         fields.append("study_design_subtype")
         technical_repairs.append(
             {
                 "repair_type": "normalized_invalid_enum_value",
                 "field": "study_design_subtype",
-                "original_value": "in_vitro_or_cellular",
+                "original_value": original_value,
                 "repaired_value": "other",
                 "reason": (
-                    "Candidate output used an evidence_context enum value in "
+                    "Candidate output used an in-vitro context marker in "
                     "study_design_subtype. The value was moved to a valid broad subtype "
-                    "without changing evidence_context."
+                    "without changing evidence_context or study_design_category."
                 ),
             }
         )
