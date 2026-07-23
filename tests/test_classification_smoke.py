@@ -683,6 +683,31 @@ def test_repair_required_uncertainty_markers_normalizes_in_vitro_subtype() -> No
     assert repairs[0]["repaired_value"] == "other"
 
 
+def test_repair_required_uncertainty_markers_normalizes_randomized_trial_subtype() -> None:
+    repaired = repair_required_uncertainty_markers(
+        {
+            "study_design_category": "clinical_trial",
+            "study_design_subtype": "randomized controlled trial",
+            "evidence_context": "human_clinical",
+            "medical_conditions": [{"free_text_label": "cannabis use"}],
+            "cannabinoids_or_exposures": [{"free_text_label": "cannabis"}],
+            "outcome_domains": ["use_pattern", "public_health"],
+            "population_or_model": {"category": "pediatric_humans"},
+            "overall_direction": "mixed",
+            "missing_or_uncertain_fields": [],
+            "provenance": {},
+        }
+    )
+
+    assert repaired["study_design_category"] == "clinical_trial"
+    assert repaired["study_design_subtype"] == "other"
+    assert repaired["evidence_context"] == "human_clinical"
+    assert repaired["missing_or_uncertain_fields"] == ["study_design_subtype"]
+    repairs = repaired["provenance"]["technical_schema_repairs"]
+    assert repairs[0]["original_value"] == "randomized controlled trial"
+    assert repairs[0]["repaired_value"] == "other"
+
+
 def test_watch_openai_batch_stops_at_terminal_status(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

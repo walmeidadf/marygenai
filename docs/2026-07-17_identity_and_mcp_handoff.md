@@ -16,6 +16,18 @@ original corpus identity separately from projected identity, identifier-level
 provenance, conflicts, labeled identity URLs, and a deterministic preferred
 physician-facing link. SQLite and review state remain untouched.
 
+Five final chunks at offsets 2,450 through 3,050 exhausted the 3,149-document
+strict corpus. The ignored index now contains 3,148 strict-valid candidates
+across 23 classification runs; one response at offset 2,750 ended at the
+completion-token limit with truncated JSON and was not repaired locally.
+Projected coverage is PMID 3,098, PMCID 2,414, and DOI 3,067.
+
+The final offset also exposed a source-identity quality boundary: 59 of its 99
+documents have projected identifier conflicts, bringing the index to 60
+conflict documents and 97 identifier conflicts. These conflicts remain visible
+and unresolved. They are not safe normalization repairs and require
+source-routing or identity review before physician-facing use.
+
 ## Session Outcome
 
 MaryGenAI's ignored read-only DuckDB index contains 1,100 unique

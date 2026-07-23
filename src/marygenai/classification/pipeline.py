@@ -860,6 +860,23 @@ def repair_required_uncertainty_markers(payload: dict[str, Any]) -> dict[str, An
                 ),
             }
         )
+    if repaired.get("study_design_subtype") == "randomized controlled trial":
+        repaired["study_design_subtype"] = "other"
+        fields.append("study_design_subtype")
+        technical_repairs.append(
+            {
+                "repair_type": "normalized_invalid_enum_value",
+                "field": "study_design_subtype",
+                "original_value": "randomized controlled trial",
+                "repaired_value": "other",
+                "reason": (
+                    "Candidate output used a clinical-trial design label that is not "
+                    "supported by the current subtype enum. The valid broad subtype "
+                    "was used without changing study_design_category or "
+                    "evidence_context."
+                ),
+            }
+        )
     if repaired.get("overall_direction") == "negative":
         repaired["overall_direction"] = "cannot_determine"
         fields.append("overall_direction")

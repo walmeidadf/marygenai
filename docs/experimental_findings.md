@@ -56,6 +56,18 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
 
 ## Read-Only Candidate Retrieval
 
+- The completed strict-corpus index contains 3,148 of 3,149
+  classification-ready documents across 23 Batch runs, including one earlier
+  targeted retry. Projected identity covers PMID for 3,098 documents, PMCID for
+  2,414, and DOI for 3,067. Identifier combinations are 2,338 documents with
+  all three identifiers, 755 with two, and 55 with one.
+- The final offset exposed 59 new identity-conflict documents, bringing the
+  index total to 60 documents and 97 identifier conflicts: 38 DOI, 37 PMID, and
+  22 PMCID conflicts. Within the final 99-document run, 58 of 61 PMC OAI
+  source-text routes and one of 16 Unpaywall PDF routes conflict with another
+  local identifier source. The index preserves the candidates and suppresses
+  singular values, but the pattern requires source-routing or identity review
+  before physician-facing use.
 - The implemented identity projection and two additional 150-record Batch runs
   first expanded the ignored index to 1,400 unique candidates across ten runs.
   After offsets 1,400 and 1,550 plus the targeted retry, the index contains
@@ -134,6 +146,38 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
 
 ## Classification
 
+- The final five chunks contained 699 strict-corpus documents. All remote
+  requests returned HTTP 200, but one response ended with
+  `finish_reason=length` and truncated JSON. Local conversion therefore
+  produced 698/699 strict-valid records and 2,980 non-empty evidence spans.
+  Deterministic grounding evaluation accepted 2,946 spans with extraction
+  tolerance and selected 34 for grounding review.
+- The final five chunks used 4,378,980 input tokens and 768,921 output tokens,
+  or 5,147,901 total. Under the standing half-price Batch cost assumption,
+  estimated cost is about USD 3.372.
+- Across the complete campaign, Batch status recorded 3,182 request attempts:
+  3,149 completed and 33 failed in the earlier offset-1,400 run. Its targeted
+  retry recovered all 33 failures. Total measured usage was 20,707,140 input
+  tokens and 3,474,075 output tokens, or 24,181,215 tokens. The corresponding
+  Batch cost estimate is about USD 15.582, or USD 0.00495 per strict-corpus
+  document.
+- Final local technical validity is 3,148/3,149 strict-valid candidate records.
+  All valid records have source traceability and evidence spans. The only gap is
+  `publication:pmid:34102934`; its truncated JSON is not a safe deterministic
+  repair and requires a targeted rerun or human review.
+- Across the 3,148 valid records, 967 records carry 1,057
+  provenance-recorded technical repairs: 866 uncertainty-marker
+  deduplications, 152 required-marker additions, 22 invalid-enum
+  normalizations, 16 unsupported-enum removals, and one invalid uncertainty
+  marker removal. These are technical schema repairs, not clinical
+  adjudications.
+- The full evaluation contains 12,913 evidence spans. Exact source-text matching
+  covers 10,258 spans, extraction-tolerant grounding covers 11,409, and 1,504
+  spans remain in the grounding-review worklist. Study-design comparison against
+  the private legacy reference found 2,294 exact matches among 3,140 reference
+  records, 344 source-supported overrides, 59 compatible refinements, and 443
+  unresolved disagreements. These comparison categories are evaluation signals,
+  not human-reviewed truth.
 - The five 150-record Batches at offsets 1,700, 1,850, 2,000, 2,150, and 2,300
   completed 750/750 remote requests with HTTP 200 and `finish_reason=stop`.
   They used 4,780,210 prompt tokens and 826,806 completion tokens, or 5,607,016

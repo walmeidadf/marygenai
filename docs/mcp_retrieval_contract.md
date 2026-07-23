@@ -3,7 +3,7 @@
 ## Status
 
 This document describes the first implemented MaryGenAI retrieval-index and MCP
-contract over the current 2,450-document broad/v3 candidate tranche.
+contract over 3,148 of the 3,149 strict classification-ready documents.
 
 The interface returns AI-classified candidate evidence. It does not return
 reviewed clinical truth, medical advice, or treatment recommendations.
@@ -26,7 +26,7 @@ review, or persistence tools.
 
 ## Supported Commands
 
-Build the default 2,450-document index:
+Build the default 3,148-document index:
 
 ```bash
 uv run marygenai retrieval build-index
@@ -207,7 +207,12 @@ Every response states:
 
 ## Known V1 Limits
 
-- The index covers a bounded 2,450-document tranche, not the complete corpus.
+- The index covers 3,148 of 3,149 strict classification-ready documents. One
+  provider response ended at the completion-token limit with truncated JSON and
+  requires a targeted rerun.
+- Sixty documents expose explicit projected-identity conflicts. Fifty-nine
+  entered with the final offset and require source-routing or identity review
+  before a physician-facing demonstration.
 - V3 does not reliably structure dose, route, formulation, comparator, duration,
   study period, detailed age group, sex or gender, sample size, country,
   comorbidity, outcome entity, or adverse-event entity.

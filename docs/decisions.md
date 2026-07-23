@@ -1,5 +1,33 @@
 # Decision Log
 
+## 2026-07-23: Close The Strict Corpus With One Explicit Rerun Gap
+
+Sequential chunks at offsets 2,450, 2,600, 2,750, 2,900, and 3,050 exhausted
+the 3,149-document `strict_classification_ready` corpus. The final offset
+contained 99 rather than 150 records. Across 23 completed Batch runs, including
+one earlier targeted retry, local conversion produced 3,148 strict-valid
+candidate records with evidence spans.
+
+One offset-2,900 record used
+`study_design_subtype=randomized controlled trial`, which is not in the current
+subtype enum. Because `study_design_category=clinical_trial` and
+`evidence_context=human_clinical` already preserved the broad interpretation,
+the invalid subtype was deterministically mapped to `other`, marked uncertain,
+and recorded with the original value in technical-repair provenance.
+
+One offset-2,750 response ended with `finish_reason=length` at the 3,000-token
+completion limit and contained truncated JSON. Completing the missing JSON
+would require invented content, so local repair is prohibited. The document,
+`publication:pmid:34102934`, remains the only strict-corpus classification gap
+and requires an explicitly authorized targeted rerun or human review.
+
+The ignored read-only retrieval index contains the 3,148 valid candidates. It
+projects PMID for 3,098 documents, PMCID for 2,414, and DOI for 3,067. Sixty
+documents contain 97 explicit identifier conflicts. Fifty-nine conflict
+documents entered with the final offset, predominantly through PMC OAI source
+routes. These are source-routing or identity-review findings, not safe
+normalization repairs; conflicting singular identifiers remain suppressed.
+
 ## 2026-07-22: Reconvert Downloaded Batch Outputs Locally
 
 Already-downloaded Batch output is reconverted through the supported
@@ -17,11 +45,12 @@ to the broad valid subtype `other`, marked uncertain, and recorded with its
 original value while preserving `study_design_category=laboratory_study` and
 `evidence_context=in_vitro_or_cellular`.
 
-The ignored read-only retrieval index now contains 2,450 candidates across 18
-classification runs. The projected identity covers PMID for 2,437 documents,
-PMCID for 1,980, and DOI for 2,412. One document contains conflicting identifier
-candidates; the conflict remains explicit and the singular projected value is
-suppressed according to the existing identity contract.
+At that milestone, the ignored read-only retrieval index contained 2,450
+candidates across 18 classification runs. The projected identity covered PMID
+for 2,437 documents, PMCID for 1,980, and DOI for 2,412. One document contains
+conflicting identifier candidates; the conflict remains explicit and the
+singular projected value is suppressed according to the existing identity
+contract.
 
 ## 2026-07-21: Retry Only Remotely Failed Batch Requests
 

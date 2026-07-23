@@ -44,6 +44,8 @@ candidate studies rather than replacing patient-condition relevance.
 - local MCP stdio server with runtime read-only enforcement;
 - clinical-question acceptance research and retrieval backlog;
 - review CLI, API, and local UI for explicit review workflows.
+- Batch classification and read-only indexing for 3,148 of the 3,149 strict
+  classification-ready documents.
 
 ## Current Local Dataset
 
@@ -142,6 +144,14 @@ about USD 15.88. The next full-corpus requirement is a product decision:
 continue the remaining strict corpus now, or use the implemented read-only
 retrieval/MCP demonstration over the 500-record candidate base to recruit
 medical review support.
+
+That decision is now complete. Twenty-three Batch runs, including one targeted
+retry, exhausted the strict corpus and produced 3,148/3,149 strict-valid
+candidate records at an estimated Batch cost of USD 15.58. One response ended
+at the completion-token limit with truncated JSON and remains an explicit
+targeted-rerun gap. The next MVP quality gate is source-identity remediation for
+the conflict-heavy final offset, followed by physician-authored MCP acceptance
+testing and targeted human review.
 
 ## MVP Workstreams
 

@@ -21,37 +21,37 @@ Completed in the v4 preparation cycle:
 - initial parser-versus-legacy guardrail comparison;
 - broad-v4 versus selective field-family packet and cost projection;
 - contrast-aware manifest and deterministic selective assembly;
-- broad/v3 Batch execution for a 1,100-document strict
-  classification-ready candidate base.
+- broad/v3 Batch execution for 3,148 of the 3,149 strict
+  classification-ready documents.
 
-The first 1,100 candidate records are now exposed through an isolated local
-read-only index and MCP stdio prototype. The next product step is medical-team
-demonstration, physician-authored acceptance testing, and human-review
-recruitment. Selective-v4 optimization remains a future optimization path, not
-an MVP blocker.
+The 3,148 valid candidate records are exposed through an isolated local
+read-only index and MCP stdio prototype. One truncated response remains outside
+the index. The next product step is source-routing and identity remediation for
+the conflict-heavy final offset, followed by medical-team demonstration,
+physician-authored acceptance testing, and human-review recruitment.
+Selective-v4 optimization remains a future optimization path, not an MVP
+blocker.
 
 1. Freeze the v4 selective work as documented architecture findings and future
    optimization.
-2. Preserve the growing broad/v3 Batch tranche as the local
-   candidate base.
+2. Preserve the completed broad/v3 strict corpus as the local candidate base.
 3. Preserve and rebuild the implemented local index from ignored candidate,
    corpus, and evaluation artifacts.
 4. Validate MCP search, detail, facets, capabilities, and trust language with
    physician-authored questions.
 5. Prepare medical-team demo journeys and reviewer-facing exports for targeted
    human review.
-6. Continue remaining strict-corpus Batch classification in the background only
-   with explicit maintainer authorization and sequential enqueued-token-safe
-   chunks.
+6. Rerun the one length-truncated strict-corpus document only with explicit
+   maintainer authorization.
 7. Continue field-scoped validation where it directly improves reviewer
    workflows or MCP retrieval quality.
+8. Audit and repair source routing for final-offset documents with explicit
+   identifier conflicts before physician-facing use.
 
 ## Next: Bounded Scale
 
-1. Continue the remaining strict-corpus candidate batches only after the
-   maintainer confirms budget and priority.
-2. Use sequential chunks sized by estimated enqueued tokens; the current safe
-   default is about 150 records per submitted Batch.
+1. Close the single targeted-rerun gap only after the maintainer confirms it.
+2. Resolve source-identity conflicts before expanding beyond the strict corpus.
 3. Measure quality by field family, condition, study type, source strategy, and
    source quality.
 4. Test broad-recall versus high-confidence retrieval behavior.

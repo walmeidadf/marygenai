@@ -156,6 +156,9 @@ Current repair families include:
 - map misplaced `study_design_subtype=meta_analysis` or
   `clinical_meta_analysis` to `cannot_determine` while preserving the principal
   study-design category.
+- map unsupported `study_design_subtype=randomized controlled trial` to the
+  broad valid subtype `other`, preserve the clinical-trial category and evidence
+  context, and mark the subtype uncertain.
 
 Raw unsupported values such as `mental_health`, `behavior`, and `pain` remain
 visible in evaluation as schema-evolution signals.
@@ -289,4 +292,3 @@ Sua tarefa:
 Nunca trate candidate classification como reviewed knowledge ou orientação
 médica.
 ```
-
