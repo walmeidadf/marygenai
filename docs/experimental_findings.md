@@ -56,10 +56,10 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
 
 ## Read-Only Candidate Retrieval
 
-- The completed strict-corpus index contains 3,148 of 3,149
-  classification-ready documents across 23 Batch runs, including one earlier
-  targeted retry. Projected identity covers PMID for 3,098 documents, PMCID for
-  2,414, and DOI for 3,067. Identifier combinations are 2,338 documents with
+- The completed strict-corpus index contains all 3,149 classification-ready
+  documents across 24 Batch runs, including two targeted retries. Projected
+  identity covers PMID for 3,099 documents, PMCID for 2,415, and DOI for 3,068.
+  Identifier combinations are 2,339 documents with
   all three identifiers, 755 with two, and 55 with one.
 - The final offset exposed 59 new identity-conflict documents, bringing the
   index total to 60 documents and 97 identifier conflicts: 38 DOI, 37 PMID, and
@@ -146,6 +146,12 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
 
 ## Classification
 
+- The explicitly authorized targeted rerun for
+  `publication:pmid:34102934` completed 1/1 with valid JSON, strict schema
+  validity, four exactly grounded evidence spans, and zero errors. It used
+  5,991 input tokens and 1,154 output tokens. Raising the completion ceiling
+  from 3,000 to 5,000 avoided the prior length truncation; the response used
+  only 1,154 completion tokens.
 - The final five chunks contained 699 strict-corpus documents. All remote
   requests returned HTTP 200, but one response ended with
   `finish_reason=length` and truncated JSON. Local conversion therefore
@@ -155,29 +161,27 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
 - The final five chunks used 4,378,980 input tokens and 768,921 output tokens,
   or 5,147,901 total. Under the standing half-price Batch cost assumption,
   estimated cost is about USD 3.372.
-- Across the complete campaign, Batch status recorded 3,182 request attempts:
-  3,149 completed and 33 failed in the earlier offset-1,400 run. Its targeted
-  retry recovered all 33 failures. Total measured usage was 20,707,140 input
-  tokens and 3,474,075 output tokens, or 24,181,215 tokens. The corresponding
-  Batch cost estimate is about USD 15.582, or USD 0.00495 per strict-corpus
-  document.
-- Final local technical validity is 3,148/3,149 strict-valid candidate records.
-  All valid records have source traceability and evidence spans. The only gap is
-  `publication:pmid:34102934`; its truncated JSON is not a safe deterministic
-  repair and requires a targeted rerun or human review.
-- Across the 3,148 valid records, 967 records carry 1,057
+- Across the complete campaign, Batch status recorded 3,183 request attempts:
+  3,150 completed and 33 failed in the earlier offset-1,400 run. The two
+  targeted retries recovered the 33 remote failures and the one
+  length-truncated response. Total measured usage was 20,713,131 input tokens
+  and 3,475,229 output tokens, or 24,188,360 tokens. The corresponding Batch
+  cost estimate is about USD 15.587, or USD 0.00495 per strict-corpus document.
+- Final local technical validity is 3,149/3,149 strict-valid candidate records.
+  All records have source traceability and evidence spans.
+- Across the 3,149 valid records, 967 records carry 1,057
   provenance-recorded technical repairs: 866 uncertainty-marker
   deduplications, 152 required-marker additions, 22 invalid-enum
   normalizations, 16 unsupported-enum removals, and one invalid uncertainty
   marker removal. These are technical schema repairs, not clinical
   adjudications.
-- The full evaluation contains 12,913 evidence spans. Exact source-text matching
-  covers 10,258 spans, extraction-tolerant grounding covers 11,409, and 1,504
+- The full evaluation contains 12,917 evidence spans. Exact source-text matching
+  covers 10,262 spans, extraction-tolerant grounding covers 11,413, and 1,504
   spans remain in the grounding-review worklist. Study-design comparison against
-  the private legacy reference found 2,294 exact matches among 3,140 reference
-  records, 344 source-supported overrides, 59 compatible refinements, and 443
-  unresolved disagreements. These comparison categories are evaluation signals,
-  not human-reviewed truth.
+  the private legacy reference found 2,294 exact matches among 3,141 reference
+  records, 344 source-supported overrides, 59 compatible refinements, and 444
+  unresolved disagreements. These comparison categories are evaluation
+  signals, not human-reviewed truth.
 - The five 150-record Batches at offsets 1,700, 1,850, 2,000, 2,150, and 2,300
   completed 750/750 remote requests with HTTP 200 and `finish_reason=stop`.
   They used 4,780,210 prompt tokens and 826,806 completion tokens, or 5,607,016

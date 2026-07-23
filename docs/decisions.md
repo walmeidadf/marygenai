@@ -1,5 +1,22 @@
 # Decision Log
 
+## 2026-07-23: Recover The Final Strict Record And Export Identity Conflicts
+
+The explicitly authorized targeted Batch for
+`publication:pmid:34102934` used strict offset 2,777, limit 1, and a 5,000-token
+completion ceiling. It completed 1/1 with valid JSON, strict schema validity,
+four exactly grounded evidence spans, and zero local errors. The ignored
+read-only index now contains all 3,149 strict classification-ready candidates
+across 24 runs.
+
+Identity conflict adjudication is prepared as an ignored, provenance-rich CSV
+through `marygenai retrieval export-identity-conflicts`. The command opens the
+DuckDB index read-only, optionally filters by classification run, writes one row
+per conflicting identifier, and leaves decision fields empty. It does not
+mutate SQLite, review state, the classification corpus, candidate records, or
+reviewed knowledge. Applying completed decisions requires a separate,
+explicitly authorized deterministic workflow.
+
 ## 2026-07-23: Close The Strict Corpus With One Explicit Rerun Gap
 
 Sequential chunks at offsets 2,450, 2,600, 2,750, 2,900, and 3,050 exhausted

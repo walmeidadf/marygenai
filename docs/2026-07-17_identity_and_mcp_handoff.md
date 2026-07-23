@@ -28,6 +28,12 @@ conflict documents and 97 identifier conflicts. These conflicts remain visible
 and unresolved. They are not safe normalization repairs and require
 source-routing or identity review before physician-facing use.
 
+An explicitly authorized targeted Batch later recovered the single truncated
+record with strict schema validity and four exactly grounded evidence spans. The
+ignored index now contains all 3,149 strict candidates across 24 runs, with
+projected coverage PMID 3,099, PMCID 2,415, and DOI 3,068. The conflict counts
+remain unchanged.
+
 ## Session Outcome
 
 MaryGenAI's ignored read-only DuckDB index contains 1,100 unique

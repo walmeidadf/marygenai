@@ -30,6 +30,20 @@ Inspect build provenance, limitations, capabilities, and top facets:
 uv run marygenai retrieval inspect-index
 ```
 
+Export explicit projected-identity conflicts to an ignored manual-adjudication
+CSV without applying decisions or mutating SQLite:
+
+```bash
+uv run marygenai retrieval export-identity-conflicts \
+  --classification-run-id <classification_run_id>
+```
+
+The export writes one row per conflicting identifier, candidate values and
+provenance, plus empty `decision_status`, `selected_value`,
+`decision_rationale`, `reviewer`, and `reviewed_at` columns. Supported decision
+status values are recorded in the adjacent summary JSON. Applying decisions is
+a separate workflow and requires explicit authorization.
+
 Run a local search through the same query service used by MCP:
 
 ```bash

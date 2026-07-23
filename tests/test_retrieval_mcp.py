@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 from collections.abc import AsyncGenerator
 from pathlib import Path
@@ -16,6 +17,7 @@ from marygenai.retrieval.identity import (
     normalize_identifier,
     project_bibliographic_identities,
 )
+from marygenai.retrieval.identity_review import export_identity_conflicts
 from marygenai.retrieval.index import build_retrieval_index, normalize_match_key
 from marygenai.retrieval.models import FilterGroup, SearchFilters, SearchRequest
 from marygenai.retrieval.service import RetrievalService
@@ -255,6 +257,110 @@ def test_identity_projection_preserves_original_conflicts_explicitly(tmp_path: P
         "10.1000/source",
     }
     assert all(row["url_kind"] != "doi" for row in projection["identity_urls"])
+
+
+def test_export_identity_conflicts_writes_adjudication_csv(tmp_path: Path) -> None:
+    index_path = tmp_path / "retrieval.duckdb"
+    output_path = tmp_path / "identity_conflicts.csv"
+    projected = {
+        "pmid": "123",
+        "pmcid": None,
+        "doi": None,
+        "status": "conflict",
+        "conflicts": [
+            {
+                "identifier_type": "doi",
+                "candidate_values": [
+                    {
+                        "value": "10.1000/corpus",
+                        "provenance": [
+                            {
+                                "extraction_method": "corpus_doi",
+                                "source_artifact_path": "classification_corpus",
+                            }
+                        ],
+                    },
+                    {
+                        "value": "10.1000/source",
+                        "provenance": [
+                            {
+                                "extraction_method": "pmc_oai_nxml_article_id",
+                                "source_artifact_path": "data/raw/article.xml",
+                            }
+                        ],
+                    },
+                ],
+            }
+        ],
+    }
+    connection = duckdb.connect(str(index_path))
+    try:
+        connection.execute("CREATE TABLE index_metadata (key VARCHAR, value VARCHAR)")
+        connection.execute("INSERT INTO index_metadata VALUES ('build_id', 'build-test')")
+        connection.execute(
+            """
+            CREATE TABLE documents (
+                document_id VARCHAR,
+                classification_run_id VARCHAR,
+                title VARCHAR,
+                publication_year INTEGER,
+                source_text_path VARCHAR,
+                source_text_sha256 VARCHAR,
+                canonical_url VARCHAR,
+                source_url VARCHAR,
+                corpus_json VARCHAR,
+                original_corpus_identity_json VARCHAR,
+                projected_identity_json VARCHAR,
+                identity_conflict_count INTEGER
+            )
+            """
+        )
+        connection.execute(
+            "INSERT INTO documents VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                "publication:test:conflict",
+                "run-conflict",
+                "Conflicting identity",
+                2026,
+                "data/processed/article.txt",
+                "a" * 64,
+                "https://publisher.test/article",
+                "https://source.test/article",
+                json.dumps(
+                    {
+                        "source_strategy": "pmc_oai",
+                        "raw_payload_path": "data/raw/article.xml",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "pmid": "123",
+                        "pmcid": None,
+                        "doi": "10.1000/corpus",
+                    }
+                ),
+                json.dumps(projected),
+                1,
+            ],
+        )
+    finally:
+        connection.close()
+
+    result = export_identity_conflicts(
+        index_path=index_path,
+        output_path=output_path,
+        classification_run_id="run-conflict",
+    )
+
+    with output_path.open(encoding="utf-8", newline="") as file:
+        rows = list(csv.DictReader(file))
+    assert result["document_count"] == 1
+    assert result["identifier_conflict_count"] == 1
+    assert rows[0]["identifier_type"] == "doi"
+    assert rows[0]["candidate_values"] == "10.1000/corpus | 10.1000/source"
+    assert rows[0]["decision_status"] == ""
+    assert rows[0]["selected_value"] == ""
+    assert output_path.with_suffix(".summary.json").exists()
 
 
 def test_search_supports_aliases_all_filters_pagination_and_trace(

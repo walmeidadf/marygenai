@@ -21,12 +21,11 @@ Completed in the v4 preparation cycle:
 - initial parser-versus-legacy guardrail comparison;
 - broad-v4 versus selective field-family packet and cost projection;
 - contrast-aware manifest and deterministic selective assembly;
-- broad/v3 Batch execution for 3,148 of the 3,149 strict
-  classification-ready documents.
+- broad/v3 Batch execution for all 3,149 strict classification-ready documents.
 
-The 3,148 valid candidate records are exposed through an isolated local
-read-only index and MCP stdio prototype. One truncated response remains outside
-the index. The next product step is source-routing and identity remediation for
+The 3,149 valid candidate records are exposed through an isolated local
+read-only index and MCP stdio prototype. The next product step is source-routing
+and identity remediation for
 the conflict-heavy final offset, followed by medical-team demonstration,
 physician-authored acceptance testing, and human-review recruitment.
 Selective-v4 optimization remains a future optimization path, not an MVP
@@ -41,8 +40,7 @@ blocker.
    physician-authored questions.
 5. Prepare medical-team demo journeys and reviewer-facing exports for targeted
    human review.
-6. Rerun the one length-truncated strict-corpus document only with explicit
-   maintainer authorization.
+6. Preserve the completed one-document targeted-rerun provenance.
 7. Continue field-scoped validation where it directly improves reviewer
    workflows or MCP retrieval quality.
 8. Audit and repair source routing for final-offset documents with explicit
@@ -50,8 +48,9 @@ blocker.
 
 ## Next: Bounded Scale
 
-1. Close the single targeted-rerun gap only after the maintainer confirms it.
-2. Resolve source-identity conflicts before expanding beyond the strict corpus.
+1. Resolve source-identity conflicts before expanding beyond the strict corpus.
+2. Apply completed identity adjudications only through a separate deterministic
+   and explicitly authorized workflow.
 3. Measure quality by field family, condition, study type, source strategy, and
    source quality.
 4. Test broad-recall versus high-confidence retrieval behavior.

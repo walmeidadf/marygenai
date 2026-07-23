@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
 import typer
 from rich.console import Console
 
+from marygenai.retrieval.identity_review import export_identity_conflicts
 from marygenai.retrieval.index import DEFAULT_INDEX_RELATIVE_PATH, build_retrieval_index
 from marygenai.retrieval.models import FilterGroup, SearchFilters, SearchRequest
 from marygenai.retrieval.service import RetrievalService
@@ -77,6 +79,42 @@ def inspect_index(
             "facets": service.facets(empty_request, top=15).model_dump(mode="json"),
         }
     )
+
+
+@app.command("export-identity-conflicts")
+def export_identity_conflicts_command(
+    classification_run_id: Annotated[
+        str | None,
+        typer.Option(
+            "--classification-run-id",
+            help="Optional classification run filter.",
+        ),
+    ] = None,
+    output_path: Annotated[
+        Path | None,
+        typer.Option("--output-path", help="Human-adjudication CSV output path."),
+    ] = None,
+    index_path: Annotated[
+        Path,
+        typer.Option("--index-path", help="Read-only candidate retrieval DuckDB path."),
+    ] = DEFAULT_INDEX_PATH,
+) -> None:
+    """Export explicit identity conflicts without applying decisions."""
+    settings = get_settings()
+    if output_path is None:
+        timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+        scope = classification_run_id or "all_runs"
+        output_path = (
+            settings.data_dir
+            / "normalized/retrieval_identity_reviews"
+            / f"{timestamp}_{scope}_identity_conflicts.csv"
+        )
+    result = export_identity_conflicts(
+        index_path=index_path,
+        output_path=output_path,
+        classification_run_id=classification_run_id,
+    )
+    _print_json(result)
 
 
 @app.command("search")

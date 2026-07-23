@@ -44,7 +44,7 @@ candidate studies rather than replacing patient-condition relevance.
 - local MCP stdio server with runtime read-only enforcement;
 - clinical-question acceptance research and retrieval backlog;
 - review CLI, API, and local UI for explicit review workflows.
-- Batch classification and read-only indexing for 3,148 of the 3,149 strict
+- Batch classification and read-only indexing for all 3,149 strict
   classification-ready documents.
 
 ## Current Local Dataset
@@ -152,6 +152,12 @@ at the completion-token limit with truncated JSON and remains an explicit
 targeted-rerun gap. The next MVP quality gate is source-identity remediation for
 the conflict-heavy final offset, followed by physician-authored MCP acceptance
 testing and targeted human review.
+
+An explicitly authorized one-document targeted rerun recovered the truncated
+response with strict schema validity and exactly grounded evidence. The current
+index therefore contains 3,149/3,149 strict candidates across 24 runs. The
+remaining near-term quality gate is source-identity remediation, not additional
+strict-corpus classification.
 
 ## MVP Workstreams
 
