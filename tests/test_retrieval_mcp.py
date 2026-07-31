@@ -396,6 +396,11 @@ def test_search_supports_aliases_all_filters_pagination_and_trace(
     assert response.results[0].projected_identity.pmid == "10001"
     assert response.results[0].projected_identity.preferred_access_url is not None
     assert response.search_trace.relaxations == []
+    assert response.presentation_contract.result_label == (
+        "AI-classified candidate matches"
+    )
+    assert response.presentation_contract.preferred_access_url_required_for_cited_results
+    assert response.presentation_contract.study_detail_tool == "get_study"
     assert response.trust_boundary.medical_advice is False
 
     page_one = service.search(SearchRequest(limit=2))
@@ -406,6 +411,25 @@ def test_search_supports_aliases_all_filters_pagination_and_trace(
     assert {item.document_id for item in page_one.results}.isdisjoint(
         {item.document_id for item in page_two.results}
     )
+
+
+def test_zero_result_contract_does_not_claim_literature_absence(
+    retrieval_index: Path,
+) -> None:
+    response = RetrievalService(retrieval_index).search(
+        SearchRequest(query="hypothyroidism")
+    )
+
+    assert response.total == 0
+    assert response.returned == 0
+    assert response.results == []
+    assert "current MaryGenAI index" in (
+        response.presentation_contract.zero_result_message
+    )
+    assert "does not establish absence" in (
+        response.presentation_contract.zero_result_message
+    )
+    assert response.presentation_contract.literature_absence_inference_allowed is False
 
 
 def test_facets_consolidate_aliases_and_detail_preserves_candidate_provenance(
@@ -660,6 +684,9 @@ async def test_mcp_exposes_only_read_only_candidate_retrieval_tools(
         assert tool.annotations.destructiveHint is False
         assert tool.annotations.openWorldHint is False
     assert "Translate non-English scientific concepts" in tools.tools[0].description
+    assert "zero matches do not establish absence" in tools.tools[0].description
+    assert "projected_identity.preferred_access_url" in tools.tools[0].description
+    assert "call get_study" in tools.tools[0].description
 
     result = await mcp_client.call_tool(
         "search_studies",
@@ -679,6 +706,10 @@ async def test_mcp_exposes_only_read_only_candidate_retrieval_tools(
     assert result.structuredContent["total"] == 1
     projected = result.structuredContent["results"][0]["projected_identity"]
     assert projected["preferred_access_url"]["url_kind"] == "pubmed"
+    presentation = result.structuredContent["presentation_contract"]
+    assert presentation["result_label"] == "AI-classified candidate matches"
+    assert presentation["distinguish_direct_from_tangential_matches"] is True
+    assert presentation["study_detail_required_for_detailed_evidence_claims"] is True
     assert result.structuredContent["trust_boundary"]["medical_advice"] is False
 
     capabilities = await mcp_client.call_tool("get_search_capabilities", {})
@@ -688,3 +719,8 @@ async def test_mcp_exposes_only_read_only_candidate_retrieval_tools(
     assert language["query_and_filter_language"] == "English"
     assert language["host_translation_required_for_non_english_questions"] is True
     assert language["answer_in_user_language"] is True
+    capabilities_presentation = capabilities.structuredContent["presentation_contract"]
+    assert capabilities_presentation["literature_absence_inference_allowed"] is False
+    assert capabilities_presentation["preferred_access_url_path"] == (
+        "projected_identity.preferred_access_url"
+    )

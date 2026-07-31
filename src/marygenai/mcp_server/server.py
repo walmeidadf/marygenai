@@ -31,7 +31,13 @@ def create_mcp_server(
             "The indexed sources and candidate metadata are primarily English. Translate "
             "non-English scientific questions into concise English query terms and structured "
             "filter labels before calling search_studies or get_facets; preserve identifiers "
-            "and source evidence unchanged, then answer the user in their language. Never send "
+            "and source evidence unchanged, then answer the user in their language. Describe "
+            "search results only as AI-classified candidate matches, not validated relevant "
+            "studies. A zero-result search means only that the effective query retrieved no "
+            "candidate records from the current index; never infer absence from the scientific "
+            "literature. Include projected_identity.preferred_access_url whenever citing a "
+            "result. Call get_study for shortlisted records before making detailed evidence "
+            "claims, and separate direct matches from tangential matches. Never send "
             "patient-identifying information. "
             "Results are not reviewed clinical truth, medical advice, or treatment "
             "recommendations. Preserve uncertainty, provenance, and source links."
@@ -57,13 +63,16 @@ def create_mcp_server(
     )
 
     @mcp.tool(
-        title="Search MaryGenAI studies",
+        title="Search MaryGenAI candidate matches",
         description=(
             "Search AI-classified candidate evidence with explicit filters. Translate "
             "non-English scientific concepts into concise English query terms and filter "
             "labels before calling this tool. The server never silently relaxes filters and "
             "returns the effective query, match explanations, uncertainty, review state, and "
-            "source identity."
+            "source identity. Describe outputs only as candidate matches; zero matches do not "
+            "establish absence from the scientific literature. Include each cited result's "
+            "projected_identity.preferred_access_url, separate direct from tangential matches, "
+            "and call get_study before making detailed evidence claims."
         ),
         annotations=read_only,
         structured_output=True,
@@ -75,7 +84,10 @@ def create_mcp_server(
         title="Get MaryGenAI study detail",
         description=(
             "Get one complete candidate record with source path and hash, evidence spans, "
-            "grounding-review flags, uncertainty, versions, provenance, and trust boundary."
+            "grounding-review flags, uncertainty, versions, provenance, preferred physician "
+            "access URL, and trust boundary. Use this tool for shortlisted records before "
+            "making detailed evidence claims; the returned classification remains candidate "
+            "metadata requiring human judgment."
         ),
         annotations=read_only,
         structured_output=True,
@@ -100,8 +112,8 @@ def create_mcp_server(
         title="Get MaryGenAI search capabilities",
         description=(
             "Describe supported filters, question types, pagination, ranking semantics, "
-            "language and host-translation requirements, known v3 schema gaps, index runs, "
-            "and the candidate-evidence trust boundary."
+            "language and host-translation requirements, presentation rules, known v3 schema "
+            "gaps, index runs, and the candidate-evidence trust boundary."
         ),
         annotations=read_only,
         structured_output=True,

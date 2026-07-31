@@ -117,6 +117,26 @@ For example, a Portuguese question about "síndrome de Dravet e canabidiol"
 should query `Dravet syndrome` and `cannabidiol`, while the final explanation
 may remain in Portuguese.
 
+Search responses and capabilities expose a machine-readable
+`presentation_contract`. MCP hosts must:
+
+- describe returned records as AI-classified candidate matches, not validated
+  relevant studies;
+- interpret zero results only as no candidate records retrieved from the
+  current index for the effective query, never as evidence that the scientific
+  literature contains no such studies;
+- include `projected_identity.preferred_access_url` whenever citing a returned
+  record;
+- call `get_study` for shortlisted records before making detailed evidence
+  claims;
+- distinguish direct matches from tangential matches using the question,
+  effective query, title, candidate metadata, match explanation, and detailed
+  source evidence.
+
+The server does not assign a new direct-versus-tangential relevance label. That
+judgment remains visible host reasoning over candidate metadata rather than an
+unevaluated clinical relevance classifier.
+
 The first implementation applies question type as context only, not as a hidden
 filter or ranking adjustment.
 
@@ -155,7 +175,9 @@ The response includes:
 - declared uncertainty and review state;
 - deterministic match explanations;
 - a study-detail resource URI;
-- the candidate-evidence trust boundary.
+- the candidate-evidence trust boundary;
+- the host presentation contract for candidate wording, zero-result scope,
+  preferred access links, study-detail inspection, and tangential matches.
 
 Results are ordered by retrieval-confidence heuristic, publication year, and
 stable document identity. The retrieval-confidence value is not a calibrated

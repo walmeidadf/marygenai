@@ -14,6 +14,10 @@ TRUST_NOTICE = (
     "Candidate retrieval metadata, not reviewed clinical truth, medical advice, "
     "or a treatment recommendation."
 )
+ZERO_RESULT_NOTICE = (
+    "No candidate records were retrieved from the current MaryGenAI index for the "
+    "effective query. This does not establish absence from the scientific literature."
+)
 
 
 class FilterGroup(BaseModel):
@@ -133,6 +137,23 @@ class TrustBoundary(BaseModel):
     notice: str = TRUST_NOTICE
 
 
+class SearchPresentationContract(BaseModel):
+    """Machine-readable host rules for presenting candidate retrieval results."""
+
+    result_label: Literal["AI-classified candidate matches"] = (
+        "AI-classified candidate matches"
+    )
+    zero_result_message: str = ZERO_RESULT_NOTICE
+    literature_absence_inference_allowed: Literal[False] = False
+    preferred_access_url_required_for_cited_results: Literal[True] = True
+    preferred_access_url_path: Literal["projected_identity.preferred_access_url"] = (
+        "projected_identity.preferred_access_url"
+    )
+    study_detail_required_for_detailed_evidence_claims: Literal[True] = True
+    study_detail_tool: Literal["get_study"] = "get_study"
+    distinguish_direct_from_tangential_matches: Literal[True] = True
+
+
 class SourceIdentity(BaseModel):
     document_id: str
     title: str | None = None
@@ -236,6 +257,13 @@ class SearchResponse(BaseModel):
     next_cursor: str | None = None
     search_trace: SearchTrace
     results: list[StudySearchResult]
+    presentation_contract: SearchPresentationContract = Field(
+        default_factory=SearchPresentationContract,
+        description=(
+            "Rules the MCP host must follow when describing candidate matches, empty "
+            "results, access links, and detailed evidence claims."
+        ),
+    )
     trust_boundary: TrustBoundary = Field(default_factory=TrustBoundary)
 
 
@@ -295,4 +323,7 @@ class SearchCapabilities(BaseModel):
     unsupported_v3_dimensions: list[str]
     pagination: dict[str, Any]
     ranking: dict[str, Any]
+    presentation_contract: SearchPresentationContract = Field(
+        default_factory=SearchPresentationContract
+    )
     trust_boundary: TrustBoundary = Field(default_factory=TrustBoundary)

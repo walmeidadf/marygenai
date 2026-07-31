@@ -131,6 +131,12 @@ DNS-validated ACM certificate exposes `mcp-server.marygenai.com` while
 Cloudflare remains the external DNS provider. See
 [AWS Dev Environment](infra/terraform/README.md).
 
+Search responses also carry a machine-readable host presentation contract.
+Claude, ChatGPT, and other hosts must call results AI-classified candidate
+matches, must not infer literature absence from an empty index result, must
+include the preferred physician-facing URL when citing a record, and must call
+study detail before making detailed evidence claims.
+
 Classification preparation, validation, and the first candidate-base canary:
 
 ```bash

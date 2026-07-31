@@ -1,5 +1,30 @@
 # Decision Log
 
+## 2026-07-31: Make Candidate-Result Presentation Rules Machine-Readable
+
+The first live ChatGPT and Claude connector conversations confirmed that both
+hosts can translate Portuguese scientific concepts into English retrieval
+terms and call the remote MCP server. They also exposed host-dependent result
+presentation. ChatGPT preserved candidate and review caveats but described all
+five returned records as relevant, omitted indexed physician-facing URLs, and
+made detailed statements without opening study detail. Claude used capabilities,
+facets, and progressive query variants, but described an empty hypothyroidism
+result too broadly as no studies in the database.
+
+MCP instructions and tool descriptions alone are not a sufficient durable
+contract. Search responses and capabilities now include a machine-readable
+`presentation_contract`. Hosts must describe results as AI-classified candidate
+matches, must not infer scientific-literature absence from zero index matches,
+must include `projected_identity.preferred_access_url` for cited records, must
+inspect shortlisted records with `get_study` before detailed evidence claims,
+and must separate direct from tangential matches.
+
+MaryGenAI does not add an unevaluated direct-versus-tangential clinical
+classifier. The host performs that visible comparison using the user question,
+effective query, source identity, candidate metadata, match explanation, and
+study detail. The index, SQLite, review state, and reviewed knowledge remain
+unchanged.
+
 ## 2026-07-31: Make Host-Side English Query Translation Explicit
 
 The first retrieval index contains primarily English source text and candidate

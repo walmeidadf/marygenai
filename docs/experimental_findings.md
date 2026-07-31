@@ -1,5 +1,38 @@
 # Experimental Findings
 
+## 2026-07-31: First Live ChatGPT And Claude Connector Conversations
+
+The DNS-only custom domain and explicit dev query-key compatibility URL were
+accepted by both the hosted ChatGPT and Claude connector interfaces. This
+validated the complete remote path from a Portuguese user question through the
+host, MCP tool discovery, English retrieval, and a Portuguese answer. The query
+key remains a temporary shared pilot barrier, not per-physician authentication.
+
+ChatGPT translated a request about adolescent epilepsy to
+`adolescent epilepsy` and made one `search_studies` call with a five-record
+limit. It returned five candidate records and preserved DOI, PMID,
+`ai_classified_candidate`, and `needs_review` caveats in its answer. It also
+reordered the records into a clinically more plausible narrative. However, it
+called all five records relevant, omitted the indexed preferred PMC/PubMed
+access URLs, and made detailed evidence statements without calling `get_study`.
+One returned pediatric cannabis review was tangential to the treatment-focused
+question.
+
+Claude translated hypothyroidism into multiple English variants, inspected
+search capabilities and facets, made four search calls, and distinguished two
+broad thyroid-cancer matches from hypothyroidism. It correctly explained the
+cannabinoid scope of the corpus. Its initial statement that the database had no
+hypothyroidism studies was still broader than the retrieval evidence supports:
+zero lexical candidate matches establish only that the effective queries did
+not retrieve records from the current bounded index.
+
+These conversations show that host-side translation works, while answer
+quality varies by host strategy. The durable response contract must therefore
+carry candidate-result wording, zero-result scope, preferred access-link use,
+study-detail inspection, and direct-versus-tangential separation explicitly.
+MaryGenAI made no additional provider call and did not mutate SQLite, candidate
+records, review state, or reviewed knowledge during this evaluation.
+
 ## 2026-07-31: First Remote Retrieval And Portuguese-Host Translation Smoke Tests
 
 The AWS dev endpoint was deployed over the 3,149-document read-only DuckDB
