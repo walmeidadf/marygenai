@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
-import unicodedata
 from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -12,6 +10,7 @@ from typing import Any
 import duckdb
 
 from marygenai.classification.models import CandidateStudyClassification
+from marygenai.retrieval.common import DEFAULT_INDEX_RELATIVE_PATH, normalize_match_key
 from marygenai.retrieval.identity import project_bibliographic_identities
 from marygenai.retrieval.models import (
     RETRIEVAL_INDEX_SCHEMA_VERSION,
@@ -45,25 +44,6 @@ DEFAULT_CLASSIFICATION_RUN_IDS = (
     "20260723T141447Z",
     "20260723T144223Z",
 )
-DEFAULT_INDEX_RELATIVE_PATH = Path(
-    "normalized/retrieval_indexes/marygenai_candidate_retrieval_v1.duckdb"
-)
-
-_TRAILING_ABBREVIATION = re.compile(r"\s*\(([^()]*)\)\s*$")
-_MATCH_KEY_PUNCTUATION = re.compile(r"[^a-z0-9]+")
-
-
-def normalize_match_key(value: str) -> str:
-    """Return a stable, conservative key for case-insensitive facet matching."""
-    normalized = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
-    abbreviation = _TRAILING_ABBREVIATION.search(normalized)
-    if abbreviation:
-        token = abbreviation.group(1).strip()
-        if token.lower() != "unspecified" and len(token) <= 10:
-            normalized = normalized[: abbreviation.start()]
-    return _MATCH_KEY_PUNCTUATION.sub(" ", normalized.casefold()).strip()
-
-
 def _read_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 

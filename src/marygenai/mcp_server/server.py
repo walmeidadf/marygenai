@@ -5,15 +5,22 @@ from pathlib import Path
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ToolAnnotations
 
-from marygenai.retrieval.index import DEFAULT_INDEX_RELATIVE_PATH
+from marygenai.retrieval.common import DEFAULT_INDEX_RELATIVE_PATH
 from marygenai.retrieval.models import SearchRequest
 from marygenai.retrieval.service import RetrievalService
 from marygenai.settings import get_settings
 
 
-def create_mcp_server(index_path: Path | None = None) -> FastMCP:
+def create_mcp_server(
+    index_path: Path | None = None,
+    *,
+    stateless_http: bool = False,
+    allowed_hosts: list[str] | None = None,
+    allowed_origins: list[str] | None = None,
+) -> FastMCP:
     """Create a closed-world MCP server over a read-only candidate index."""
     resolved_path = index_path or (get_settings().data_dir / DEFAULT_INDEX_RELATIVE_PATH)
     service = RetrievalService(resolved_path)
@@ -21,10 +28,26 @@ def create_mcp_server(index_path: Path | None = None) -> FastMCP:
         "MaryGenAI Candidate Evidence Retrieval",
         instructions=(
             "Search a closed local index of cannabinoid scientific candidate evidence. "
+            "The indexed sources and candidate metadata are primarily English. Translate "
+            "non-English scientific questions into concise English query terms and structured "
+            "filter labels before calling search_studies or get_facets; preserve identifiers "
+            "and source evidence unchanged, then answer the user in their language. Never send "
+            "patient-identifying information. "
             "Results are not reviewed clinical truth, medical advice, or treatment "
             "recommendations. Preserve uncertainty, provenance, and source links."
         ),
         json_response=True,
+        stateless_http=stateless_http,
+        streamable_http_path="/mcp",
+        transport_security=(
+            TransportSecuritySettings(
+                enable_dns_rebinding_protection=True,
+                allowed_hosts=allowed_hosts,
+                allowed_origins=allowed_origins or [],
+            )
+            if allowed_hosts is not None
+            else None
+        ),
     )
     read_only = ToolAnnotations(
         readOnlyHint=True,
@@ -36,9 +59,11 @@ def create_mcp_server(index_path: Path | None = None) -> FastMCP:
     @mcp.tool(
         title="Search MaryGenAI studies",
         description=(
-            "Search AI-classified candidate evidence with explicit filters. The server never "
-            "silently relaxes filters and returns the effective query, match explanations, "
-            "uncertainty, review state, and source identity."
+            "Search AI-classified candidate evidence with explicit filters. Translate "
+            "non-English scientific concepts into concise English query terms and filter "
+            "labels before calling this tool. The server never silently relaxes filters and "
+            "returns the effective query, match explanations, uncertainty, review state, and "
+            "source identity."
         ),
         annotations=read_only,
         structured_output=True,
@@ -62,7 +87,8 @@ def create_mcp_server(index_path: Path | None = None) -> FastMCP:
         title="Get MaryGenAI search facets",
         description=(
             "Count canonical retrieval facets over the explicitly filtered result set before "
-            "pagination. Useful for constructing or refining a search query."
+            "pagination. Use English labels after translating non-English scientific concepts. "
+            "Useful for constructing or refining a search query."
         ),
         annotations=read_only,
         structured_output=True,
@@ -74,7 +100,8 @@ def create_mcp_server(index_path: Path | None = None) -> FastMCP:
         title="Get MaryGenAI search capabilities",
         description=(
             "Describe supported filters, question types, pagination, ranking semantics, "
-            "known v3 schema gaps, index runs, and the candidate-evidence trust boundary."
+            "language and host-translation requirements, known v3 schema gaps, index runs, "
+            "and the candidate-evidence trust boundary."
         ),
         annotations=read_only,
         structured_output=True,

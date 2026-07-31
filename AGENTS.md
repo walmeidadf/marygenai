@@ -110,8 +110,11 @@ tests/                # supported package tests
 docs/                 # current public documentation and project memory
 ontology/             # versioned ontology contracts and artifacts
 scripts/              # thin orchestration around supported CLI commands
+infra/terraform/      # versioned read-only MCP cloud infrastructure
+infra/lambda/         # locked minimal Lambda runtime requirements
 data/                 # generated local artifacts, ignored
 temp/                 # private inputs, archived experiments, scratch, ignored
+build/                # generated deployment packages, ignored
 ```
 
 Historical POC implementations may be kept locally under

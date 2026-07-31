@@ -8,7 +8,7 @@ from typing import Any
 
 import duckdb
 
-from marygenai.retrieval.index import normalize_match_key
+from marygenai.retrieval.common import normalize_match_key
 from marygenai.retrieval.models import (
     FacetsResponse,
     FacetValue,
@@ -465,6 +465,18 @@ class RetrievalService:
             index_schema_version=self._metadata["index_schema_version"],
             document_count=int(self._metadata["document_count"]),
             classification_run_ids=json.loads(self._metadata["classification_run_ids"]),
+            language_contract={
+                "corpus_primary_language": "English",
+                "query_and_filter_language": "English",
+                "host_translation_required_for_non_english_questions": True,
+                "preserve_identifiers_without_translation": True,
+                "answer_in_user_language": True,
+                "translation_boundary": (
+                    "Translate the user's non-English scientific concepts into concise "
+                    "English retrieval terms and structured filters before calling search. "
+                    "Do not translate identifiers, source evidence, or quoted spans."
+                ),
+            },
             filter_fields=filter_fields,
             question_types=[
                 "background",

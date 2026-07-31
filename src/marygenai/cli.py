@@ -6,6 +6,7 @@ from marygenai.access_enrichment.cli import app as access_enrichment_app
 from marygenai.analytics.cli import app as analytics_app
 from marygenai.classification.cli import app as classification_app
 from marygenai.classification_corpus.cli import app as classification_corpus_app
+from marygenai.deployment.cli import app as deployment_app
 from marygenai.initial_load.cli import app as initial_load_app
 from marygenai.mcp_server.cli import app as mcp_app
 from marygenai.persistence.cli import app as db_app
@@ -33,6 +34,7 @@ app.add_typer(review_api_app, name="review-api")
 app.add_typer(review_ui_app, name="review-ui")
 app.add_typer(retrieval_app, name="retrieval")
 app.add_typer(mcp_app, name="mcp")
+app.add_typer(deployment_app, name="deployment")
 
 
 @app.callback()

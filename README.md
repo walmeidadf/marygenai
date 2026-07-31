@@ -106,6 +106,31 @@ evidence, not reviewed knowledge. See
 [Read-Only MCP Retrieval Contract](docs/mcp_retrieval_contract.md) and
 [MCP Clinical Retrieval Research](docs/mcp_clinical_retrieval_research.md).
 
+Local stateless Streamable HTTP and the first AWS dev deployment path are also
+available:
+
+```bash
+uv run marygenai mcp generate-access-token \
+  --output-path data/private/mcp-dev-access-token.json
+uv run marygenai mcp serve-http
+uv run marygenai deployment build-lambda
+cd infra/terraform
+terraform init
+terraform validate
+terraform plan
+```
+
+The Terraform environment deploys API Gateway HTTP API, Lambda Python 3.13, and
+a private versioned S3 bucket. Lambda verifies the content-addressed DuckDB
+snapshot, copies it to `/tmp`, and opens it read-only. The temporary pilot token
+is accepted through the preferred `Authorization: Bearer` header; only its
+SHA-256 digest belongs in local configuration. The AWS dev environment also
+enables an explicit `?key=` compatibility path for hosted connector dialogs that
+do not expose static headers. Treat that complete URL as a secret. A
+DNS-validated ACM certificate exposes `mcp-server.marygenai.com` while
+Cloudflare remains the external DNS provider. See
+[AWS Dev Environment](infra/terraform/README.md).
+
 Classification preparation, validation, and the first candidate-base canary:
 
 ```bash
@@ -239,8 +264,10 @@ tests/                # tests for the supported package surface
 docs/                 # current product, architecture, operations, and decisions
 ontology/             # public ontology contracts and future versioned artifacts
 scripts/              # thin runners around supported package commands
+infra/                # Terraform and locked Lambda runtime dependencies
 data/                 # generated datasets and source artifacts, ignored
 temp/                 # private inputs, archived experiments, and scratch, ignored
+build/                # generated deployment packages, ignored
 ```
 
 Historical POC implementations are intentionally not part of the supported public

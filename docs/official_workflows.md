@@ -16,9 +16,8 @@ generated data, raw source payloads, PDFs, or private legacy exports.
 
 ## Read-Only Retrieval And MCP Workflow
 
-Build the isolated candidate index from the ten currently approved runs (the
-first 500 records plus six 150-record continuation chunks), the classification
-corpus, and their latest evaluation reports:
+Build the isolated candidate index from all twenty-four completed strict-corpus
+runs, the classification corpus, and their latest evaluation reports:
 
 ```bash
 uv run marygenai retrieval build-index
@@ -60,6 +59,52 @@ Serve the closed local index to an MCP host over stdio:
 ```bash
 uv run marygenai mcp serve
 ```
+
+Generate a temporary pilot token and serve the same tools over local stateless
+Streamable HTTP:
+
+```bash
+uv run marygenai mcp generate-access-token \
+  --output-path data/private/mcp-dev-access-token.json
+export MARYGENAI_MCP_BEARER_TOKEN_SHA256=<reported_sha256>
+uv run marygenai mcp serve-http
+```
+
+The plaintext token must remain outside repository files and logs. HTTP
+authentication prefers the `Authorization: Bearer` header. Query credentials
+remain disabled locally unless `--allow-query-token` is explicit. The optional
+output file is ignored, created with mode `0600`, and never overwritten.
+
+Build the Linux deployment ZIP without embedding the candidate index:
+
+```bash
+uv run marygenai deployment build-lambda
+```
+
+Prepare the Terraform dev environment:
+
+```bash
+cd infra/terraform
+terraform init
+terraform fmt -check
+terraform validate
+terraform plan
+```
+
+Terraform uploads the ignored DuckDB and manifest to a private versioned S3
+bucket under content-addressed keys. Lambda verifies the DuckDB SHA-256, copies
+it to `/tmp`, and opens it with `read_only=True`. Review a saved plan before any
+apply. The infrastructure does not use CloudFormation. The custom domain uses an
+ACM certificate with external Cloudflare DNS validation; follow the two-stage
+bootstrap in `infra/terraform/README.md` before creating the application CNAME.
+
+The AWS dev environment sets `allow_query_token=true` for compatibility with
+the maintainer's current Claude and ChatGPT connector dialogs. Use
+`https://mcp-server.marygenai.com/mcp?key=<pilot-token>` with empty Claude OAuth
+fields or ChatGPT `No Auth`. The server still verifies the key; the platform
+label only means there is no platform-managed OAuth handshake. Treat the entire
+URL as a secret. Prefer `Authorization: Bearer <pilot-token>` when a client can
+configure fixed request headers.
 
 The generated DuckDB index and manifest remain ignored under
 `data/normalized/retrieval_indexes/`. Build and runtime do not open or mutate
@@ -455,10 +500,10 @@ The first MCP milestone should be read-only over ignored local candidate
 classification artifacts. It must not mutate SQLite review queues, review
 decisions, or reviewed knowledge.
 
-The initial MCP demo should use the completed 500-document Batch tranche listed
-in `docs/2026-07-11_batch_and_mcp_handoff.md`. The records are sufficient for a
-medical-team demonstration and reviewer-recruitment workflow, even though they
-remain candidate evidence.
+The initial remote MCP demo uses the completed 3,149-document strict corpus.
+Sixty records have explicit projected-identity conflicts and require careful
+handling in physician-facing acceptance tests. All records remain candidate
+evidence.
 
 Initial MCP capabilities should support:
 

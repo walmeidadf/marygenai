@@ -10,6 +10,7 @@ class Settings(BaseSettings):
 
     data_dir: Path = Field(default=Path("data"))
     temp_dir: Path = Field(default=Path("temp"))
+    mcp_bearer_token_sha256: str | None = None
 
 
 @lru_cache

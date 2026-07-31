@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
+import stat
 from collections.abc import AsyncGenerator
 from pathlib import Path
 
@@ -9,8 +11,13 @@ import duckdb
 import pytest
 from mcp.client.session import ClientSession
 from mcp.shared.memory import create_connected_server_and_client_session
+from starlette.testclient import TestClient
+from typer.testing import CliRunner
 
-from marygenai.mcp_server import create_mcp_server
+from marygenai.mcp_server import create_mcp_server, lambda_runtime
+from marygenai.mcp_server.cli import app as mcp_cli_app
+from marygenai.mcp_server.http import create_http_app, hash_access_token
+from marygenai.mcp_server.lambda_runtime import IndexArtifactConfig, materialize_index
 from marygenai.retrieval.identity import (
     build_identity_urls,
     choose_preferred_access_url,
@@ -435,6 +442,192 @@ def test_retrieval_runtime_connection_rejects_writes(retrieval_index: Path) -> N
         connection.close()
 
 
+def test_streamable_http_requires_header_token_and_rejects_query_tokens(
+    retrieval_index: Path,
+) -> None:
+    token = "mary_test_token_with_sufficient_entropy"
+    app = create_http_app(
+        retrieval_index,
+        bearer_token_sha256=hash_access_token(token),
+    )
+    with TestClient(app, base_url="http://localhost:8000") as client:
+        health = client.get("/health")
+        assert health.status_code == 200
+        assert health.json()["trust_level"] == "ai_classified_candidate"
+
+        missing = client.post("/mcp", json={})
+        assert missing.status_code == 401
+        assert missing.headers["www-authenticate"] == "Bearer"
+
+        query_token = client.post(f"/mcp?key={token}", json={})
+        assert query_token.status_code == 400
+
+        initialized = client.post(
+            "/mcp",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/json, text/event-stream",
+                "Content-Type": "application/json",
+            },
+            json={
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2025-06-18",
+                    "capabilities": {},
+                    "clientInfo": {"name": "test-client", "version": "1.0"},
+                },
+            },
+        )
+        assert initialized.status_code == 200
+        assert initialized.json()["result"]["serverInfo"]["name"] == (
+            "MaryGenAI Candidate Evidence Retrieval"
+        )
+
+
+def test_streamable_http_can_explicitly_allow_pilot_query_key(
+    retrieval_index: Path,
+) -> None:
+    token = "mary_test_token_with_sufficient_entropy"
+    app = create_http_app(
+        retrieval_index,
+        bearer_token_sha256=hash_access_token(token),
+        allow_query_token=True,
+    )
+    with TestClient(app, base_url="http://localhost:8000") as client:
+        initialized = client.post(
+            f"/mcp?key={token}",
+            headers={
+                "Accept": "application/json, text/event-stream",
+                "Content-Type": "application/json",
+            },
+            json={
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2025-06-18",
+                    "capabilities": {},
+                    "clientInfo": {"name": "test-client", "version": "1.0"},
+                },
+            },
+        )
+        assert initialized.status_code == 200
+
+        ambiguous = client.post(
+            f"/mcp?key={token}",
+            headers={"Authorization": f"Bearer {token}"},
+            json={},
+        )
+        assert ambiguous.status_code == 400
+
+        alternate_query_field = client.post(f"/mcp?api_key={token}", json={})
+        assert alternate_query_field.status_code == 400
+
+
+def test_generate_access_token_writes_private_file_without_echoing_token(
+    tmp_path: Path,
+) -> None:
+    output_path = tmp_path / "pilot-token.json"
+
+    result = CliRunner().invoke(
+        mcp_cli_app,
+        ["generate-access-token", "--output-path", str(output_path)],
+    )
+
+    assert result.exit_code == 0
+    record = json.loads(output_path.read_text(encoding="utf-8"))
+    command_output = json.loads(result.stdout)
+    assert record["token"].startswith("mary_")
+    assert record["token"] not in result.stdout
+    assert command_output["sha256"] == record["sha256"]
+    assert record["sha256"] == hashlib.sha256(record["token"].encode()).hexdigest()
+    assert stat.S_IMODE(output_path.stat().st_mode) == 0o600
+
+
+def test_generate_access_token_refuses_to_overwrite_existing_file(tmp_path: Path) -> None:
+    output_path = tmp_path / "pilot-token.json"
+    output_path.write_text("preserve", encoding="utf-8")
+
+    result = CliRunner().invoke(
+        mcp_cli_app,
+        ["generate-access-token", "--output-path", str(output_path)],
+    )
+
+    assert result.exit_code != 0
+    assert output_path.read_text(encoding="utf-8") == "preserve"
+
+
+class FakeS3Client:
+    def __init__(self, content: bytes) -> None:
+        self.content = content
+        self.downloads = 0
+
+    def download_file(self, bucket: str, key: str, filename: str) -> None:
+        assert bucket == "private-index-bucket"
+        assert key == "retrieval-indexes/test.duckdb"
+        Path(filename).write_bytes(self.content)
+        self.downloads += 1
+
+
+def test_lambda_index_materialization_verifies_hash_and_reuses_warm_copy(
+    tmp_path: Path,
+) -> None:
+    content = b"immutable duckdb snapshot"
+    client = FakeS3Client(content)
+    config = IndexArtifactConfig(
+        bucket="private-index-bucket",
+        key="retrieval-indexes/test.duckdb",
+        sha256=hashlib.sha256(content).hexdigest(),
+        local_path=tmp_path / "retrieval.duckdb",
+    )
+
+    assert materialize_index(config, s3_client=client) == config.local_path
+    assert materialize_index(config, s3_client=client) == config.local_path
+    assert config.local_path.read_bytes() == content
+    assert client.downloads == 1
+
+
+def test_lambda_index_materialization_rejects_hash_mismatch(tmp_path: Path) -> None:
+    client = FakeS3Client(b"unexpected content")
+    config = IndexArtifactConfig(
+        bucket="private-index-bucket",
+        key="retrieval-indexes/test.duckdb",
+        sha256="a" * 64,
+        local_path=tmp_path / "retrieval.duckdb",
+    )
+
+    with pytest.raises(ValueError, match="SHA-256 mismatch"):
+        materialize_index(config, s3_client=client)
+    assert not config.local_path.exists()
+    assert not config.local_path.with_suffix(".download").exists()
+
+
+def test_lambda_handler_uses_fresh_adapter_for_each_stateless_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    builds: list[int] = []
+
+    class FakeAdapter:
+        def __init__(self, build_number: int) -> None:
+            self.build_number = build_number
+
+        def __call__(self, event: dict, context: object) -> dict:
+            assert context is None
+            return {"event": event, "build_number": self.build_number}
+
+    def build_adapter() -> FakeAdapter:
+        builds.append(len(builds) + 1)
+        return FakeAdapter(builds[-1])
+
+    monkeypatch.setattr(lambda_runtime, "create_lambda_adapter", build_adapter)
+
+    assert lambda_runtime.handler({"request": 1}, None)["build_number"] == 1
+    assert lambda_runtime.handler({"request": 2}, None)["build_number"] == 2
+    assert builds == [1, 2]
+
+
 @pytest.fixture
 def anyio_backend() -> str:
     return "asyncio"
@@ -466,6 +659,7 @@ async def test_mcp_exposes_only_read_only_candidate_retrieval_tools(
         assert tool.annotations.readOnlyHint is True
         assert tool.annotations.destructiveHint is False
         assert tool.annotations.openWorldHint is False
+    assert "Translate non-English scientific concepts" in tools.tools[0].description
 
     result = await mcp_client.call_tool(
         "search_studies",
@@ -486,3 +680,11 @@ async def test_mcp_exposes_only_read_only_candidate_retrieval_tools(
     projected = result.structuredContent["results"][0]["projected_identity"]
     assert projected["preferred_access_url"]["url_kind"] == "pubmed"
     assert result.structuredContent["trust_boundary"]["medical_advice"] is False
+
+    capabilities = await mcp_client.call_tool("get_search_capabilities", {})
+    assert capabilities.isError is False
+    language = capabilities.structuredContent["language_contract"]
+    assert language["corpus_primary_language"] == "English"
+    assert language["query_and_filter_language"] == "English"
+    assert language["host_translation_required_for_non_english_questions"] is True
+    assert language["answer_in_user_language"] is True

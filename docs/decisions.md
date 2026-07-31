@@ -1,5 +1,92 @@
 # Decision Log
 
+## 2026-07-31: Make Host-Side English Query Translation Explicit
+
+The first retrieval index contains primarily English source text and candidate
+metadata, while initial physician users may ask questions in Portuguese. The
+MCP server does not add an LLM or translation provider. Instead, server
+instructions, tool descriptions, generated input-schema descriptions, and the
+machine-readable capabilities response direct the MCP host to translate
+non-English scientific concepts into concise English query terms and structured
+filter labels before retrieval.
+
+The host must preserve DOI, PMID, PMCID, quoted evidence, and source identity
+without translation and should answer in the user's language. This keeps
+translation in Claude, ChatGPT, or another authorized host, avoids a provider
+dependency inside MaryGenAI, and leaves the deterministic read-only retrieval
+boundary unchanged.
+
+## 2026-07-31: Use A Shared Pilot Token With An Explicit Hosted-UI Compatibility Path
+
+The first hosted MCP pilot keeps the existing high-entropy pre-shared token.
+Lambda stores only its SHA-256 digest and compares supplied credentials in
+constant time. A new CLI option can write the plaintext token once to an ignored
+mode-`0600` file without echoing it. The maintainer must transfer it to a
+password manager.
+
+`Authorization: Bearer` remains the preferred transport. The inspected
+`mcp-omie` pilot instead uses plaintext `?key=` URL parameters backed by
+DynamoDB. The maintainer's live Claude and ChatGPT connector dialogs were then
+inspected and neither exposed a fixed-header field: Claude showed only optional
+OAuth client credentials, while ChatGPT offered `No Auth` or `Mixed`.
+
+The AWS dev environment therefore enables exactly one explicit compatibility
+credential, `?key=<pilot-token>`, while local HTTP serving keeps it disabled by
+default. Alternate query credential names, duplicate keys, and simultaneous
+header/query credentials are rejected. The complete connector URL is secret and
+may still be retained by the host platform or infrastructure. API Gateway access
+logging is not enabled, and application code does not log request URIs or
+events. DynamoDB is unnecessary while there is one shared credential and no
+per-user scope or revocation contract.
+
+Claude documents fixed request-header authentication as a gradual beta rollout,
+but it is not available in the maintainer's current account. When available,
+the query compatibility mode should be disabled. OAuth remains required before
+per-physician identity, scopes, or independent revocation are claimed.
+
+Terraform owns a DNS-validated ACM certificate, API Gateway custom domain, and
+API mapping for `mcp-server.marygenai.com`. Cloudflare remains externally
+managed. Certificate validation and the application hostname use separate
+CNAME records, both created manually by the maintainer. The application CNAME
+starts as DNS-only for protocol isolation; Cloudflare proxying and WAF rules are
+a later hardening decision.
+
+FastMCP's stateless Streamable HTTP session manager allows its lifespan runner
+to start only once per application instance. Mangum starts and stops ASGI
+lifespan around each Lambda invocation, so a module-level cached adapter fails
+on the second warm request. Lambda therefore creates a fresh application and
+adapter per invocation. The content-addressed DuckDB file remains cached and
+hash-verified in `/tmp`, avoiding repeat S3 downloads in warm environments.
+
+## 2026-07-23: Use Terraform For The First Remote Read-Only MCP Environment
+
+The first remote test environment uses Terraform under `infra/terraform/`, not
+CDK or CloudFormation. Terraform deploys an API Gateway HTTP API, a Python 3.13
+Lambda, a private versioned S3 bucket, a least-privilege Lambda execution role,
+and bounded CloudWatch log retention. Local state and variable files remain
+ignored for the first maintainer-only dev environment.
+
+The 3,149-document DuckDB snapshot is not embedded in the Lambda ZIP. Terraform
+uploads the index and its operator manifest under content-addressed S3 keys.
+Lambda can read only the selected index object, validates its SHA-256, copies it
+to `/tmp`, and opens it through the existing `read_only=True` retrieval service.
+It does not receive SQLite, review state, candidate-record write paths, provider
+credentials, or provider tools.
+
+FastMCP runs in stateless Streamable HTTP mode with JSON responses behind
+Mangum and API Gateway payload v2. DNS-rebinding host validation remains
+enabled for the generated execute-api host. The first pilot gate stores only
+the high-entropy token SHA-256. Bearer is preferred; the AWS dev environment may
+explicitly enable the bounded query compatibility path described above. This is
+a temporary access barrier for controlled testing; OAuth/Cognito remains the
+future client-compatible authorization boundary.
+
+The dev plan caps Lambda concurrency at ten, applies API-level throttling, keeps
+the health response free of corpus data, and leaves the bucket non-destructible
+by default. The runtime manifest resource falls back to sanitized DuckDB build
+metadata because the private operator manifest, which contains local artifact
+paths, is not copied beside the runtime index.
+
 ## 2026-07-23: Recover The Final Strict Record And Export Identity Conflicts
 
 The explicitly authorized targeted Batch for

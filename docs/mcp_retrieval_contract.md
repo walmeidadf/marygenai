@@ -18,7 +18,10 @@ The supported data flow is:
    worklists;
 4. an isolated ignored DuckDB retrieval index;
 5. a query service that opens DuckDB with `read_only=True`;
-6. the `marygenai` CLI and a local MCP stdio server over the same query service.
+6. the `marygenai` CLI and a local MCP stdio server over the same query service;
+7. an optional stateless Streamable HTTP application;
+8. an AWS dev deployment with API Gateway, Lambda, and a private immutable
+   DuckDB snapshot in S3.
 
 The build does not open or mutate MaryGenAI SQLite, review queues, review
 decisions, or reviewed knowledge. The MCP runtime has no provider, network,
@@ -63,6 +66,25 @@ Serve MCP over stdio:
 uv run marygenai mcp serve
 ```
 
+Serve MCP over local stateless Streamable HTTP:
+
+```bash
+uv run marygenai mcp generate-access-token \
+  --output-path data/private/mcp-dev-access-token.json
+export MARYGENAI_MCP_BEARER_TOKEN_SHA256=<reported_sha256>
+uv run marygenai mcp serve-http
+```
+
+The HTTP runtime uses JSON responses and stateless MCP sessions. A temporary
+pilot token is accepted through the preferred `Authorization: Bearer` header.
+Query credentials are disabled by default and require an explicit runtime flag.
+The AWS dev pilot enables exactly `?key=` because the maintainer's current
+Claude and ChatGPT connector dialogs do not expose fixed request headers. Other
+credential query fields, duplicate keys, and simultaneous header/query
+credentials are rejected. This compatibility gate is not the final
+multi-client authorization design and does not provide per-physician identity,
+scopes, or independent revocation.
+
 The default ignored index is:
 
 ```text
@@ -84,6 +106,16 @@ Input is a `SearchRequest` with:
 - a list of clinical dimensions the host could not represent;
 - result limit from 1 to 50;
 - an opaque cursor.
+
+The indexed source and candidate metadata are primarily English. MCP server
+instructions, tool descriptions, the generated input schema, and
+`get_search_capabilities.language_contract` direct the host to translate a
+non-English question into concise English retrieval terms and structured filter
+labels before calling search. Identifiers and quoted source evidence must remain
+unchanged. The host should synthesize the final answer in the user's language.
+For example, a Portuguese question about "síndrome de Dravet e canabidiol"
+should query `Dravet syndrome` and `cannabidiol`, while the final explanation
+may remain in Portuguese.
 
 The first implementation applies question type as context only, not as a hidden
 filter or ranking adjustment.
@@ -184,7 +216,8 @@ candidate labels remain unchanged in study detail.
 ### `get_search_capabilities`
 
 Returns supported filters, cardinalities, match modes, question types, cursor
-limits, ranking semantics, included classification runs, and v3 schema gaps.
+limits, ranking semantics, language and host-translation requirements, included
+classification runs, and v3 schema gaps.
 
 ## MCP Resources
 
@@ -197,6 +230,17 @@ limits, ranking semantics, included classification runs, and v3 schema gaps.
 All tools declare read-only, non-destructive, idempotent, closed-world MCP
 annotations. Enforcement comes from the isolated index and DuckDB read-only
 runtime, not from annotations alone.
+
+In the AWS dev runtime, Lambda can read exactly one content-addressed DuckDB
+object. It verifies SHA-256 before replacing the warm `/tmp` copy. The private
+deployment manifest is uploaded for operator provenance but is not copied next
+to the runtime index, preventing local absolute artifact paths from being
+exposed through the MCP manifest resource.
+
+The public custom hostname terminates with an ACM certificate on API Gateway.
+Cloudflare remains the external DNS provider and is configured manually. The
+first smoke test uses a DNS-only application CNAME; proxying and WAF controls
+are a later independent hardening step.
 
 An MCP host should not send a patient record or directly identifying patient
 data. It should translate a physician's question into the smallest set of

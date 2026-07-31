@@ -19,7 +19,14 @@ TRUST_NOTICE = (
 class FilterGroup(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    values: list[str] = Field(min_length=1, max_length=50)
+    values: list[str] = Field(
+        min_length=1,
+        max_length=50,
+        description=(
+            "English retrieval labels or enum values. Translate non-English clinical "
+            "concepts before constructing filters."
+        ),
+    )
     match: Literal["any", "all"] = "any"
 
     @field_validator("values")
@@ -67,7 +74,14 @@ class SearchFilters(BaseModel):
 class SearchRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    query: str | None = Field(default=None, max_length=500)
+    query: str | None = Field(
+        default=None,
+        max_length=500,
+        description=(
+            "Concise English retrieval terms. Translate a non-English user question before "
+            "calling search; the indexed source and candidate metadata are primarily English."
+        ),
+    )
     question_type: (
         Literal[
             "background",
@@ -82,7 +96,12 @@ class SearchRequest(BaseModel):
         ]
         | None
     ) = None
-    filters: SearchFilters = Field(default_factory=SearchFilters)
+    filters: SearchFilters = Field(
+        default_factory=SearchFilters,
+        description=(
+            "Structured retrieval filters using English labels or documented enum values."
+        ),
+    )
     unsupported_dimensions: list[str] = Field(default_factory=list, max_length=20)
     limit: int = Field(default=10, ge=1, le=50)
     cursor: str | None = None
@@ -270,6 +289,7 @@ class SearchCapabilities(BaseModel):
     index_schema_version: str
     document_count: int
     classification_run_ids: list[str]
+    language_contract: dict[str, Any]
     filter_fields: dict[str, dict[str, Any]]
     question_types: list[str]
     unsupported_v3_dimensions: list[str]

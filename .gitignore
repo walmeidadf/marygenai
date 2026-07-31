@@ -23,3 +23,13 @@ venv/
 data/
 temp/
 outputs/
+build/
+
+# Terraform local state and developer configuration
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+!*.tfvars.example
+crash.log

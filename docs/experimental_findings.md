@@ -1,5 +1,74 @@
 # Experimental Findings
 
+## 2026-07-31: First Remote Retrieval And Portuguese-Host Translation Smoke Tests
+
+The AWS dev endpoint was deployed over the 3,149-document read-only DuckDB
+snapshot. TLS, health, missing/invalid credential rejection, MCP initialize,
+tool discovery, capabilities, Bearer authentication, and the explicit dev-only
+query-key compatibility path all passed. A broad remote keyword search for
+`cannabidiol` returned 1,012 candidates.
+
+Three English structured-filter calls representing questions a Brazilian
+physician might ask produced:
+
+- `Dravet syndrome` plus `Cannabidiol`: 29 candidates;
+- `Epilepsy` plus `Cannabidiol`: 114 candidates;
+- `Multiple sclerosis` plus `Tetrahydrocannabinol`: 33 candidates.
+
+The first returned records included physician-facing PMC or PubMed links. They
+also included heterogeneous study contexts such as narrative reviews,
+systematic reviews, pharmacokinetic studies, and broader cannabinoid reviews.
+This confirms retrieval utility while reinforcing that ranking is not clinical
+evidence strength and returned records remain AI-classified candidates requiring
+source inspection and human judgment.
+
+The deployed tool description and capabilities response now state that source
+and candidate metadata are primarily English. The host must translate a
+Portuguese question into concise English retrieval terms and filters, preserve
+identifiers and quoted evidence unchanged, and answer in the user's language.
+MaryGenAI performs no translation-provider or LLM call. SQLite, review state,
+and reviewed knowledge remained untouched throughout deployment and testing.
+
+## 2026-07-31: Hosted Connector Authentication Capabilities Differ From Documented Betas
+
+The current Claude connector documentation lists fixed request headers as a
+beta authentication mode shared at the organization connector level. It accepts
+allowlisted header names including `Authorization`, `x-api-key`, and
+`x-auth-token`, and sends the configured value on every hosted connector
+request. For Bearer authentication, the administrator must enter the complete
+`Bearer <token>` value. Hosted connectors are brokered through Claude's cloud
+infrastructure and remain available across web, mobile, and desktop clients.
+
+This makes MaryGenAI's existing header-token gate suitable for a small shared
+pilot without OAuth only when the account has received that beta. It does not
+identify individual physicians, and rollout is account-dependent. Inspection of
+the maintainer's live Claude connector dialog found no Request headers section;
+only optional OAuth Client ID and Secret were present. The current ChatGPT
+custom-plugin dialog similarly exposed `No Auth` and `Mixed`, but no fixed
+header input. OpenAI's programmatic MCP API supports caller-supplied headers,
+but that API capability is not evidence that the ChatGPT dialog exposes them.
+
+The explicit AWS dev fallback is a URL `?key=` checked by MaryGenAI while the
+host is configured as non-OAuth. This is a compatibility compromise: the URL is
+a secret and may be retained in platform or proxy logs. Disable it when static
+headers become available or OAuth is implemented. The source documentation is:
+`https://claude.com/docs/connectors/custom/remote-mcp` and
+`https://claude.com/docs/connectors/building/authentication`. OpenAI product
+availability and authentication behavior should be rechecked against the live
+ChatGPT UI and official Help Center before later rollout decisions.
+
+## 2026-07-31: FastMCP Lifespan Must Not Be Restarted On A Cached Mangum Adapter
+
+The first deployed health request succeeded, but later MCP requests returned
+HTTP 500 in the same warm Lambda environment. CloudWatch showed that Mangum was
+starting ASGI lifespan again on a cached FastMCP application, while
+`StreamableHTTPSessionManager.run()` permits only one start per instance.
+
+The Lambda handler now creates a fresh stateless application/adapter for each
+invocation. The verified DuckDB snapshot remains cached in `/tmp`, so warm
+requests avoid another S3 download. This keeps the MCP lifecycle request-scoped
+without weakening the immutable read-only index boundary.
+
 This document preserves durable findings from historical source and model
 experiments. The original standalone POC implementations are no longer part of
 the supported public interface. Their Git history remains available, and the
@@ -56,6 +125,16 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
 
 ## Read-Only Candidate Retrieval
 
+- The first remote-runtime preparation uses the complete 3,149-document,
+  46-MiB DuckDB snapshot and a 31.1-MB Linux x86_64 Lambda ZIP. The snapshot is
+  separate from code, content-addressed in private S3, SHA-256 verified before
+  use, and cached only in Lambda `/tmp`. A Terraform read-only plan produced 18
+  creates, zero changes, and zero destroys; no cloud resource was created.
+- FastMCP stateless Streamable HTTP successfully completed protocol
+  initialization through the Starlette application with a bearer-header gate.
+  Missing or invalid headers return 401, while URI query tokens return 400.
+  The SDK host-validation boundary must explicitly include the API Gateway
+  execute-api hostname; disabling DNS-rebinding protection is unnecessary.
 - The completed strict-corpus index contains all 3,149 classification-ready
   documents across 24 Batch runs, including two targeted retries. Projected
   identity covers PMID for 3,099 documents, PMCID for 2,415, and DOI for 3,068.
