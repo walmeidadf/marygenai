@@ -24,8 +24,8 @@ The supported data flow is:
    DuckDB snapshot in S3.
 
 The build does not open or mutate MaryGenAI SQLite, review queues, review
-decisions, or reviewed knowledge. The MCP runtime has no provider, network,
-review, or persistence tools.
+decisions, or reviewed knowledge. The MCP runtime has no provider, review, or
+persistence tools and performs no outbound source-network calls.
 
 ## Supported Commands
 
@@ -283,8 +283,15 @@ Every response states:
 
 - The index covers all 3,149 strict classification-ready documents.
 - Sixty documents expose explicit projected-identity conflicts. Fifty-nine
-  entered with the final offset and require source-routing or identity review
-  before a physician-facing demonstration.
+  entered with the final offset and require source-routing or identity review.
+- Bibliographic `publication_year` does not yet distinguish online-first,
+  journal-issue, indexing, and print publication dates.
+- Candidate study-design categories may disagree with authoritative
+  bibliographic publication types. Both meanings must remain separate rather
+  than silently overwriting one another.
+- An external source may disagree with the currently projected DOI or another
+  identifier after an index build. The current closed snapshot does not perform
+  live reconciliation or URL-health checks.
 - V3 does not reliably structure dose, route, formulation, comparator, duration,
   study period, detailed age group, sex or gender, sample size, country,
   comorbidity, outcome entity, or adverse-event entity.

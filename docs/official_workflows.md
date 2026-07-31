@@ -395,13 +395,13 @@ default 1,800,000-token guard. For the current broad/v3 prompt shape and
 2026-07-10, use about 150 records per submitted Batch and submit only one
 sub-batch at a time.
 
-The first 500-document strict classification-ready tranche is complete using
-offsets 0, 150, 300, and 450. It produced 500/500 strict-valid candidate records
-after deterministic technical repairs. To continue with the next 500 records,
-use offsets 500, 650, 800, and 950 with limits 150, 150, 150, and 50,
-respectively. The measured Batch cost for the first 500 was about USD 2.52, or
-about USD 0.00504 per document. See
-`docs/2026-07-11_batch_and_mcp_handoff.md` before continuing Batch work.
+The strict classification-ready corpus is complete. Twenty-four runs, including
+targeted retries, produced 3,149/3,149 strict-valid candidate records with
+evidence spans. Do not continue the historical offsets as though more strict
+records remain. A new provider-backed run requires explicit authorization and
+an intentionally new or changed corpus. Preserve the observed operating limit
+of about 150 records per sequential Batch for the current prompt shape. See
+`docs/2026-07-31_mcp_pilot_handoff.md` before further classification work.
 
 Submit a prepared mini-Batch only after reviewing the local input and manifest:
 
@@ -494,18 +494,19 @@ an empty retrieval list or `cannot_determine` value but omitted the required
 uncertainty marker. This repair is provenance-recorded and does not change
 scientific field values.
 
-## Read-Only MCP Prototype Workflow
+## Read-Only MCP Pilot Workflow
 
-The first MCP milestone should be read-only over ignored local candidate
-classification artifacts. It must not mutate SQLite review queues, review
-decisions, or reviewed knowledge.
+The implemented MCP pilot is read-only over ignored local candidate
+classification artifacts and a content-addressed remote copy of the generated
+index. It must not mutate SQLite review queues, review decisions, or reviewed
+knowledge.
 
 The initial remote MCP demo uses the completed 3,149-document strict corpus.
 Sixty records have explicit projected-identity conflicts and require careful
 handling in physician-facing acceptance tests. All records remain candidate
 evidence.
 
-Initial MCP capabilities should support:
+Current MCP capabilities support:
 
 - structured study search with filters for condition, cannabinoid, study
   design, evidence context, population, outcome domain, direction, confidence,
@@ -517,6 +518,14 @@ Initial MCP capabilities should support:
 
 The MCP surface must label AI output as candidate evidence and avoid medical
 advice or treatment recommendations.
+
+Hosted ChatGPT and Claude connectors have completed end-to-end tests through
+the custom domain. Their hosts translate Portuguese scientific concepts to the
+primarily English index. Search responses carry a presentation contract that
+requires bounded zero-result wording, preferred physician-facing links, detail
+inspection before detailed evidence claims, and separation of direct from
+tangential matches. See `docs/2026-07-31_mcp_pilot_handoff.md` for the physician
+demonstration checklist and next workstreams.
 
 ## Maintainer Bootstrap
 

@@ -1,5 +1,31 @@
 # Experimental Findings
 
+## 2026-07-31: Alzheimer Retrieval Exposed Bibliographic Enrichment Gaps
+
+A read-only search for Alzheimer disease returned 77 candidate records across
+two candidate-label variants: `Alzheimer's Disease` and `Alzheimer Disease`.
+Pagination returned the complete bounded set. Five recent records were opened
+through study detail and compared with their physician-facing sources. The
+shortlist contained review, preclinical, mechanistic-background, and one small
+human observational context, confirming useful breadth but also the need to
+separate direct evidence from tangential background.
+
+The inspection exposed three concrete enrichment boundaries:
+
+- PMID `38227160` is typed as a bibliographic review by PubMed, while the
+  candidate classification uses `meta_analysis` and carries a warning;
+- PMID `37862567` has a 2023 online-first date and a 2024 journal-issue date,
+  while the retrieval index exposes only one publication year;
+- the current projected and publisher DOI for PMID `36655645` is
+  `10.7417/CT.2023.2497`, while PubMed reports `10.7417/CT.2023.5009`.
+
+Candidate study design and bibliographic publication type are different data
+layers and must not overwrite one another. Publication dates should preserve
+their type, and newly observed identifier disagreement should become explicit
+provenance rather than a silent replacement. This evaluation made no provider
+call and did not mutate SQLite, review state, candidate records, or reviewed
+knowledge.
+
 ## 2026-07-31: First Live ChatGPT And Claude Connector Conversations
 
 The DNS-only custom domain and explicit dev query-key compatibility URL were
@@ -584,10 +610,10 @@ separate benchmarks before a patient-oriented MCP retrieval surface is ready.
   block the first product demonstration. The measured savings on an
   eight-document packet projection were not yet tied to inference-quality gains
   or reviewer adoption.
-- The next product learning should come from a read-only MCP prototype over
-  candidate evidence, using the 500-document broad/v3 Batch tranche as the
-  initial demo base. This better tests whether physicians and prospective human
-  reviewers find the retrieval surface valuable.
+- At that milestone, the next product learning was expected to come from a
+  read-only MCP prototype over candidate evidence, using the 500-document
+  broad/v3 Batch tranche as the initial demo base. The later campaign expanded
+  that base to all 3,149 strict candidates and deployed the remote pilot.
 - A 50-document broad/v3 provider canary ran on 2026-07-10 using only
   `strict_classification_ready` records. It produced 50 HTTP 200 responses,
   50 valid JSON responses, 49 strict schema-valid records, no provider errors,
@@ -696,4 +722,5 @@ separate benchmarks before a patient-oriented MCP retrieval surface is ready.
 - Generated artifacts remain ignored and auditable.
 - AI output remains candidate evidence.
 - Retrieval confidence must not be confused with clinical evidence strength.
-- Read-only MCP retrieval is the intended first external integration surface.
+- Read-only MCP retrieval is the implemented first external integration
+  surface.

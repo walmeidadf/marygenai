@@ -3,10 +3,11 @@
 MaryGenAI is an open-source scientific source-intelligence and
 candidate-classification engine for cannabinoid medicine.
 
-Its purpose is to make scientific literature easier to discover, filter, inspect,
-and verify. The intended downstream experience is a physician or researcher using
-their preferred AI assistant to find relevant studies through a future read-only
-MCP interface, then opening the underlying publications for deeper assessment.
+Its purpose is to make scientific literature easier to discover, filter,
+inspect, and verify. The first downstream experience is a physician or
+researcher using their preferred AI assistant to find candidate studies through
+the deployed read-only MCP pilot, then opening the underlying publications for
+deeper assessment.
 
 MaryGenAI does not provide medical advice and does not turn model output into
 clinical truth.
@@ -60,21 +61,24 @@ Current handoff state:
 - the strict corpus is exhausted and the length-truncated response was recovered
   by an explicitly authorized one-document targeted rerun.
 
-That read-only retrieval/MCP milestone now has a first implementation:
+That read-only retrieval/MCP milestone now has a deployed pilot implementation:
 
 - an isolated ignored DuckDB index over twenty-four completed candidate runs;
 - local build, inspect, and search commands;
-- MCP search, detail, facets, and capabilities tools over stdio;
+- MCP search, detail, facets, and capabilities tools over stdio and stateless
+  Streamable HTTP;
 - runtime `read_only=True` enforcement with no SQLite, review, provider, or
-  network surface;
+  outbound source access;
+- an AWS dev environment behind `mcp-server.marygenai.com`, validated with the
+  hosted ChatGPT and Claude connector interfaces;
 - clinical-question research and a preserved retrieval backlog.
 
-See [2026-07-11 Batch And MCP Handoff](docs/2026-07-11_batch_and_mcp_handoff.md)
-for run IDs, costs, artifact paths, continuation prompts, and Batch operating
-rules. See
-[2026-07-17 Identity And MCP Handoff](docs/2026-07-17_identity_and_mcp_handoff.md)
-for the original 1,100-record identity audit and URL findings. The implemented
-projection now covers 3,149 documents.
+See [2026-07-31 Remote MCP Pilot Handoff](docs/2026-07-31_mcp_pilot_handoff.md)
+for the current operational state, demonstration checklist, known limitations,
+and next workstreams. The earlier
+[Batch](docs/2026-07-11_batch_and_mcp_handoff.md) and
+[identity](docs/2026-07-17_identity_and_mcp_handoff.md) handoffs remain useful
+historical records.
 
 Core source-intelligence flow:
 
@@ -187,10 +191,12 @@ uv run marygenai classification evaluate
 requires `--no-dry-run`, a configured `OPENAI_API_KEY`, and an explicit model.
 All outputs remain candidate evidence.
 
-The first product-oriented broad/v3 Batch tranche is complete with 500 strict
-classification-ready documents. Use it as the first MCP-demo candidate base.
-Further classification should use sequential Batch chunks sized by estimated
-enqueued tokens, normally 150 records for the current prompt shape.
+The product-oriented broad/v3 Batch campaign is complete for all 3,149 strict
+classification-ready documents. The deployed pilot index includes every valid
+candidate record across twenty-four runs. Further provider-backed
+classification requires an explicitly approved new or changed corpus and should
+use sequential Batch chunks sized by estimated enqueued tokens, normally 150
+records for the current prompt shape.
 
 `classification evaluate` is local-only. It separates technical validity,
 retrieval utility, and inference quality, compares against normalized English
@@ -286,7 +292,9 @@ history remains available through Git.
 - [Product Value](docs/product_value.md)
 - [Project Brief](docs/project_brief.md)
 - [Official Workflows](docs/official_workflows.md)
+- [2026-07-31 Remote MCP Pilot Handoff](docs/2026-07-31_mcp_pilot_handoff.md)
 - [2026-07-11 Batch And MCP Handoff](docs/2026-07-11_batch_and_mcp_handoff.md)
+- [2026-07-17 Identity And MCP Handoff](docs/2026-07-17_identity_and_mcp_handoff.md)
 - [Read-Only MCP Retrieval Contract](docs/mcp_retrieval_contract.md)
 - [MCP Clinical Retrieval Research](docs/mcp_clinical_retrieval_research.md)
 - [Architecture](docs/architecture.md)

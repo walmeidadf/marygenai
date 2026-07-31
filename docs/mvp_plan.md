@@ -39,11 +39,15 @@ candidate studies rather than replacing patient-condition relevance.
 - frozen patient-oriented retrieval-field sample builder;
 - deterministic metadata/parser candidate extraction;
 - broad-v4 versus selective field-family packet and cost comparison;
-- first isolated 500-document read-only retrieval index;
+- isolated read-only retrieval index over all 3,149 strict candidates;
 - retrieval build, inspect, facets, detail, search, and capabilities contracts;
-- local MCP stdio server with runtime read-only enforcement;
+- local MCP stdio and stateless Streamable HTTP servers with runtime read-only
+  enforcement;
+- deployed AWS dev pilot with API Gateway, Lambda Python 3.13, private
+  content-addressed S3 data, and a custom domain;
+- end-to-end hosted ChatGPT and Claude connector validation;
 - clinical-question acceptance research and retrieval backlog;
-- review CLI, API, and local UI for explicit review workflows.
+- review CLI, API, and local UI for explicit review workflows;
 - Batch classification and read-only indexing for all 3,149 strict
   classification-ready documents.
 
@@ -133,52 +137,38 @@ next gate became resumable or batch-oriented execution plus a read-only
 retrieval/MCP prototype. Local Batch-compatible JSONL preparation therefore
 became part of the MVP execution path before another paid provider run.
 
-The first remote 50-document Batch later completed successfully and converted to
-50/50 strict-valid records after deterministic technical uncertainty-marker
-repair. Measured Batch cost projects the strict corpus at about USD 16.07. The
-first 500-document strict classification-ready tranche later completed as four
-sequential sub-batches with 500/500 strict-valid candidate records after
-deterministic provenance-recorded technical repairs. Measured Batch cost for
-the 500-document tranche was about USD 2.52, projecting the strict corpus at
-about USD 15.88. The next full-corpus requirement is a product decision:
-continue the remaining strict corpus now, or use the implemented read-only
-retrieval/MCP demonstration over the 500-record candidate base to recruit
-medical review support.
+The remote Batch campaign ultimately exhausted the strict corpus. Twenty-four
+runs, including targeted retries, produced 3,149/3,149 strict-valid candidate
+records with evidence spans at an estimated aggregate Batch cost of about USD
+15.58. The implemented index projects PMID for 3,099 documents, PMCID for 2,415,
+and DOI for 3,068 while preserving 60 documents with explicit identity
+conflicts rather than resolving them silently.
 
-That decision is now complete. Twenty-three Batch runs, including one targeted
-retry, exhausted the strict corpus and produced 3,148/3,149 strict-valid
-candidate records at an estimated Batch cost of USD 15.58. One response ended
-at the completion-token limit with truncated JSON and remains an explicit
-targeted-rerun gap. The next MVP quality gate is source-identity remediation for
-the conflict-heavy final offset, followed by physician-authored MCP acceptance
-testing and targeted human review.
-
-An explicitly authorized one-document targeted rerun recovered the truncated
-response with strict schema validity and exactly grounded evidence. The current
-index therefore contains 3,149/3,149 strict candidates across 24 runs. The
-remaining near-term quality gate is source-identity remediation, not additional
-strict-corpus classification.
+The read-only AWS pilot is deployed and has passed end-to-end tests through the
+hosted ChatGPT and Claude connector interfaces. The next MVP quality gate is a
+physician-led demonstration and acceptance benchmark. Its observations should
+prioritize retrieval behavior, incremental source discovery, and bibliographic
+or clinical-field enrichment. No additional provider classification is implied
+until a new or changed corpus is explicitly approved.
 
 ## MVP Workstreams
 
-1. Freeze selective-v4 work as documented findings and future optimization.
-2. Preserve the 500-document broad/v3 Batch tranche as the first MCP-demo
-   candidate base.
-3. Decide whether to classify the remaining strict corpus immediately or first
-   demo the 500-record candidate base to recruit human reviewers.
-4. Continue remaining strict-corpus classification with chunked Batch
-   preparation plus `watch-batch` monitoring when approved.
-5. Validate the implemented read-only retrieval index and MCP contract with
-   physician-authored acceptance questions.
-6. Use the preserved clinical-question matrix to prioritize missing retrieval
-   fields and deterministic aliases.
-7. Prepare medical-team demo journeys and targeted human-review exports.
-8. Use reviewer feedback to prioritize field-scoped improvements for
-    condition, anatomy, cannabinoid role, population, study structure, and
-    outcomes.
-9. Continue PubMed discovery and source acquisition using supported commands.
-10. Publish a public baseline snapshot when licensing and review boundaries are
-    ready.
+1. Demonstrate the hosted pilot with realistic, non-identifying physician
+   questions and record acceptance findings.
+2. Turn those questions into a repeatable retrieval benchmark covering useful
+   results, false positives, false exclusions, access links, and safe wording.
+3. Improve the MCP contract and ranking where observed behavior justifies it,
+   including direct-versus-tangential signals and explicit sort or query policy.
+4. Establish an incremental PubMed discovery, lawful source-acquisition,
+   classification, and immutable index-refresh workflow.
+5. Enrich bibliographic publication dates and types, identifier conflicts, URL
+   quality, aliases, and the highest-value missing clinical retrieval fields.
+6. Preserve selective-v4 work as a documented future optimization and use it
+   only where pilot evidence justifies field-scoped reclassification.
+7. Prepare targeted human-review exports without mutating review state during
+   retrieval, discovery, classification, or evaluation.
+8. Publish a public baseline snapshot when licensing and review boundaries are
+   ready.
 
 ## Data Safety
 

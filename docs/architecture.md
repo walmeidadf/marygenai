@@ -1,7 +1,7 @@
 # Architecture
 
-MaryGenAI is a local-first scientific source-intelligence pipeline designed to
-grow into a read-only retrieval service for physicians, researchers, and AI
+MaryGenAI is a local-first scientific source-intelligence pipeline with a
+deployed read-only retrieval pilot for physicians, researchers, and AI
 assistants.
 
 ## Architectural Boundary
@@ -23,6 +23,9 @@ Supported implementation lives under `src/marygenai/`:
 - `access_enrichment`: source-access and full-text enrichment;
 - `classification_corpus`: deduplicated source-ready corpus rollup;
 - `classification`: prompt preparation and bounded candidate classification;
+- `retrieval`: immutable DuckDB index construction and read-only queries;
+- `mcp_server`: MCP tools over local stdio or stateless Streamable HTTP;
+- `deployment`: reproducible Lambda packaging without embedding data;
 - `analytics`: read-only local reports;
 - `persistence`: SQLite schema and connections;
 - `review`, `review_api`, `review_ui`: explicit human workflow surfaces.
@@ -124,8 +127,12 @@ and [Classification Data Dictionary](classification_data_dictionary.md).
 
 ## Retrieval Surface
 
-The intended first external integration is a read-only MCP server over discovered,
-metadata-enriched, source-ready, and candidate-classified documents.
+The first external integration is a read-only MCP server over discovered,
+metadata-enriched, source-ready, and candidate-classified documents. The pilot
+serves one content-addressed DuckDB snapshot through API Gateway and a Python
+3.13 Lambda. Lambda verifies the S3 object hash, caches the snapshot under
+`/tmp`, and opens it with `read_only=True`. It receives no SQLite database,
+review workflow state, or provider credentials.
 
 Retrieval should support:
 
@@ -136,7 +143,10 @@ Retrieval should support:
 - confidence-aware ranking;
 - direct evidence and source links.
 
-The retrieval layer is rebuildable. It is not the source of truth.
+The retrieval layer is rebuildable. It is not the source of truth. The current
+host is responsible for translating non-English questions to concise English
+retrieval terms and for presenting candidate, zero-result, access-link, and
+study-detail limitations defined by the MCP contract.
 
 ## Persistence
 

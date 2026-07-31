@@ -10,10 +10,10 @@ Its value is to make medical literature easier to discover, filter, inspect, and
 verify through structured metadata, evidence-backed AI classifications, and
 provenance.
 
-The intended future integration is a read-only MCP server used by tools such as
-ChatGPT, Gemini, Copilot, or other research assistants. A physician should be
-able to filter studies by condition, cannabinoid, study type, population,
-outcome, and confidence, then inspect the original sources.
+The first external integration is an implemented read-only MCP pilot used by
+tools such as ChatGPT and Claude. A physician should be able to filter studies
+by condition, cannabinoid, study type, population, outcome, and confidence,
+then inspect the original sources.
 
 AI classifications are probabilistic retrieval metadata and candidate evidence.
 They are not reviewed clinical truth, medical advice, or treatment
@@ -65,12 +65,16 @@ Evaluate classification work in three groups:
 - Keep the product contract aligned with `docs/product_value.md`.
 - Keep implementation priorities aligned with `docs/mvp_plan.md` and
   `docs/roadmap.md`.
-- For the current Batch/MCP handoff state, read
-  `docs/2026-07-11_batch_and_mcp_handoff.md` before planning more
-  classification or MCP work.
-- For the current retrieval-identity audit and MCP identity handoff, also read
-  `docs/2026-07-17_identity_and_mcp_handoff.md` before changing source identity
-  or access-link behavior.
+- Read `docs/2026-07-31_mcp_pilot_handoff.md` before planning MCP, source
+  discovery, enrichment, deployment, or physician-pilot work.
+- Use `docs/2026-07-11_batch_and_mcp_handoff.md` and
+  `docs/2026-07-17_identity_and_mcp_handoff.md` as historical Batch and identity
+  context, not as the current operating state.
+- Do not place patient-identifying data in MCP queries, logs, evaluation
+  artifacts, or demonstration notes.
+- MCP results must remain candidate matches. Preserve zero-result scope,
+  preferred physician-facing access URLs, study-detail inspection before
+  detailed claims, and separation of direct from tangential matches.
 
 ## Protected State
 
@@ -137,7 +141,7 @@ uv run ruff check .
 uv run pytest
 ```
 
-Current Batch operating pattern:
+Batch operating pattern for an explicitly approved new or changed corpus:
 
 ```bash
 uv run marygenai classification prepare-batch \
@@ -157,9 +161,10 @@ uv run marygenai classification watch-batch \
   --max-checks 288
 ```
 
-Submit only one Batch sub-batch at a time unless the maintainer confirms a
-higher provider-side enqueued-token limit. The completed first 500-document
-tranche used offsets 0, 150, 300, and 450.
+The current 3,149-document strict corpus is exhausted. Do not submit more of its
+historical offsets. For a newly approved corpus, submit only one Batch sub-batch
+at a time unless the maintainer confirms a higher provider-side enqueued-token
+limit.
 
 Maintainer-only bootstrap:
 

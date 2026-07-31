@@ -6,8 +6,8 @@ MaryGenAI democratizes access to scientific literature about cannabinoid
 medicine by making studies easier to discover, filter, inspect, and verify.
 
 The intended user is a physician, researcher, or evidence professional using an
-AI assistant or research tool. A future read-only MCP server should let that tool
-ask MaryGenAI for studies matching dimensions such as:
+AI assistant or research tool. The implemented read-only MCP pilot lets that
+tool ask MaryGenAI for candidate studies matching dimensions such as:
 
 - medical condition;
 - pathology or disease family;

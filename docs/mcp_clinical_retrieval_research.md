@@ -22,7 +22,10 @@ for:
 2. translating the question into structured retrieval dimensions;
 3. choosing precise, balanced, or broad retrieval behavior;
 4. calling MaryGenAI tools and combining their structured results;
-5. presenting limitations and directing the physician to original sources.
+5. presenting limitations and directing the physician to original sources;
+6. describing results as candidate matches, bounding zero-result statements,
+   opening study detail before detailed claims, and distinguishing direct from
+   tangential matches.
 
 MaryGenAI is responsible for:
 
@@ -65,7 +68,7 @@ The v3 candidate schema currently supports broad therapy, harm, overview, and
 mechanism discovery better than diagnosis, prognosis, dose, comparator, timing,
 or patient-similarity questions.
 
-## First-500 Candidate Coverage
+## Historical First-500 Candidate Coverage
 
 The first demo index is based on the four completed broad/v3 Batch runs:
 
@@ -98,11 +101,34 @@ Candidate labels contain case and naming variants such as `Cannabidiol`,
 case-folded alias key for matching and facets while preserving every original
 candidate value in study detail and provenance.
 
+## Current Pilot Coverage And Acceptance Findings
+
+The deployed pilot now indexes all 3,149 strict-valid candidate records across
+twenty-four classification runs. It is available through local CLI and stdio,
+local stateless Streamable HTTP, and a remote AWS endpoint validated with hosted
+ChatGPT and Claude connectors. The source and candidate metadata remain
+primarily English, so the host translates Portuguese questions before calling
+the deterministic server.
+
+The first hosted conversations established that translation works but result
+presentation varies by host. ChatGPT found adolescent-epilepsy candidates but
+omitted preferred access URLs, did not call study detail, and included a
+tangential review without saying so. Claude used capabilities, facets, and
+several hypothyroidism query variants, but initially described an empty result
+more broadly than the bounded index supports. The MCP response now carries a
+machine-readable presentation contract for these behaviors.
+
+A later Alzheimer disease probe returned 77 candidates across two condition
+label variants. Inspection of five recent records demonstrated useful breadth
+and exposed bibliographic date, publication-type, DOI reconciliation, and
+directness gaps. These are priority acceptance and enrichment cases, not
+reviewed corrections.
+
 ## Clinical Acceptance Questions
 
-The first retrieval contract should be evaluated against at least the following
-question families. Expected status describes the first-500 v3 index, not future
-product ambition.
+The retrieval contract should be evaluated against at least the following
+question families. Expected status reflects v3 field coverage and must be
+revalidated against the complete pilot index with physician feedback.
 
 | Specialty | Representative question | Structured retrieval intent | Expected v1 status | Important gaps |
 |---|---|---|---|---|
@@ -216,18 +242,30 @@ read-only mode; annotations are descriptive hints rather than enforcement.
 
 ## Backlog
 
+The immediate priority is a small physician-authored acceptance benchmark. It
+should capture source-opening behavior and false exclusions in addition to
+top-result usefulness. Retrieval, discovery, and enrichment work should then be
+ordered by observed physician value.
+
 ### Retrieval contract
 
+- add explicit publication-date sort and typed date semantics;
 - add required, preferred, and excluded filter groups;
 - add `any` and `all` semantics within multi-value filter families;
 - return requested, applied, unsupported, and relaxed query dimensions;
 - add deterministic match and mismatch explanations;
 - define broad, balanced, and precise search policies;
 - support question type as a ranking and evidence-design signal;
-- preserve empty-result diagnostics and facet counts.
+- preserve empty-result diagnostics and facet counts;
+- expose a deterministic directness signal or sufficient match evidence for the
+  host to separate direct from tangential candidates.
 
 ### Candidate schema and enrichment
 
+- preserve bibliographic publication type separately from candidate study
+  design;
+- distinguish online-first, issue, print, and indexing dates;
+- surface external identifier disagreements and URL-health provenance;
 - normalize condition and cannabinoid aliases with versioned mappings;
 - add symptoms and indications separately from diagnoses;
 - add outcome entities separately from broad outcome domains;

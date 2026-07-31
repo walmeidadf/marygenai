@@ -1,5 +1,28 @@
 # Decision Log
 
+## 2026-07-31: Use Physician-Pilot Evidence To Prioritize The Next Product Cycle
+
+The complete strict-corpus index and remote MCP path are now sufficient for a
+controlled demonstration with an enthusiastic physician. The next product cycle
+will not assume that schema completeness, another model run, or a particular
+retrieval technique is the highest-value improvement. It will begin with
+realistic, non-identifying physician questions and observations of query
+translation, result relevance, source opening, detail inspection, false
+positives, suspected false exclusions, and missing dimensions.
+
+The resulting acceptance cases will prioritize three related workstreams:
+
+1. MCP retrieval and presentation behavior;
+2. incremental discovery and immutable index refreshes;
+3. bibliographic, identity, access-link, and clinical-field enrichment.
+
+Demonstration notes must not contain patient-identifying information. They do
+not create review decisions or reviewed knowledge. Provider-backed
+classification remains separately authorized, and the current strict corpus is
+already exhausted. Shared query-key access remains a temporary pilot barrier;
+OAuth or Cognito is deferred until per-user identity or revocation becomes a
+real requirement.
+
 ## 2026-07-31: Make Candidate-Result Presentation Rules Machine-Readable
 
 The first live ChatGPT and Claude connector conversations confirmed that both

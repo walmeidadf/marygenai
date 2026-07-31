@@ -145,10 +145,12 @@ rank into a treatment recommendation.
 
 ## Implemented Read-Only V1 Retrieval Layer
 
-The first retrieval layer materializes candidate v3 records, corpus identity,
-and evaluation outputs into an isolated ignored DuckDB artifact. It exposes
-search, detail, facets, and capabilities through the supported `marygenai` CLI
-and MCP stdio server.
+The first retrieval layer materializes all 3,149 strict candidate v3 records,
+corpus identity, and evaluation outputs into an isolated ignored DuckDB artifact.
+It exposes search, detail, facets, and capabilities through the supported
+`marygenai` CLI, MCP stdio, and stateless Streamable HTTP server. The deployed
+AWS pilot serves a content-addressed copy of that artifact through API Gateway
+and Lambda while preserving the same read-only query service.
 
 V1 uses deterministic case-folded alias keys, explicit `any` or `all` facet
 semantics, opaque build-bound pagination cursors, and no silent filter
@@ -159,7 +161,10 @@ retrieval-confidence semantics, versions, and provenance.
 
 Question decomposition remains the MCP host's responsibility. MaryGenAI does
 not receive a patient record, call an LLM, or infer treatment applicability.
-The host should send only non-identifying scientific retrieval dimensions.
+The host should send only non-identifying scientific retrieval dimensions. It
+also translates Portuguese or other non-English concepts to the primarily
+English index and must preserve the machine-readable result-presentation
+contract.
 
 The current lexical index does not close the v3 field gaps described above.
 Those gaps, realistic clinical acceptance questions, and external MCP research

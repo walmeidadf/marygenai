@@ -1,5 +1,9 @@
 # 2026-07-17 Identity And MCP Handoff
 
+> Historical identity handoff. Use
+> [2026-07-31 Remote MCP Pilot Handoff](2026-07-31_mcp_pilot_handoff.md) for the
+> current corpus, deployment, demonstration, and continuation state.
+
 ## 2026-07-20 Implementation Update
 
 The proposed read-only identity projection is implemented in retrieval index

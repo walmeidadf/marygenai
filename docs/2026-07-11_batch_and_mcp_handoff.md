@@ -1,5 +1,9 @@
 # 2026-07-11 Batch And MCP Handoff
 
+> Historical handoff. Use
+> [2026-07-31 Remote MCP Pilot Handoff](2026-07-31_mcp_pilot_handoff.md) for the
+> current corpus, deployment, demonstration, and continuation state.
+
 ## Session Outcome
 
 MaryGenAI now has a first operational candidate-classified base suitable for a

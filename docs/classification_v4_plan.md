@@ -60,12 +60,12 @@ The result does not yet measure inference quality. Evidence locators generate
 bounded candidates, not final values, and broad packets now receive the same
 expanded evidence pool for a fair quality comparison.
 
-As of 2026-07-10, this work is intentionally paused as an MVP blocker. The
+As of 2026-07-31, this work remains intentionally paused as an MVP blocker. The
 selective-v4 architecture is preserved as a documented finding and future
-optimization path. The next product milestone uses the broad
-`candidate_study_classification.v3` contract to create a first
-candidate-classified base and expose it through a read-only MCP prototype for
-medical-team demonstration and human-review recruitment.
+optimization path. The broad `candidate_study_classification.v3` campaign has
+classified all 3,149 strict documents, and the resulting remote read-only MCP
+pilot is ready for physician demonstration. Pilot evidence should determine
+which field families justify v4 enrichment or reclassification next.
 
 ## Design Principles
 
