@@ -13,7 +13,7 @@ from marygenai.pubmed_discovery.pipeline import (
     persist_pubmed_candidates,
     write_discovery_outputs,
 )
-from marygenai.pubmed_discovery.pubmed import PubMedRecord
+from marygenai.pubmed_discovery.pubmed import PubMedRecord, parse_pubmed_xml
 from marygenai.review.repository import (
     get_publication_candidate_provenance,
     list_open_review_items,
@@ -53,6 +53,48 @@ def make_pubmed_record(
         article_ids={"pubmed": pmid},
         provenance={"source": "pubmed"},
     )
+
+
+def test_pubmed_parser_does_not_replace_primary_ids_with_reference_ids() -> None:
+    records = parse_pubmed_xml(
+        """
+        <PubmedArticleSet>
+          <PubmedArticle>
+            <MedlineCitation>
+              <PMID>123</PMID>
+              <Article><ArticleTitle>Cannabidiol study</ArticleTitle></Article>
+            </MedlineCitation>
+            <PubmedData>
+              <ArticleIdList>
+                <ArticleId IdType="pubmed">123</ArticleId>
+                <ArticleId IdType="pmc">PMC123</ArticleId>
+                <ArticleId IdType="doi">10.1/primary</ArticleId>
+              </ArticleIdList>
+              <ReferenceList>
+                <Reference>
+                  <ArticleIdList>
+                    <ArticleId IdType="pubmed">999</ArticleId>
+                    <ArticleId IdType="pmc">PMC999</ArticleId>
+                    <ArticleId IdType="doi">10.1/reference</ArticleId>
+                  </ArticleIdList>
+                </Reference>
+              </ReferenceList>
+            </PubmedData>
+          </PubmedArticle>
+        </PubmedArticleSet>
+        """,
+        query="test",
+        fetched_at="2026-08-05T00:00:00+00:00",
+    )
+
+    assert records[0].pmid == "123"
+    assert records[0].pmcid == "PMC123"
+    assert records[0].doi == "10.1/primary"
+    assert records[0].article_ids == {
+        "pubmed": "123",
+        "pmc": "PMC123",
+        "doi": "10.1/primary",
+    }
 
 
 def test_default_pubmed_window_overlaps_legacy_boundary() -> None:

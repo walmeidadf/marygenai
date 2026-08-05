@@ -35,6 +35,46 @@ Each corpus record should preserve:
 - source-ready and classification-ready state;
 - dataset split, trust level, and provenance.
 
+## PubMed 2024+ Canary Preparation
+
+The provider-free command is:
+
+```bash
+uv run marygenai classification-corpus prepare-pubmed-canary \
+  --target-size 100 \
+  --corpus-version pubmed_2024plus_canary.v1 \
+  --max-source-chars 12000 \
+  --target-model-provider openai \
+  --target-model-name gpt-5.4-mini
+```
+
+It opens SQLite in read-only/query-only mode, audits every locally persisted
+open XML/HTML artifact, deduplicates by `document_id`, selects deterministically
+by priority, study-design rank, year, and document ID, freezes a content-stable
+manifest and classification corpus, writes per-document exclusions, extracts
+hash-bound local source text, and builds prompt packets. It makes no network or
+provider call.
+
+The source gate requires:
+
+- a 2024+ direct-title-or-indexed cannabinoid candidate;
+- `needs_review` state and no unresolved manual identity requirement;
+- a local open XML/HTML artifact whose stored SHA-256 matches the file;
+- exact normalized title identity plus matching PMID or DOI in the artifact;
+- at least 4,000 extracted characters, two scientific-section signals, and one
+  cannabinoid-term signal.
+
+The ignored outputs are written under
+`data/normalized/pubmed_canary/`,
+`data/processed/pubmed_canary/`, and
+`data/normalized/classification_runs/`. Frozen manifest or corpus content cannot
+be silently overwritten under the same corpus version. Selected inputs remain
+`source_text_available`; future provider output must remain
+`ai_classified_candidate`, `needs_review`, and human-review-required.
+
+The first local v1 run selected eight records from a target of 100. It reported
+the shortfall and identity/source exclusions rather than weakening the gate.
+
 ## Candidate Classification Schema
 
 Current schema:

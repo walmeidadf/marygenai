@@ -245,7 +245,10 @@ def parse_doi(article: etree._Element) -> str | None:
 
 def parse_article_ids(article: etree._Element) -> dict[str, str]:
     article_ids: dict[str, str] = {}
-    for article_id in article.xpath(".//ArticleIdList/ArticleId"):
+    # PubMed references may contain their own ArticleIdList nodes. Restrict the
+    # lookup to the identifiers for the primary PubmedArticle so a cited PMCID
+    # cannot overwrite the candidate's identity.
+    for article_id in article.xpath("./PubmedData/ArticleIdList/ArticleId"):
         id_type = article_id.get("IdType")
         value = text_or_none(article_id)
         if id_type and value:

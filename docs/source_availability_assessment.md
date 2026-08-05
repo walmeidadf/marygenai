@@ -79,13 +79,23 @@ The current local discovery state contains:
 - 773 with locally persisted open XML/HTML artifacts;
 - 590 combining direct cannabinoid focus and open XML/HTML.
 
-The open-artifact count is an access signal, not a source-ready result. The
-artifacts still require content-quality validation and corpus rollup before
-classification.
+The first provider-free rollup verified the access signal against local files:
 
-The first refresh should select an approximately 100-document direct-focus
-canary, preserve a frozen manifest, classify only source-valid records, and
-expand only after evaluation gates pass.
+- 1,104 open XML/HTML artifact rows cover the 773 candidates;
+- 773 rows declared as XML contain HTML;
+- 12 rows verify the candidate title plus PMID or DOI;
+- eight unique direct-focus, 2024+ documents pass the full source-quality gate;
+- the frozen v1 canary records a 92-document shortfall against its target of
+  100.
+
+The shortfall is a source-identity defect, not acceptable scientific
+uncertainty. The gate remains strict. Future discovery no longer allows cited
+reference identifiers to overwrite the primary article identifiers, but the
+existing local candidate database was not mutated or silently repaired.
+
+The first refresh freezes the eight currently valid documents, classifies only
+that source-valid subset after explicit provider authorization, and expands
+only after identity/source repair and evaluation gates pass.
 
 ## Validated Source Lessons
 

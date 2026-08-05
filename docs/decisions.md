@@ -1,5 +1,32 @@
 # Decision Log
 
+## 2026-08-05: Require Artifact Identity Verification Before The PubMed Canary
+
+The first provider-free PubMed 2024+ rollup found 1,104 persisted open-artifact
+rows across 773 candidates, but 773 artifacts declared as XML contain HTML and
+only 12 artifact rows verify both the candidate title and a matching PMID or
+DOI. Eight unique direct-focus, 2024+ documents pass the complete hash,
+identity, text-length, scientific-section, and cannabinoid-signal gate.
+
+MaryGenAI will freeze those eight documents as
+`pubmed_2024plus_canary.v1` and report the 92-document target shortfall. It will
+not use title similarity, access-class metadata, HTTP success, or cannabinoid
+terms alone to attach a source artifact to a candidate. A canary manifest must
+preserve candidate identity, origin, raw and extracted hashes, selection
+criteria, corpus version, candidate trust boundary, and `needs_review` state.
+
+The underlying discovery defect allowed cited-reference `ArticleIdList` values
+to overwrite primary PubMed article identifiers. The parser now reads only the
+primary article-level list for future discovery. Existing SQLite candidates,
+review queues, decisions, and reviewed knowledge remain unchanged; repairing
+the existing candidate/source associations requires a separate, explicitly
+authorized rediscovery or reenrichment operation with preserved provenance.
+
+Prompt packets may be built locally for the eight source-valid records without
+a provider call. Provider-backed classification still requires explicit
+maintainer authorization, and any output remains `ai_classified_candidate` and
+`needs_review`.
+
 ## 2026-08-05: Keep Candidate-Data Progress Independent From Human-Curation Activation
 
 Human curation remains essential before candidate evidence becomes reviewed

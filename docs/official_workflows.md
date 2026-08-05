@@ -158,6 +158,25 @@ Build a deduplicated corpus and stratified sample:
 uv run marygenai classification-corpus rollup --sample-size 30
 ```
 
+Audit the already discovered PubMed 2024+ candidates, freeze the deterministic
+source-valid canary, and prepare prompt packets without a provider call:
+
+```bash
+uv run marygenai classification-corpus prepare-pubmed-canary \
+  --target-size 100 \
+  --corpus-version pubmed_2024plus_canary.v1 \
+  --max-source-chars 12000 \
+  --target-model-provider openai \
+  --target-model-name gpt-5.4-mini
+```
+
+The command opens SQLite read-only, verifies protected-state snapshots before
+and after the run, and writes ignored quality records, exclusions, extracted
+text, frozen manifest/corpus records, and prompt packets. The current local v1
+gate admits eight documents, not 100, because most persisted open artifacts do
+not verify the candidate identity. Do not lower the identity gate to fill the
+target.
+
 Inspect prompt packets without calling a model:
 
 ```bash

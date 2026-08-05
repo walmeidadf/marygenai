@@ -24,6 +24,9 @@ MaryGenAI currently has:
 - local review CLI, API, and UI for identity workflow operations;
 - 1,361 post-legacy PubMed candidates awaiting a new corpus and classification
   cycle;
+- a provider-free PubMed source-quality rollup and frozen eight-document v1
+  canary, with a visible 92-document shortfall caused by rejected source
+  identity mismatches;
 - an archived website prototype that is not part of the public supported
   surface.
 
@@ -39,6 +42,7 @@ PubMed 2024+ records:
 
 - source-quality rollup;
 - frozen canary manifest;
+- identity/source repair before filling the 100-document target;
 - bounded provider-backed classification after explicit authorization;
 - automated evaluation and regression report;
 - immutable local index rebuild;

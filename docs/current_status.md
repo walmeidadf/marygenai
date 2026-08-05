@@ -56,8 +56,24 @@ The post-legacy PubMed funnel currently contains:
 - 590 candidates that combine direct cannabinoid focus with an open XML/HTML
   artifact.
 
-These 773 artifacts have not yet passed a new classification-corpus quality
-rollup. None of the 1,361 PubMed candidates is part of the existing 3,149-record
+The first local source-quality rollup inspected 1,104 open-artifact rows across
+the 773 candidates. It found that 773 artifacts declared as XML contain HTML,
+and only 12 artifact rows confirm both the candidate title and a candidate PMID
+or DOI. Eight unique direct-focus, 2024+ documents pass the complete hash,
+identity, text-length, scientific-section, and cannabinoid-signal gate. The
+frozen `pubmed_2024plus_canary.v1` manifest therefore contains eight records and
+reports an explicit 92-document shortfall against the target of 100 rather than
+admitting identity-mismatched sources.
+
+The PubMed parser now limits primary identifiers to the article-level
+`PubmedData/ArticleIdList`; cited-reference IDs can no longer overwrite the
+primary PMCID or DOI in future discovery runs. The existing SQLite candidates
+and review state were not rewritten. Expanding the canary requires a separately
+authorized rediscovery or source-reenrichment repair that preserves existing
+candidate and review provenance.
+
+Eight prompt packets were prepared locally with zero errors and no provider
+call. None of the 1,361 PubMed candidates is part of the existing 3,149-record
 MCP snapshot.
 
 ## Implemented Surface
@@ -122,7 +138,9 @@ the existing 3,149-record index until a licensed public snapshot is published.
 Maintainer-controlled candidate-data work proceeds in this order:
 
 1. Build and evaluate a bounded PubMed 2024+ source-quality and classification
-   canary from direct-focus records with open XML/HTML.
+   canary from the eight currently valid direct-focus records with open HTML.
+   Repair discovery identity and source routing before attempting to fill the
+   100-document target; do not relax the gate.
 2. Build a read-only Dataset Viewer over the candidate retrieval contract, with
    explicit candidate/reviewed state and no private artifact exposure.
 3. Publish a physician-, professor-, and student-oriented project website that
