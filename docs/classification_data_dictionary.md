@@ -121,6 +121,30 @@ Each field-level value should support:
 Model confidence, retrieval confidence, and clinical evidence strength are
 separate concepts.
 
+## Initial Human-Review Pilot Scope
+
+The proposed v4 dictionary is broader than the first practical curation pilot.
+The pilot should validate the fields that most directly affect retrieval and
+trust before asking reviewers to adjudicate every proposed field:
+
+- direct, tangential, or unsupported relevance;
+- publication identity;
+- study design category and subtype;
+- population category;
+- cannabinoid or exposure and its role;
+- medical condition;
+- outcome domains;
+- overall direction;
+- evidence spans supporting each semantic decision;
+- accept, correct, or abstain at field level.
+
+Each task must expose the original candidate value and source evidence. The
+review response must preserve reviewer and institutional provenance, rationale,
+task version, schema version, ontology version, source hash, and timestamp.
+Additional fields should enter the review contract only when physician
+evaluation demonstrates retrieval value and the source evidence can support
+consistent adjudication.
+
 ## Legacy English Reference Coverage
 
 The maintainer-local normalized English reference contains 7,360 deduplicated

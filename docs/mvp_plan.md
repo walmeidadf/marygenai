@@ -2,191 +2,197 @@
 
 ## Objective
 
-Build a reproducible source-intelligence and candidate-classification pipeline
-that makes cannabinoid medical literature discoverable and filterable by humans
-and AI assistants.
+Operate a reproducible candidate-data flywheel that keeps cannabinoid medical
+literature discoverable and current while preparing a trustworthy human-review
+path that can activate when university curators become available.
 
-The MVP should produce read-only retrieval records with publication identity,
-source provenance, structured candidate labels, evidence spans, uncertainty, and
-trust level. It is not a medical recommendation system.
+The MVP is not a medical recommendation system. It exposes source-linked,
+evidence-backed candidate records and preserves a separate promotion path to
+human-reviewed knowledge.
 
-## MVP Deliverable
+## Current Baseline
 
-A downstream client should be able to request:
+MaryGenAI currently has:
 
-> Find source-ready clinical meta-analyses about CBD and epilepsy, prefer
-> high-confidence classifications, and return supporting evidence and source
-> links.
+- public PubMed discovery and identity association;
+- targeted lawful source-access enrichment and artifact-quality audit;
+- deduplicated corpus construction and source-quality gates;
+- evidence-backed candidate classification with strict schemas;
+- automated technical, retrieval, grounding, and inference evaluation;
+- 3,149 strict-valid legacy-core candidate records;
+- an isolated read-only DuckDB index and MCP interface;
+- local review CLI, API, and UI for identity workflow operations;
+- 1,361 post-legacy PubMed candidates awaiting a new corpus and classification
+  cycle;
+- an archived website prototype that is not part of the public supported
+  surface.
 
-The system should return candidate records suitable for research triage. It
-should not answer whether a patient should receive a treatment.
+All indexed records remain `ai_classified_candidate` with
+`review_state=needs_review`.
 
-The target retrieval journey begins with the patient's condition and context.
-Study design, evidence setting, source quality, and recency refine and rank the
-candidate studies rather than replacing patient-condition relevance.
+## MVP Deliverables For The Next Cycle
 
-## Current Capabilities
+### 1. PubMed Candidate Refresh
 
-- private maintainer bootstrap import into auditable JSONL;
-- local SQLite operational review state;
-- PubMed candidate discovery and identity association;
-- targeted access enrichment and artifact-quality audit;
-- deduplicated classification corpus rollup;
-- strict candidate-classification schema;
-- prompt packet generation without provider calls;
-- bounded OpenAI-backed classification validation;
-- downloaded-corpus retrieval-field profiler;
-- frozen patient-oriented retrieval-field sample builder;
-- deterministic metadata/parser candidate extraction;
-- broad-v4 versus selective field-family packet and cost comparison;
-- isolated read-only retrieval index over all 3,149 strict candidates;
-- retrieval build, inspect, facets, detail, search, and capabilities contracts;
-- local MCP stdio and stateless Streamable HTTP servers with runtime read-only
-  enforcement;
-- deployed AWS dev pilot with API Gateway, Lambda Python 3.13, private
-  content-addressed S3 data, and a custom domain;
-- end-to-end hosted ChatGPT and Claude connector validation;
-- clinical-question acceptance research and retrieval backlog;
-- review CLI, API, and local UI for explicit review workflows;
-- Batch classification and read-only indexing for all 3,149 strict
-  classification-ready documents.
+Produce a new, reproducible candidate-data slice from the already discovered
+PubMed 2024+ records:
 
-## Current Local Dataset
+- source-quality rollup;
+- frozen canary manifest;
+- bounded provider-backed classification after explicit authorization;
+- automated evaluation and regression report;
+- immutable local index rebuild;
+- deliberate remote snapshot promotion after validation.
 
-The June 2026 legacy-core campaign established:
+### 2. Dataset Viewer MVP
 
-- about 6,491 operational documents with strong identity;
-- about 3,149 strict classification-ready documents;
-- about 3,374 broader source-ready documents.
+Provide a table-and-detail experience over the candidate index with filters,
+source links, evidence, uncertainty, snapshot version, and explicit trust state.
+The Viewer must not imply that candidate records are reviewed or openly
+redistributable.
 
-These are maintainer-local generated artifacts, not committed public datasets.
-The public growth path is continuous PubMed discovery and future reviewed
-snapshot publication.
+### 3. Public Website
 
-## Product Quality Gates
+Publish an accurate, community-oriented explanation of the project for
+physicians, professors, students, and potential collaborators. The website
+should make the dataset funnel, MCP role, safety boundary, limitations, and
+curation opportunity understandable without requiring repository knowledge.
 
-### Technical Validity
+### 4. Curation-Ready Package
 
-- provider and HTTP success;
-- valid JSON and strict schema pass rate;
-- retry and error reasons;
-- latency and cost;
-- complete run artifacts and provenance.
+Prepare, but do not depend on, an external curation team:
 
-### Retrieval Utility
+- minimum field-level review contract;
+- annotation-tool integration decision;
+- versioned task export and validated response import;
+- training, calibration, and first production packages;
+- reviewer and institutional provenance;
+- double-review and adjudication policy;
+- reviewed-snapshot export contract.
 
-- identity and source coverage;
-- evidence-span presence;
-- useful field coverage for filtering;
-- confidence-aware broad and narrow retrieval;
-- preservation of relevant records when a field is uncertain.
+### 5. Targeted Automated Legacy Recovery
 
-### Inference Quality
+Run bounded, measurable recovery experiments that do not require scientific
+adjudication, beginning with official PMC failures and deterministic identity
+suggestions. Ambiguous identity and scientific decisions remain queued for
+humans.
 
-- agreement with normalized English legacy references where available;
-- source-supported disagreements;
-- unsupported labels and grounding failures;
-- systematic error by field or source type;
-- confidence and uncertainty calibration.
+## Operating Tracks
 
-## Classification Gate Status
+### Maintainer-Controlled Candidate Track
 
-The 2026-06-18 100-document schema-v2 run produced:
+This track may proceed without active curators:
 
-- 100 provider responses without retries;
-- 97 strict-valid records;
-- evidence spans for all 97 valid records;
-- 90/97 exact principal study-type matches against English legacy context;
-- three correctable validation failures caused by `outcome_domains` values;
-- no technical provenance fields incorrectly reported as scientific uncertainty.
+```text
+discover
+  -> resolve candidate identity
+  -> acquire lawful source artifacts
+  -> validate source quality
+  -> classify candidate metadata
+  -> evaluate
+  -> rebuild immutable index
+  -> expose through MCP and Viewer
+```
 
-This supports the product direction but does not yet justify an unattended
-full-corpus run. The remaining work is localized schema/prompt hardening,
-repeatable evaluation, and confidence semantics.
+It must not mutate protected review state or promote reviewed knowledge.
 
-Schema v3 makes cognition an explicit outcome domain, keeps unsupported list
-values empty rather than inserting `cannot_determine`, adds granular
-study-design subtype metadata, and makes uncertainty field-scoped and
-machine-readable. The official local evaluator produces a targeted input for
-the three historical schema failures and seven study-design disagreements.
-A deterministic command now also prepares a stratified, title-explicit
-study-design benchmark candidate set. Human review is still required before it
-becomes a trusted training or calibration reference.
+### Curation-Readiness Track
 
-The first 21 legacy-disagreement candidates have now been reviewed as the
-development benchmark. A separate 40-record holdout was frozen before
-deterministic rule-v2 work, and an official evaluator measures category,
-subtype, pair, per-label, legacy-reference, and error-pattern metrics.
+This track prepares tools and contracts so later activation is operational:
 
-Deterministic `study_design_rules.v2` now reaches 20/21 exact
-category-plus-subtype matches on the development benchmark and has been applied
-to the frozen holdout without inspecting its labels.
+```text
+freeze task package
+  -> distribute to named reviewers
+  -> collect independent responses
+  -> validate identity, hashes, and schema
+  -> preserve append-only decisions
+  -> adjudicate when required
+  -> export reviewed snapshot
+```
 
-V4 preparation now has a reproducible 12-document cross-domain sample, a local
-parser baseline, versioned broad and selective packet schemas, contrast-aware
-manifests, deterministic selective assembly, and local cost projections. The
-selective architecture produced useful provenance and routing lessons, but it
-is no longer an MVP blocker.
+The external annotation tool is never the sole source of truth. MaryGenAI must
+retain the canonical document, candidate value, reviewed value, evidence,
+reviewer, institution, timestamp, task version, rationale, and provenance.
 
-The first 50-document broad/v3 canary completed on 2026-07-10. It produced
-49 strict-valid candidate records, one validation error, no retries, and an
-estimated cost of about USD 0.51. Measured usage projects the 3,149-record
-strict corpus at about USD 32.01 through standard synchronous calls, or about
-USD 16.01 if a Batch-compatible workflow is implemented. At that point, the
-next gate became resumable or batch-oriented execution plus a read-only
-retrieval/MCP prototype. Local Batch-compatible JSONL preparation therefore
-became part of the MVP execution path before another paid provider run.
+## Quality Gates
 
-The remote Batch campaign ultimately exhausted the strict corpus. Twenty-four
-runs, including targeted retries, produced 3,149/3,149 strict-valid candidate
-records with evidence spans at an estimated aggregate Batch cost of about USD
-15.58. The implemented index projects PMID for 3,099 documents, PMCID for 2,415,
-and DOI for 3,068 while preserving 60 documents with explicit identity
-conflicts rather than resolving them silently.
+### Source Gate
 
-The read-only AWS pilot is deployed and has passed end-to-end tests through the
-hosted ChatGPT and Claude connector interfaces. The next MVP quality gate is a
-physician-led demonstration and acceptance benchmark. Its observations should
-prioritize retrieval behavior, incremental source discovery, and bibliographic
-or clinical-field enrichment. No additional provider classification is implied
-until a new or changed corpus is explicitly approved.
+- authentic scientific content rather than challenge or metadata-only payload;
+- sufficient usable text and scientific-section signal;
+- lawful and auditable acquisition route;
+- source URL or path, payload hash, extraction method, and error capture.
 
-## MVP Workstreams
+### Classification Canary Gate
 
-1. Demonstrate the hosted pilot with realistic, non-identifying physician
-   questions and record acceptance findings.
-2. Turn those questions into a repeatable retrieval benchmark covering useful
-   results, false positives, false exclusions, access links, and safe wording.
-3. Improve the MCP contract and ranking where observed behavior justifies it,
-   including direct-versus-tangential signals and explicit sort or query policy.
-4. Establish an incremental PubMed discovery, lawful source-acquisition,
-   classification, and immutable index-refresh workflow.
-5. Enrich bibliographic publication dates and types, identifier conflicts, URL
-   quality, aliases, and the highest-value missing clinical retrieval fields.
-6. Preserve selective-v4 work as a documented future optimization and use it
-   only where pilot evidence justifies field-scoped reclassification.
-7. Prepare targeted human-review exports without mutating review state during
-   retrieval, discovery, classification, or evaluation.
-8. Publish a public baseline snapshot when licensing and review boundaries are
-   ready.
+- explicit maintainer authorization for provider cost;
+- valid JSON and at least 98% strict schema validity;
+- evidence spans for every strict-valid record;
+- complete source, model, prompt, schema, run, and cost provenance;
+- no new systematic grounding or enum defect;
+- acceptable regression against the existing retrieval contract;
+- no mutation of SQLite, review queues, decisions, or reviewed knowledge.
 
-## Data Safety
+### Viewer Gate
 
-Corpus preparation, classification, and evaluation:
+- candidate versus reviewed state is visible on list and detail views;
+- no private legacy context, local paths, credentials, or protected state;
+- preferred source links and bounded zero-result language;
+- useful filters and stable snapshot identity;
+- no medical advice or treatment recommendation language.
 
-- read ignored local artifacts;
-- write ignored local artifacts;
-- deduplicate by `document_id`;
-- do not mutate SQLite, review state, review items, review decisions, or reviewed
-  knowledge.
+### Curation-Activation Gate
 
-Only explicit review and persistence commands may change operational SQLite state.
+- reviewer guidelines and examples are approved;
+- training and calibration tasks are frozen;
+- reviewer identity and institutional affiliation are captured appropriately;
+- double-review and adjudication rules are defined;
+- imports reject identity, source-hash, schema, and task-version mismatch;
+- no response automatically becomes `human_reviewed`.
+
+### Public Baseline Gate
+
+- explicit software and data licenses;
+- documented source redistribution boundary;
+- reviewed-state promotion rules;
+- dataset card, schema, limitations, and provenance;
+- versioned export and reproducible Viewer;
+- separation between candidate and reviewed releases.
+
+## Prioritized Execution Order
+
+1. Update the product contract and select the PubMed canary.
+2. Build the PubMed source-quality rollup and local dry-run artifacts.
+3. Build the Dataset Viewer read-only foundation.
+4. Publish the community-oriented website.
+5. Complete the annotation-tool spike and curation package adapters.
+6. Run the provider-backed PubMed canary only after explicit authorization.
+7. Expand eligible PubMed candidates after the canary passes.
+8. Rebuild and promote an immutable candidate snapshot.
+9. Run bounded automated legacy-recovery experiments.
+10. Activate trained curators when partnerships are operational.
+
+## Product Evaluation
+
+Realistic, non-identifying physician questions remain a continuous input rather
+than a blocking project phase. Use them to evaluate:
+
+- useful candidate retrieval;
+- false positives and suspected false exclusions;
+- direct versus tangential presentation;
+- source-opening behavior;
+- missing filters and enrichment fields;
+- clarity of candidate, uncertainty, and zero-result language.
 
 ## Out Of Scope
 
-- medical advice;
-- automatic promotion to reviewed knowledge;
-- broad publisher crawling;
-- exact table or figure interpretation;
-- dosage and protocol reconstruction as a default field;
-- choosing a final cloud database before retrieval needs are demonstrated.
+- diagnosis or treatment recommendation;
+- automatic promotion from AI or annotation-tool response to reviewed
+  knowledge;
+- unbounded publisher crawling;
+- recovering every historical source regardless of measured value;
+- exact table, figure, dose, or protocol reconstruction as a default field;
+- public dataset redistribution before licensing and source boundaries are
+  documented;
+- choosing a final multi-user database before the curation integration and
+  concurrency requirements are validated.

@@ -57,6 +57,10 @@ Evaluate classification work in three groups:
 - Run `uv run ruff check .` and `uv run pytest` before publication.
 - Keep `main` as the only active branch unless the maintainer explicitly
   requests another branch.
+- Candidate discovery, source preparation, classification, evaluation, and
+  immutable index refresh may proceed before human curators are available when
+  trust state remains explicitly candidate and protected review state is not
+  mutated.
 
 ## Documentation Rules
 
@@ -91,6 +95,11 @@ operation.
 
 Classification outputs and retrieval indexes must remain ignored local
 candidate-evidence artifacts.
+
+Treat curation readiness and curation activation as separate milestones.
+External annotation tools may distribute tasks and collect responses, but
+MaryGenAI remains the system of record. Never promote an annotation response
+automatically to `human_reviewed`.
 
 ## Data And Privacy
 

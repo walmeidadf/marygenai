@@ -2,107 +2,163 @@
 
 ## Product Direction
 
-MaryGenAI is building a source-intelligence and candidate-classification layer
-that helps physicians, researchers, and AI assistants find and inspect studies
-about cannabinoid medicine.
+MaryGenAI is building a continuously refreshed, inspectable, and eventually
+human-reviewed scientific source-intelligence layer for cannabinoid medicine.
+Physicians and researchers should be able to find candidate studies, understand
+why they matched, inspect evidence and provenance, and open the original source.
 
-The first external surface is the deployed read-only MCP pilot. Human review
-remains a higher trust layer, but broad manual curation is not a prerequisite
-for useful candidate retrieval.
+The deployed read-only MCP pilot proves the first candidate-retrieval surface.
+The next cycle must improve freshness, visibility, and curation readiness
+without making the availability of external reviewers the critical path.
 
-## Now: Physician Pilot And Feedback
+Candidate data and reviewed knowledge remain separate product layers:
 
-Completed in the v4 preparation cycle:
+```text
+public discovery and lawful source acquisition
+  -> source-quality validation
+  -> AI-classified candidate evidence
+  -> immutable candidate index, MCP, and Dataset Viewer
+  -> independent human review when curators are available
+  -> reviewed snapshot
+```
 
-- patient-oriented data dictionary and classification architecture;
-- downloaded-corpus profiling and execution-universe correction;
-- frozen 12-document cross-domain validation sample;
-- deterministic metadata/parser baseline with evidence candidates;
-- initial parser-versus-legacy guardrail comparison;
-- broad-v4 versus selective field-family packet and cost projection;
-- contrast-aware manifest and deterministic selective assembly;
-- broad/v3 Batch execution for all 3,149 strict classification-ready documents.
+## Now: Candidate-Data Growth And Product Readiness
 
-The 3,149 valid candidate records are exposed through an isolated read-only
-index and a remote AWS MCP pilot. The custom domain has passed end-to-end hosted
-ChatGPT and Claude connector tests. The next product step is a controlled
-physician demonstration and an acceptance benchmark that will decide which MCP,
-source-growth, and enrichment changes matter first. Selective-v4 optimization
-remains a future path, not an MVP blocker.
+### PubMed 2024+ Vertical Slice
 
-1. Run the physician demonstration without patient-identifying information.
-2. Record the specialty, question, effective query, opened sources, usefulness,
-   false positives, false exclusions, and missing dimensions.
-3. Convert the highest-value questions into repeatable acceptance cases.
-4. Validate candidate wording, zero-result scope, access links, and detail-first
-   evidence claims across supported hosts.
-5. Prioritize retrieval, discovery, and enrichment changes from observed user
-   value rather than from schema completeness alone.
+1. Build a source-quality rollup for the already discovered PubMed candidates.
+2. Select a reproducible canary of approximately 100 direct-focus documents
+   with locally available open XML/HTML.
+3. Classify only records that pass the source-quality gate.
+4. Evaluate technical validity, retrieval-field coverage, evidence grounding,
+   provenance completeness, cost, and regressions against the existing index.
+5. Expand to the remaining eligible candidates only after the canary passes.
+6. Build and inspect a new immutable candidate index before deliberate remote
+   promotion.
 
-## Next: MCP Retrieval Improvements
+Human review is not required to create candidate records. New records must stay
+`ai_classified_candidate` and `needs_review` until an explicit review workflow
+promotes them.
 
-1. Add required, preferred, and excluded query dimensions with diagnostics.
-2. Add explicit publication-date sorting and distinguish online, issue, and
-   indexed dates.
-3. Improve direct-versus-tangential matching without treating rank as evidence
-   strength.
-4. Add versioned terminology aliases and ontology-aware expansion before vector
-   search.
-5. Evaluate study comparison, related studies, citations, and references as
-   separate tools.
+### Dataset Viewer
 
-## Next: Continuous Source Growth
+Build a read-only viewer that reuses the retrieval contract where practical and
+supports:
 
-1. Continue explicit-window PubMed discovery.
-2. Deduplicate canonical documents across windows.
-3. Prioritize direct cannabinoid focus.
-4. Enrich source access through official and lawful routes.
-5. Keep invalid payload, source triage, and identity/focus queues separate.
-6. Publish source-intelligence snapshots when licensing permits.
+- paginated table and text search;
+- filters for condition, cannabinoid, study design, population, outcome, year,
+  source readiness, confidence, and review state;
+- visible candidate versus reviewed trust labels;
+- study detail with identity, evidence, uncertainty, provenance, and preferred
+  source links;
+- snapshot version and documented limitations;
+- no local paths, private legacy context, credentials, or protected review
+  state.
 
-Each refresh should classify only newly eligible or intentionally changed
-records, rebuild an immutable content-addressed index, validate it locally, and
-promote it to the remote pilot without mutating SQLite or review state.
+The first Viewer may remain private or access-controlled. Public download and
+dataset publication require an explicit data license and source-distribution
+boundary.
 
-## Next: Enrichment And Quality
+### Public Website
 
-1. Reconcile bibliographic publication type and publication-date semantics with
-   authoritative metadata while preserving candidate classification separately.
-2. Resolve or expose DOI, PMID, and PMCID conflicts through explicit provenance
-   and authorized adjudication.
-3. Validate physician-facing URL health and access status.
-4. Add structured pathology, anatomy, organ system, population, geography,
-   comparator, route, dose, outcome, and adverse-event fields where acceptance
-   questions demonstrate value.
-5. Preserve field-level evidence, uncertainty, source identity, review state,
-   and trust level as the contract evolves.
+Publish a website oriented to physicians, professors, students, and research
+partners. It should explain:
 
-## Later: Reviewed Public Baseline
+- the literature-discovery problem;
+- the implemented candidate dataset and MCP pilot;
+- the discovery, source, classification, and review flow;
+- the distinction between AI-classified candidates and reviewed knowledge;
+- how universities and students can participate in curation;
+- current dataset counts, limitations, and provenance;
+- links to the Viewer, MCP information, documentation, and GitHub repository.
 
-1. Define promotion from candidate evidence to human-reviewed knowledge.
-2. Export reviewed snapshots without exposing private legacy inputs.
-3. Preserve reviewer, original value, reviewed value, rationale, timestamp,
-   ontology version, and extractor version.
-4. Let public users bootstrap from reviewed snapshots.
+The website must describe implemented capabilities accurately and must not
+claim that the candidate dataset is already human-reviewed or openly licensed.
 
-## Mass Classification Gate Achieved
+## Parallel: Curation Readiness
 
-The completed strict-corpus campaign demonstrated that:
+Prepare the complete curation workflow while university participation is being
+organized:
 
-- the 500-document Batch tranche fits the maintainer-approved cost guardrail;
-- execution is resumable, idempotent, and constrained by enqueued-token guards;
-- strict validation and retry/repair policy are measured;
-- retrieval usefulness is demonstrated, not only label agreement;
-- confidence and uncertainty have stable semantics;
-- source, evidence, model, prompt, and cost provenance are complete;
-- candidate output remains isolated from reviewed knowledge.
+1. Freeze the minimum pilot field set and decision semantics.
+2. Run a bounded annotation-tool integration spike.
+3. Keep MaryGenAI as the system of record; external tools are task and response
+   surfaces, not the authoritative reviewed store.
+4. Build versioned export and validated import adapters.
+5. Prepare reviewer guidelines, examples, training tasks, calibration tasks,
+   and the first production package.
+6. Define reviewer identity, institution, task assignment, draft/submitted
+   state, double-review sampling, adjudication, and withdrawal rules.
+7. Reject imports whose document identity, source hash, schema, or task version
+   no longer matches the frozen task package.
+8. Prevent automatic promotion from annotation response to reviewed knowledge.
 
-## MCP Pilot Gate Achieved
+When curators become available, activation should require onboarding and
+calibration rather than new product design or infrastructure work.
 
-The deployed pilot demonstrated that:
+## Next: Targeted Legacy Recovery
 
-- candidate records have a stable retrieval schema;
-- filtering dimensions are useful on real questions;
-- evidence and source links are consistently returned;
-- trust levels and uncertainty are unambiguous;
-- retrieval cannot be mistaken for medical advice.
+Treat legacy identity and source availability as separate backlogs.
+
+### Identity
+
+1. Generate deterministic or high-confidence identifier suggestions from PMID,
+   PMCID, DOI, publisher identifiers, normalized title, and year.
+2. Preserve every candidate value and source in provenance.
+3. Apply only deterministic technical normalization automatically.
+4. Send conflicts, ambiguous matches, and insufficient evidence to human review.
+5. Use identity tasks as a bounded reviewer-onboarding track when useful.
+
+### Source Recovery
+
+1. Re-run bounded official PMC failure samples first.
+2. Audit short-text artifacts before changing any quality threshold.
+3. Try alternate official or lawful routes for high-value records.
+4. Treat OCR and poor PDF text layers as a separate specialized campaign.
+5. Defer blocked publisher routes unless physician questions demonstrate a
+   specific coverage need.
+6. Stop low-yield routes after a measured pilot rather than accumulating an
+   unbounded historical obligation.
+
+Recovery priority should follow physician-relevant coverage gaps and measured
+source-ready yield, not only the number of outstanding records.
+
+## Later: Reviewed And Licensed Public Baseline
+
+1. Activate trained curators and run the first production review package.
+2. Measure completion time, field-level agreement, abstention, correction, and
+   adjudication burden.
+3. Create append-only reviewed decisions with reviewer and source provenance.
+4. Define the threshold for a record or field to enter a reviewed snapshot.
+5. Select explicit software and data licenses and document source-distribution
+   restrictions.
+6. Publish a versioned baseline with a dataset card, schema, limitations,
+   provenance, and Viewer.
+7. Keep candidate and reviewed releases independently identifiable.
+
+## Continuous Product Evaluation
+
+Across all phases:
+
+- collect realistic, non-identifying physician questions;
+- preserve a repeatable retrieval acceptance benchmark;
+- measure useful results, false positives, suspected false exclusions, source
+  opening, safe wording, and missing filters;
+- use observed value to prioritize enrichment and ranking changes;
+- never treat retrieval rank or confidence as clinical evidence strength;
+- never place patient-identifying data in the system.
+
+## Achieved Gates
+
+The completed 3,149-document campaign and deployed MCP pilot demonstrated:
+
+- resumable, provenance-complete candidate classification;
+- strict schema validation and deterministic technical repair;
+- evidence-backed candidate records and explicit uncertainty;
+- an isolated read-only retrieval index;
+- useful structured filters, source links, study detail, facets, and
+  capabilities;
+- hosted MCP access without exposing review state or provider tools.
+
+These gates support continued candidate-data work. They do not establish a
+human-reviewed public dataset.

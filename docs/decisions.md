@@ -1,5 +1,54 @@
 # Decision Log
 
+## 2026-08-05: Keep Candidate-Data Progress Independent From Human-Curation Activation
+
+Human curation remains essential before candidate evidence becomes reviewed
+knowledge, but the availability of university partners, supervisors, and
+scholarship students is not under the maintainer's direct control. Activating a
+curation team must therefore not be the critical path for source discovery,
+candidate classification, retrieval-index refreshes, the Dataset Viewer, or
+public project communication.
+
+MaryGenAI will operate two coordinated tracks:
+
+1. a maintainer-controlled candidate-data track covering PubMed growth, source
+   quality, classification, automated evaluation, immutable index refreshes,
+   Dataset Viewer development, website communication, and targeted automated
+   legacy recovery;
+2. a curation-readiness track covering the review contract, annotation-tool
+   integration, task packages, guidelines, reviewer onboarding, double-review
+   policy, adjudication, validated import, and reviewed-snapshot generation.
+
+Candidate records may enter new retrieval snapshots before human review when
+their trust level remains `ai_classified_candidate`, their review state remains
+`needs_review`, and evidence, uncertainty, source identity, and provenance stay
+visible. No annotation-tool response may promote a record automatically to
+`human_reviewed`.
+
+The first controlled data-growth slice will use the already discovered PubMed
+2024+ candidates with direct cannabinoid focus and locally available open
+XML/HTML. A bounded canary must pass source-quality, schema, grounding,
+provenance, cost, and regression gates before a larger candidate run or remote
+index promotion.
+
+Legacy work is split into separate identity and source-acquisition backlogs.
+Deterministic resolution suggestions, official-source retries, and route-level
+recovery experiments can proceed without curators; ambiguous identity decisions
+and scientific adjudication remain human tasks. Recovery campaigns should be
+bounded by measured yield rather than treated as an obligation to exhaust every
+historical record.
+
+The Dataset Viewer and public website are part of product readiness. The Viewer
+must expose candidate versus reviewed state explicitly and reuse the read-only
+retrieval contract where practical. Public data download or publication remains
+conditional on a documented software/data license and source-distribution
+boundary.
+
+This decision refines the 2026-07-31 physician-pilot decision: realistic
+physician questions remain a continuous prioritization and acceptance input,
+but scheduling a formal demonstration is not a prerequisite for the controlled
+candidate-data and readiness work above.
+
 ## 2026-07-31: Use Physician-Pilot Evidence To Prioritize The Next Product Cycle
 
 The complete strict-corpus index and remote MCP path are now sufficient for a

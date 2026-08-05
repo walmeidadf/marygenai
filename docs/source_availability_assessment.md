@@ -2,44 +2,102 @@
 
 ## Decision
 
-The private legacy-only corpus is large enough to validate classification and
-retrieval, but it should not define the project's growth ceiling. Continuous
-PubMed discovery is the preferred expansion path.
+Source growth proceeds on two distinct tracks:
+
+1. classify newly eligible PubMed candidates through bounded, reproducible
+   refreshes;
+2. recover legacy coverage through separate identity and source-acquisition
+   campaigns with measured yield.
+
+Human-curation availability does not block candidate-data work. Candidate
+records remain explicitly unreviewed until a separate review workflow promotes
+them.
 
 ## Classification-Ready Definition
 
 A classification-ready document has enough authentic source text to support
-coarse retrieval labels such as study type, condition, cannabinoid role,
+coarse retrieval labels such as study design, condition, cannabinoid role,
 population, evidence context, and outcome domain.
 
 Classification-ready does not require perfect table extraction, figure
-interpretation, dosage reconstruction, or protocol reconstruction.
+interpretation, dosage reconstruction, or protocol reconstruction. Lowering a
+quality threshold solely to increase record count is not an acceptable recovery
+strategy.
 
-## Current Maintainer-Local Result
+## Legacy Funnel
 
-The June 2026 legacy-core source campaign produced:
+The current maintainer-local legacy state contains:
 
-- 6,491 operational documents with useful identity;
-- 3,149 strict classification-ready documents after deduplication;
-- 3,374 broader source-ready documents.
+- 7,347 source rows representing 7,344 unique documents;
+- 6,491 records with at least one strong PMID, PMCID, or DOI identifier;
+- 6,490 deduplicated records in the classification corpus;
+- 3,374 source-ready records;
+- 3,149 strict classification-ready records;
+- 225 broader source-ready records;
+- 3,116 not-source-ready corpus records.
 
-Strict readiness requires sufficient source length, scientific-section signal,
-and a simple cannabinoid signal. Broader readiness does not require that simple
-term detector to fire.
+The identity queue contains 838 open items, 15 in review, and 353 resolved
+items. Resolving weak identity can add documents to the canonical corpus, but it
+does not repair inadequate source text for documents that already have strong
+identity.
 
-These counts describe ignored local artifacts. They are not committed public
-datasets.
+## Legacy Source-Failure Families
+
+The largest local not-source-ready families are:
+
+| Route | Failure family | Records |
+|---|---|---:|
+| augmented links | retrieved but insufficient text | 1,170 |
+| augmented links | access blocked | 968 |
+| PMC OAI | HTTP non-success | 356 |
+| Unpaywall PDF | access blocked | 248 |
+| no selected strategy | no routed source | 191 |
+
+Smaller families include request errors, missing resources, low-quality PDF text
+layers, and artifacts that need specialized OCR assessment.
+
+Recovery order:
+
+1. official PMC retry canary;
+2. short-text audit before any threshold or parser change;
+3. alternate lawful route experiment for high-value records;
+4. specialized OCR or PDF campaign;
+5. publisher-blocked routes only when retrieval evaluation demonstrates a
+   specific coverage need.
+
+Each route begins with a bounded sample and a documented stop/continue decision
+based on source-ready yield, provenance quality, operational cost, and clinical
+coverage value.
+
+## PubMed 2024+ Funnel
+
+The current local discovery state contains:
+
+- 1,361 unique candidates;
+- 1,359 considered new against the local legacy baseline;
+- 1,037 with direct title or indexed cannabinoid focus;
+- 773 with locally persisted open XML/HTML artifacts;
+- 590 combining direct cannabinoid focus and open XML/HTML.
+
+The open-artifact count is an access signal, not a source-ready result. The
+artifacts still require content-quality validation and corpus rollup before
+classification.
+
+The first refresh should select an approximately 100-document direct-focus
+canary, preserve a frozen manifest, classify only source-valid records, and
+expand only after evaluation gates pass.
 
 ## Validated Source Lessons
 
-- PMC OAI-PMH was the strongest official structured route.
-- Digital PDF extraction recovered meaningful additional source text.
-- NCBI ELink and OpenAlex were useful as access and identity augmentation.
-- OCR applies to a small residual class.
-- Metadata-only payloads are useful for discovery but not source-ready.
+- PMC structured text is the preferred official full-text route.
+- Digital PDF extraction can recover useful additional text.
+- NCBI ELink, Europe PMC, OpenAlex, and Unpaywall are useful identity or access
+  augmentation, not automatic proof of usable content.
+- Metadata-only payloads support discovery but not source-ready classification.
 - HTTP success is not content validation.
-- Challenge pages, JavaScript shells, malformed XML, and missing payloads must be
-  separated from usable text.
+- Challenge pages, JavaScript shells, malformed XML, missing payloads, and poor
+  text layers must remain distinct failure families.
+- Repeated retries against the same blocked route are not a recovery strategy.
 
 ## Operational Routing
 
@@ -51,28 +109,22 @@ Keep these states distinct:
 - `identity_or_focus_review`;
 - `not_enriched`.
 
-Do not blindly retry the same failed source route. Preserve invalid artifacts for
-audit and select a different strategy.
+Identity suggestions, source artifacts, parser outputs, and classification
+results remain candidate evidence with source and run provenance. Ambiguous
+identity decisions and scientific interpretation remain human tasks.
 
 ## Product Interpretation
 
-Source readiness affects classification confidence and retrieval rank, but a
-partial source may still support broad metadata retrieval. The system should
-declare source limitations instead of converting them into unsupported precise
-labels.
+Source readiness affects classification confidence and retrieval rank, but it
+is not evidence quality or clinical applicability. A partial source may support
+broad metadata retrieval while remaining insufficient for precise labels.
 
-## Growth Path
-
-1. Run explicit-window PubMed discovery.
-2. Resolve and deduplicate identity.
-3. Prioritize direct cannabinoid focus.
-4. Enrich through official or source-declared routes.
-5. Apply content-quality gates.
-6. Add source-ready records to classification corpora.
-7. Publish reproducible public snapshots when licensing permits.
+The product goal is not maximum historical document count. It is a current,
+inspectable candidate base whose gaps, uncertainty, acquisition routes, and
+review state remain visible.
 
 ## Safety Boundary
 
-Source availability does not imply evidence quality, clinical applicability, or
-treatment recommendation. It only describes whether the project has enough
-authentic material for the intended retrieval and classification task.
+Source availability does not imply clinical validity, treatment applicability,
+or recommendation. No source acquisition or candidate classification promotes a
+record to reviewed knowledge.

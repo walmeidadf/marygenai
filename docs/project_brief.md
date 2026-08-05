@@ -40,9 +40,8 @@ the reproducible baseline for contributors.
 
 ## Current Milestone
 
-The current milestone is a controlled physician demonstration of the deployed
-read-only MCP pilot, followed by feedback-driven prioritization of retrieval,
-continuous source discovery, and metadata enrichment.
+The current milestone is candidate-data growth and product readiness without
+making the availability of external curators the critical path.
 
 The pilot exposes 3,149/3,149 strict-valid candidate records from twenty-four
 classification runs through an isolated DuckDB index and stateless Streamable
@@ -53,12 +52,23 @@ knowledge.
 
 Near-term work should:
 
-- evaluate realistic physician questions and source-opening behavior;
-- improve ranking, query diagnostics, and direct-versus-tangential presentation;
-- establish a repeatable incremental PubMed discovery and index-refresh path;
-- enrich bibliographic dates, publication types, identity conflicts, and
-  clinically useful retrieval fields;
-- keep confidence, evidence, and trust boundaries explicit.
+- prepare and evaluate a bounded PubMed 2024+ classification canary before
+  expanding the candidate index;
+- build a read-only Dataset Viewer with useful filters, study detail, provenance,
+  source links, and visible candidate-versus-reviewed state;
+- publish a community-oriented website for physicians, professors, students,
+  and research partners;
+- complete the curation contract, annotation-tool adapter, reviewer materials,
+  and validated import path before university curators are available;
+- run targeted automated legacy recovery only where measured source-ready yield
+  or retrieval coverage justifies it;
+- use realistic, non-identifying physician questions continuously to guide
+  retrieval, enrichment, and presentation priorities.
+
+Human review remains required for reviewed knowledge, but candidate discovery,
+source validation, classification, evaluation, and immutable index refresh can
+continue independently with explicit `ai_classified_candidate` and
+`needs_review` states.
 
 See [Current Status](current_status.md), [Product Value](product_value.md),
 [MVP Plan](mvp_plan.md), and [Roadmap](roadmap.md).

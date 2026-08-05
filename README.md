@@ -50,8 +50,11 @@ The implemented pilot includes:
 
 All 3,149 records remain `ai_classified_candidate` with
 `review_state=needs_review`. The generated corpus and index are not committed
-public datasets. The next product gate is a controlled physician evaluation
-using non-identifying scientific questions.
+public datasets. Near-term work is a bounded PubMed 2024+ candidate refresh, a
+read-only Dataset Viewer, a community-oriented website, and a complete curation
+readiness package. External curator availability does not block candidate-data
+work, and no candidate becomes reviewed knowledge without an explicit review
+workflow.
 
 See [Current Status](docs/current_status.md) for the verified snapshot, known
 limitations, and next workstreams.

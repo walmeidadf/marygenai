@@ -36,6 +36,43 @@ have been extracted, validated, and exported.
 model-declared `high`, `medium`, or `low` assessment, not a calibrated
 probability, reviewer approval, or measure of clinical evidence strength.
 
+## Classification Curation Readiness
+
+Field-level review of AI-classified candidate records is planned but is not yet
+an active reviewed-dataset workflow. The current identity queues remain the
+implemented review surface. Preparing classification curation must not relabel
+candidate records or mutate existing review state.
+
+The first classification-review pilot should cover a deliberately small field
+set:
+
+- direct, tangential, or unsupported relevance;
+- publication identity and study design;
+- population category;
+- cannabinoid or exposure and its role;
+- medical condition;
+- outcome domains and overall direction;
+- supporting evidence spans;
+- an explicit accept, correct, or abstain response for each reviewed field.
+
+Every exported task package must freeze the canonical `document_id`, source
+artifact hash, candidate value, evidence, schema version, ontology version,
+extractor or prompt version, and task-package version. A response import must
+reject records whose frozen identity, hash, schema, or task version no longer
+matches.
+
+MaryGenAI remains the system of record. An external annotation tool may
+distribute tasks and collect responses, but it must not be the sole store for
+candidate values, reviewed values, evidence, reviewer identity, institution,
+timestamp, rationale, or provenance. Imported responses create append-only
+review decisions and never promote a record automatically to `human_reviewed`.
+
+Before production activation, the workflow must define training and calibration
+tasks, reviewer assignment, draft and submitted states, a double-review sample,
+agreement measurement, adjudication, abstention, withdrawal, and reviewed
+snapshot promotion rules. Curator availability should start onboarding and
+calibration, not a new round of workflow design.
+
 ## File-Based Classification Benchmark Review
 
 Study-design benchmark review is an append-only file workflow under ignored

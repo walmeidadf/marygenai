@@ -18,6 +18,48 @@ The 3,149-document campaign is complete and its historical offsets are
 exhausted. New provider-backed classification requires an explicitly approved
 new or changed corpus.
 
+Human-curation activation depends on external university partnerships and is
+not the critical path for candidate-data progress. Candidate discovery,
+source-quality work, classification, read-only presentation, and index refreshes
+may continue while curation tooling and task packages are prepared, provided no
+candidate is represented as human-reviewed knowledge.
+
+## Current Data Funnels
+
+The maintainer-local legacy funnel currently contains:
+
+- 7,347 legacy source rows representing 7,344 unique documents;
+- 6,491 records with at least one strong PMID, PMCID, or DOI identifier;
+- 6,490 deduplicated records in the latest classification corpus;
+- 3,374 source-ready records;
+- 3,149 strict classification-ready and candidate-classified records;
+- 3,116 identified corpus records that are not source-ready.
+
+The legacy identity queue contains 838 open items, 15 in review, and 353
+resolved items. Identity work can expand the canonical corpus, but it is
+separate from recovering adequate source text for already identified records.
+
+The largest locally recorded not-source-ready families are:
+
+- 1,170 augmented-link artifacts with insufficient extracted text;
+- 968 augmented-link access blocks;
+- 356 PMC HTTP failures;
+- 248 blocked Unpaywall PDF routes;
+- 191 records without a selected source strategy.
+
+The post-legacy PubMed funnel currently contains:
+
+- 1,361 unique publication candidates, including 1,359 considered new against
+  the local baseline;
+- 1,037 candidates with direct title or indexed cannabinoid focus;
+- 773 candidates with locally persisted open XML/HTML artifacts;
+- 590 candidates that combine direct cannabinoid focus with an open XML/HTML
+  artifact.
+
+These 773 artifacts have not yet passed a new classification-corpus quality
+rollup. None of the 1,361 PubMed candidates is part of the existing 3,149-record
+MCP snapshot.
+
 ## Implemented Surface
 
 The supported CLI includes:
@@ -77,19 +119,34 @@ the existing 3,149-record index until a licensed public snapshot is published.
 
 ## Next Workstreams
 
-1. Evaluate realistic, non-identifying physician questions and source-opening
-   behavior.
-2. Turn accepted questions into repeatable retrieval benchmarks covering useful
-   results, false positives, suspected false exclusions, safe wording, and
-   access links.
-3. Improve ranking, query diagnostics, and direct-versus-tangential
-   presentation where evaluation evidence justifies it.
-4. Establish repeatable incremental PubMed discovery, source acquisition,
-   classification, immutable index rebuild, and deliberate promotion.
-5. Enrich bibliographic dates and types, identifier conflicts, URL quality,
-   aliases, and the highest-value missing clinical retrieval fields.
-6. Define the licensing and review boundary for a reproducible public data
-   snapshot.
+Maintainer-controlled candidate-data work proceeds in this order:
+
+1. Build and evaluate a bounded PubMed 2024+ source-quality and classification
+   canary from direct-focus records with open XML/HTML.
+2. Build a read-only Dataset Viewer over the candidate retrieval contract, with
+   explicit candidate/reviewed state and no private artifact exposure.
+3. Publish a physician-, professor-, and student-oriented project website that
+   explains the current dataset, MCP, trust boundary, and collaboration path.
+4. Expand the PubMed candidate slice only after technical, retrieval, grounding,
+   provenance, cost, and regression gates pass.
+5. Run bounded automated legacy-recovery campaigns, starting with official PMC
+   failures and deterministic identity suggestions.
+6. Rebuild and deliberately promote immutable candidate indexes without
+   mutating review state.
+
+The parallel curation-readiness track prepares:
+
+1. a minimal field-level review contract;
+2. annotation-tool import and export adapters;
+3. training, calibration, and first production task packages;
+4. reviewer identity, institutional affiliation, double-review, adjudication,
+   and provenance rules;
+5. a validated path from external responses to append-only MaryGenAI review
+   decisions and later reviewed snapshots.
+
+Realistic, non-identifying physician questions remain a continuous product
+input. They should guide viewer filters, review fields, ranking changes, and
+legacy-recovery priorities without blocking the controlled work above.
 
 ## Verification Baseline
 
