@@ -72,11 +72,11 @@ constant time. A new CLI option can write the plaintext token once to an ignored
 mode-`0600` file without echoing it. The maintainer must transfer it to a
 password manager.
 
-`Authorization: Bearer` remains the preferred transport. The inspected
-`mcp-omie` pilot instead uses plaintext `?key=` URL parameters backed by
-DynamoDB. The maintainer's live Claude and ChatGPT connector dialogs were then
-inspected and neither exposed a fixed-header field: Claude showed only optional
-OAuth client credentials, while ChatGPT offered `No Auth` or `Mixed`.
+`Authorization: Bearer` remains the preferred transport. A comparable pilot
+showed that plaintext query credentials can provide a narrow compatibility path
+when a hosted connector cannot configure fixed headers. The maintainer's live
+Claude and ChatGPT connector dialogs were then inspected and neither exposed a
+fixed-header field at that time.
 
 The AWS dev environment therefore enables exactly one explicit compatibility
 credential, `?key=<pilot-token>`, while local HTTP serving keeps it disabled by
@@ -278,7 +278,7 @@ physician-facing link when a stable article page can be derived locally.
 
 ## 2026-07-17: Continue Strict-Corpus Batch Expansion In Sequential 150-Record Chunks
 
-The first two post-handoff chunks, offsets 500 and 650 with limit 150 each,
+The next two chunks, offsets 500 and 650 with limit 150 each,
 completed all 300 remote requests without a failed request or Batch error file.
 Local conversion produced 300/300 strict schema-valid candidate records and
 evidence spans for every record. Both runs stayed below the existing 1.8-million
@@ -531,9 +531,9 @@ maintainer-authorized provider canary and then a first local candidate base. The
 v4 selective field-family architecture remains a documented finding and future
 optimization path, but it is no longer a blocker for the MVP.
 
-Current status: the canary and first local candidate base steps described below
-have been completed. The current demo base is the 500-document broad/v3 Batch
-tranche documented in `docs/2026-07-11_batch_and_mcp_handoff.md`.
+Current status: the canary and first local candidate-base steps described below
+were subsequently completed and expanded to the full strict corpus. See
+[Current Status](current_status.md) for the active snapshot.
 
 This changes the near-term priority order:
 

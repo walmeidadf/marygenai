@@ -127,35 +127,21 @@ MCP requests require:
 Authorization: Bearer <pilot-token>
 ```
 
-Bearer remains the preferred transport. The dev environment explicitly enables
-a temporary `?key=<pilot-token>` compatibility path because the maintainer's
-current Claude and ChatGPT connector dialogs do not expose fixed request
-headers. Other credential parameter names remain rejected, and providing both
-header and query credentials is rejected as ambiguous.
+Bearer remains the preferred transport. The development environment can enable
+an explicit query-token compatibility mode only for hosts that cannot configure
+fixed request headers. Other credential parameter names remain rejected, and
+providing both header and query credentials is rejected as ambiguous.
 
-Configure the hosted connectors as follows:
+Do not place a secret-bearing connector URL in documentation, tickets,
+screenshots, shell history, logs, or committed configuration. Configure the
+endpoint and credential directly in the authorized host, then rotate the token
+after any unintended exposure. Never include patient-identifying information in
+MCP requests.
 
-```text
-Claude name: MaryGenAI
-Claude URL: https://mcp-server.marygenai.com/mcp?key=<pilot-token>
-Claude OAuth Client ID/Secret: leave empty
-
-ChatGPT name: MaryGenAI
-ChatGPT Server URL: https://mcp-server.marygenai.com/mcp?key=<pilot-token>
-ChatGPT Auth: No Auth
-```
-
-`No Auth` describes the host-platform handshake; MaryGenAI still verifies the
-URL key before serving MCP data. Treat the complete connector URL as a secret.
-Do not paste it into tickets, screenshots, shell history, or logs, and do not
-include patient-identifying information in MCP requests. Rotate the token by
-generating a new one, replacing the Terraform digest, applying, and updating the
-connector URL.
-
-Claude documents fixed request headers as a gradual beta rollout. If the
-Request headers section becomes available, remove the query key and configure
-`Authorization` with the complete value `Bearer <pilot-token>` instead. OAuth
-remains the future per-user identity and revocation boundary.
+The query-token mode is a temporary shared-pilot compatibility boundary. Disable
+it when fixed request headers are available. OAuth or another per-user mechanism
+is required before claiming individual identity, scopes, or independent
+revocation.
 
 ## Snapshot Update
 

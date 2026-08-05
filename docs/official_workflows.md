@@ -98,13 +98,11 @@ apply. The infrastructure does not use CloudFormation. The custom domain uses an
 ACM certificate with external Cloudflare DNS validation; follow the two-stage
 bootstrap in `infra/terraform/README.md` before creating the application CNAME.
 
-The AWS dev environment sets `allow_query_token=true` for compatibility with
-the maintainer's current Claude and ChatGPT connector dialogs. Use
-`https://mcp-server.marygenai.com/mcp?key=<pilot-token>` with empty Claude OAuth
-fields or ChatGPT `No Auth`. The server still verifies the key; the platform
-label only means there is no platform-managed OAuth handshake. Treat the entire
-URL as a secret. Prefer `Authorization: Bearer <pilot-token>` when a client can
-configure fixed request headers.
+The private development environment may enable the explicit query-token
+compatibility mode for hosts that cannot configure fixed request headers.
+Bearer authentication remains preferred. Never commit or publish a complete
+secret-bearing connector URL, and do not treat shared pilot access as
+per-physician authentication.
 
 The generated DuckDB index and manifest remain ignored under
 `data/normalized/retrieval_indexes/`. Build and runtime do not open or mutate
@@ -400,8 +398,8 @@ targeted retries, produced 3,149/3,149 strict-valid candidate records with
 evidence spans. Do not continue the historical offsets as though more strict
 records remain. A new provider-backed run requires explicit authorization and
 an intentionally new or changed corpus. Preserve the observed operating limit
-of about 150 records per sequential Batch for the current prompt shape. See
-`docs/2026-07-31_mcp_pilot_handoff.md` before further classification work.
+of about 150 records per sequential Batch for the current prompt shape. Review
+[Current Status](current_status.md) before further classification work.
 
 Submit a prepared mini-Batch only after reviewing the local input and manifest:
 
@@ -519,13 +517,12 @@ Current MCP capabilities support:
 The MCP surface must label AI output as candidate evidence and avoid medical
 advice or treatment recommendations.
 
-Hosted ChatGPT and Claude connectors have completed end-to-end tests through
-the custom domain. Their hosts translate Portuguese scientific concepts to the
-primarily English index. Search responses carry a presentation contract that
-requires bounded zero-result wording, preferred physician-facing links, detail
-inspection before detailed evidence claims, and separation of direct from
-tangential matches. See `docs/2026-07-31_mcp_pilot_handoff.md` for the physician
-demonstration checklist and next workstreams.
+Hosted ChatGPT and Claude connectors completed end-to-end pilot tests. Their
+hosts translate Portuguese scientific concepts to the primarily English index.
+Search responses carry a presentation contract that requires bounded
+zero-result wording, preferred physician-facing links, detail inspection before
+detailed evidence claims, and separation of direct from tangential matches. See
+[Current Status](current_status.md) for the next workstreams.
 
 ## Maintainer Bootstrap
 

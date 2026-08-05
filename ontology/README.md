@@ -15,4 +15,7 @@ Starting scope:
 - dosing/protocol;
 - human review.
 
-Legacy vocabularies are stored in `temp/legacy/` and should be converted gradually into structured files in this folder.
+Private legacy vocabularies remain under ignored `temp/legacy/` paths and are
+not distributed with the repository. Reviewed, license-compatible ontology
+artifacts may be added here gradually with explicit source provenance and
+versioning.

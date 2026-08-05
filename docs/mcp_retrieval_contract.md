@@ -46,7 +46,7 @@ decisions:
 
 ```bash
 uv run marygenai retrieval export-identity-conflicts \
-  --classification-run-id 20260723T141447Z
+  --classification-run-id <classification_run_id>
 ```
 
 Run a local query through the MCP-equivalent retrieval contract:
@@ -78,12 +78,11 @@ uv run marygenai mcp serve-http
 The HTTP runtime uses JSON responses and stateless MCP sessions. A temporary
 pilot token is accepted through the preferred `Authorization: Bearer` header.
 Query credentials are disabled by default and require an explicit runtime flag.
-The AWS dev pilot enables exactly `?key=` because the maintainer's current
-Claude and ChatGPT connector dialogs do not expose fixed request headers. Other
-credential query fields, duplicate keys, and simultaneous header/query
-credentials are rejected. This compatibility gate is not the final
-multi-client authorization design and does not provide per-physician identity,
-scopes, or independent revocation.
+The private development pilot may enable exactly one query credential for hosts
+that cannot configure fixed request headers. Other credential query fields,
+duplicate keys, and simultaneous header/query credentials are rejected. This
+compatibility gate is not the final multi-client authorization design and does
+not provide per-physician identity, scopes, or independent revocation.
 
 The default ignored index is:
 

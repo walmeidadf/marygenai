@@ -24,9 +24,6 @@ source-ready records, 3,149 strict classification-ready records, and 225 broader
 source-ready records. These locally generated counts define the current execution
 universe; the legacy reference size does not.
 
-The immediate next implementation is compact semantic prompt-packet preparation
-and cost estimation. It must not call an LLM by default.
-
 Implemented locally on 2026-06-23:
 
 - versioned broad-v4 and four field-family response schemas;
@@ -284,7 +281,7 @@ stratified across:
 
 Legacy availability is a sample annotation, not an eligibility requirement.
 
-## Next-Session Entry Point
+## Reproducible Local Entry Point
 
 Start from the official local artifacts produced by:
 
@@ -294,11 +291,7 @@ uv run marygenai classification extract-retrieval-metadata \
   --input-path <retrieval_field_validation_sample.jsonl>
 ```
 
-Implement prompt-packet preparation under `src/marygenai/` and expose it through
-the `marygenai classification` CLI. Do not call a provider until packet contents,
-schemas, cost estimates, and tests have been reviewed.
-
-The supported command is:
+Build the implemented comparison packets without a provider call:
 
 ```bash
 uv run marygenai classification build-v4-comparison-packets \

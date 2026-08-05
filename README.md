@@ -1,46 +1,69 @@
 # MaryGenAI
 
-MaryGenAI is an open-source scientific source-intelligence and
-candidate-classification engine for cannabinoid medicine.
+MaryGenAI is a public research and engineering project for scientific source
+intelligence and candidate classification in cannabinoid medicine.
 
-Its purpose is to make scientific literature easier to discover, filter,
-inspect, and verify. The first downstream experience is a physician or
-researcher using their preferred AI assistant to find candidate studies through
-the deployed read-only MCP pilot, then opening the underlying publications for
-deeper assessment.
+It helps physicians, researchers, and evidence professionals discover, filter,
+inspect, and verify scientific documents. Its first external integration is a
+read-only Model Context Protocol (MCP) pilot that exposes candidate studies to
+compatible AI assistants and research tools.
 
-MaryGenAI does not provide medical advice and does not turn model output into
-clinical truth.
+MaryGenAI does **not** provide medical advice, treatment recommendations, or
+reviewed clinical truth. AI classifications are probabilistic retrieval
+metadata and always require inspection of the supporting evidence and original
+publication.
 
-## Product Contract
+## What The Project Does
 
-The engine:
+MaryGenAI:
 
-- discovers and resolves scientific-document identity;
-- enriches metadata and lawful source-access paths;
-- prepares deduplicated, classification-ready corpora;
-- classifies retrieval dimensions such as study type, condition, cannabinoid,
-  population, evidence context, outcome domain, and overall direction;
-- preserves source snippets, model and prompt versions, uncertainty, and
-  provenance;
-- keeps AI classifications clearly separated from human-reviewed knowledge.
-
-Candidate classifications are useful even when uncertainty remains. A study can
-still be found through a broad filter, ranked below a higher-confidence match,
-and inspected through its supporting evidence. Known schema, prompt, source, or
-pipeline defects are not acceptable uncertainty and should be corrected.
+- discovers scientific publications through explicit, auditable source routes;
+- resolves document identity and preserves identifier conflicts;
+- evaluates whether acquired source text is usable for classification;
+- builds deduplicated classification corpora;
+- produces evidence-backed candidate labels for retrieval;
+- preserves source hashes, evidence spans, model and prompt versions,
+  uncertainty, and provenance;
+- exposes candidate records through an isolated read-only retrieval index and
+  MCP interface;
+- keeps candidate evidence separate from human-reviewed knowledge.
 
 Current confidence values are categorical model assessments, not calibrated
-probabilities. A future retrieval confidence score should combine source quality,
-evidence support, deterministic metadata agreement, pipeline validation, and
-calibration against trusted references.
+probabilities. Retrieval rank and confidence also do not measure clinical
+evidence strength.
 
 See [Product Value](docs/product_value.md) for the complete product and quality
 boundary.
 
-## Official Workflows
+## Current Status
 
-The supported public interface is the `marygenai` package CLI:
+The implemented pilot includes:
+
+- 3,149 strict-valid candidate-classification records in maintainer-local,
+  ignored artifacts;
+- an isolated DuckDB retrieval index over those records;
+- read-only search, study detail, facets, and capability discovery;
+- local CLI, MCP stdio, and stateless Streamable HTTP interfaces;
+- a reproducible AWS deployment path for a private development pilot;
+- explicit candidate-result, zero-result, source-link, and study-detail
+  presentation rules.
+
+All 3,149 records remain `ai_classified_candidate` with
+`review_state=needs_review`. The generated corpus and index are not committed
+public datasets. The next product gate is a controlled physician evaluation
+using non-identifying scientific questions.
+
+See [Current Status](docs/current_status.md) for the verified snapshot, known
+limitations, and next workstreams.
+
+## Quick Start
+
+Requirements:
+
+- Python 3.13 or newer;
+- [`uv`](https://docs.astral.sh/uv/).
+
+Install development dependencies and inspect the CLI:
 
 ```bash
 uv sync --extra dev
@@ -48,39 +71,7 @@ uv run marygenai info
 uv run marygenai --help
 ```
 
-Current handoff state:
-
-- twenty-four Batch classification runs, including two targeted retries,
-  produced 3,149/3,149 strict-valid candidate records with evidence spans;
-- the isolated read-only retrieval index contains all 3,149 valid records and
-  their retrieval-confidence evaluations;
-- the index projects locally available PMID, PMCID, DOI, and physician-facing
-  access URLs with identifier-level provenance and explicit conflict handling;
-- the identity projection must remain local and read-only and must not update
-  SQLite, review state, or reviewed knowledge;
-- the strict corpus is exhausted and the length-truncated response was recovered
-  by an explicitly authorized one-document targeted rerun.
-
-That read-only retrieval/MCP milestone now has a deployed pilot implementation:
-
-- an isolated ignored DuckDB index over twenty-four completed candidate runs;
-- local build, inspect, and search commands;
-- MCP search, detail, facets, and capabilities tools over stdio and stateless
-  Streamable HTTP;
-- runtime `read_only=True` enforcement with no SQLite, review, provider, or
-  outbound source access;
-- an AWS dev environment behind `mcp-server.marygenai.com`, validated with the
-  hosted ChatGPT and Claude connector interfaces;
-- clinical-question research and a preserved retrieval backlog.
-
-See [2026-07-31 Remote MCP Pilot Handoff](docs/2026-07-31_mcp_pilot_handoff.md)
-for the current operational state, demonstration checklist, known limitations,
-and next workstreams. The earlier
-[Batch](docs/2026-07-11_batch_and_mcp_handoff.md) and
-[identity](docs/2026-07-17_identity_and_mcp_handoff.md) handoffs remain useful
-historical records.
-
-Core source-intelligence flow:
+Initialize local operational storage and discover a bounded PubMed window:
 
 ```bash
 uv run marygenai db init
@@ -89,11 +80,15 @@ uv run marygenai pubmed-discovery run \
   --mindate 2024/01/01 \
   --maxdate 2024/01/31 \
   --retmax 100
-uv run marygenai access-enrichment run --limit 50
-uv run marygenai access-enrichment audit-artifacts
 ```
 
-First read-only candidate retrieval and MCP flow:
+Generated data, source payloads, PDFs, private inputs, credentials, review
+state, and deployment artifacts remain in ignored local paths.
+
+## Read-Only Retrieval And MCP
+
+The retrieval commands operate on an ignored local index built from candidate
+artifacts:
 
 ```bash
 uv run marygenai retrieval build-index
@@ -105,209 +100,78 @@ uv run marygenai retrieval search \
 uv run marygenai mcp serve
 ```
 
-The generated index remains under ignored `data/` and contains candidate
-evidence, not reviewed knowledge. See
-[Read-Only MCP Retrieval Contract](docs/mcp_retrieval_contract.md) and
-[MCP Clinical Retrieval Research](docs/mcp_clinical_retrieval_research.md).
+The runtime opens DuckDB with `read_only=True`. It does not receive SQLite
+review state, provider credentials, provider tools, or data-write tools.
 
-Local stateless Streamable HTTP and the first AWS dev deployment path are also
-available:
+The index is generated from maintainer-local candidate artifacts and is not
+included in a fresh clone. Public contributors can run source discovery and
+corpus preparation, but cannot reproduce the complete pilot index until a
+licensed public snapshot is released.
 
-```bash
-uv run marygenai mcp generate-access-token \
-  --output-path data/private/mcp-dev-access-token.json
-uv run marygenai mcp serve-http
-uv run marygenai deployment build-lambda
-cd infra/terraform
-terraform init
-terraform validate
-terraform plan
-```
+See the [Read-Only MCP Retrieval Contract](docs/mcp_retrieval_contract.md) and
+[Official Workflows](docs/official_workflows.md).
 
-The Terraform environment deploys API Gateway HTTP API, Lambda Python 3.13, and
-a private versioned S3 bucket. Lambda verifies the content-addressed DuckDB
-snapshot, copies it to `/tmp`, and opens it read-only. The temporary pilot token
-is accepted through the preferred `Authorization: Bearer` header; only its
-SHA-256 digest belongs in local configuration. The AWS dev environment also
-enables an explicit `?key=` compatibility path for hosted connector dialogs that
-do not expose static headers. Treat that complete URL as a secret. A
-DNS-validated ACM certificate exposes `mcp-server.marygenai.com` while
-Cloudflare remains the external DNS provider. See
-[AWS Dev Environment](infra/terraform/README.md).
+## Candidate Classification
 
-Search responses also carry a machine-readable host presentation contract.
-Claude, ChatGPT, and other hosts must call results AI-classified candidate
-matches, must not infer literature absence from an empty index result, must
-include the preferred physician-facing URL when citing a record, and must call
-study detail before making detailed evidence claims.
-
-Classification preparation, validation, and the first candidate-base canary:
+Local packet generation and deterministic smoke validation do not call a model:
 
 ```bash
 uv run marygenai classification-corpus rollup --sample-size 30
 uv run marygenai classification build-prompt-packets --limit 5
 uv run marygenai classification run-smoke --limit 5
-uv run marygenai classification run-smoke \
-  --limit 50 \
-  --input-path <classification_corpus_records.jsonl> \
-  --dataset-split strict_classification_ready \
-  --no-dry-run \
-  --provider openai \
-  --model gpt-5.4-mini
-uv run marygenai classification prepare-batch \
-  --limit 150 \
-  --offset 0 \
-  --input-path <classification_corpus_records.jsonl> \
-  --dataset-split strict_classification_ready \
-  --model gpt-5.4-mini
-uv run marygenai classification submit-batch \
-  --batch-input-path <openai_batch_input.jsonl> \
-  --manifest-path <openai_batch_manifest.jsonl>
-uv run marygenai classification watch-batch \
-  --submission-path <openai_batch_submission.json> \
-  --interval-seconds 300 \
-  --max-checks 288
-uv run marygenai classification retrieve-batch \
-  --submission-path <openai_batch_submission.json>
-uv run marygenai classification profile-retrieval-fields --sample-size 12
-uv run marygenai classification extract-retrieval-metadata \
-  --input-path <retrieval_field_validation_sample.jsonl>
-uv run marygenai classification build-v4-comparison-packets \
-  --sample-path <retrieval_field_validation_sample.jsonl> \
-  --parser-records-path <retrieval_metadata_parser_records.jsonl> \
-  --limit 8
-uv run marygenai classification build-validation-benchmark --sample-size 48
-uv run marygenai classification build-validation-holdout \
-  --exclude-decisions-path <reviewed_benchmark_decisions.jsonl>
-uv run marygenai classification evaluate-validation-benchmark \
-  --candidates-path <benchmark_candidates.jsonl> \
-  --decisions-path <reviewed_benchmark_decisions.jsonl>
-uv run marygenai classification apply-study-design-rules \
-  --input-path <benchmark_or_holdout_candidates.jsonl>
-uv run marygenai classification evaluate
 ```
 
-`classification run-smoke` defaults to deterministic mock output. A provider call
-requires `--no-dry-run`, a configured `OPENAI_API_KEY`, and an explicit model.
-All outputs remain candidate evidence.
+Provider-backed synchronous and Batch commands are explicit operations. They
+require credentials, can incur cost, and write ignored candidate-evidence
+artifacts. The completed historical strict corpus is exhausted; new paid
+classification should target only an explicitly approved new or changed corpus.
 
-The product-oriented broad/v3 Batch campaign is complete for all 3,149 strict
-classification-ready documents. The deployed pilot index includes every valid
-candidate record across twenty-four runs. Further provider-backed
-classification requires an explicitly approved new or changed corpus and should
-use sequential Batch chunks sized by estimated enqueued tokens, normally 150
-records for the current prompt shape.
+Detailed provider, evaluation, and review commands are documented in
+[Official Workflows](docs/official_workflows.md).
 
-`classification evaluate` is local-only. It separates technical validity,
-retrieval utility, and inference quality, compares against normalized English
-legacy context when available, and writes ignored reports plus a targeted rerun
-input under `data/normalized/classification_evaluations/`.
+## Data, Privacy, And Safety
 
-`classification build-validation-benchmark` creates a deterministic,
-title-explicit, stratified candidate set for human review. It does not call an
-LLM, mutate SQLite, or create reviewed knowledge.
+- Do not put patient-identifying information in queries, logs, evaluation
+  artifacts, or demonstration notes.
+- Do not commit `.env`, credentials, raw downloads, PDFs, generated corpora,
+  local databases, Terraform state, or private legacy exports.
+- Do not treat discovery, download, classification, retrieval rank, or queue
+  completion as human review.
+- Preserve original sources, hashes, evidence spans, uncertainty, and trust
+  levels.
+- Use only lawful, source-declared acquisition routes.
 
-`classification profile-retrieval-fields` measures the actual downloaded corpus
-and prepares a small cross-domain validation worklist. Legacy English context is
-reported as a guardrail, not treated as the classification queue.
-
-`classification extract-retrieval-metadata` tests deterministic source parsing
-on that worklist. Its outputs are field candidates with evidence and provenance,
-not final classifications.
-
-`classification build-v4-comparison-packets` creates versioned broad-v4 and
-selective field-family prompt packets, field-level routing records, strict local
-mock responses, assembled mock candidates, token estimates, and configurable
-cost projections. It also writes a frozen comparison manifest that can be
-reused with `--manifest-path`. It never calls a provider.
-
-Selective-v4 work is documented as a future optimization path, not a blocker for
-the first candidate-classified base or read-only MCP demonstration.
-
-`classification prepare-batch` writes OpenAI Batch-compatible JSONL plus a local
-manifest for later submission. Use `--offset` with `--limit` to prepare
-non-overlapping corpus chunks after the dataset split filter is applied. It has
-a local estimated enqueued-token guard so oversized batches fail before upload.
-It does not upload files, create a remote batch, call a provider, mutate
-SQLite, or create reviewed knowledge.
-
-`classification submit-batch`, `classification retrieve-batch`, and
-`classification watch-batch` are explicit provider-backed operations.
-`watch-batch` polls status, downloads the output as soon as the remote Batch
-completes, and writes a local watch log. They write ignored local audit
-artifacts and convert completed Batch outputs into the same
-candidate-classification run format used by synchronous validation. Outputs
-remain candidate evidence.
-
-The benchmark evaluator measures deterministic candidates against append-only,
-human-confirmed review decisions. The holdout builder freezes a separate
-40-document set before rule changes so development cases cannot leak into final
-validation.
-
-`apply-study-design-rules` applies versioned deterministic source-text
-refinements without calling an LLM. Its output preserves candidate IDs, source
-hashes, the original labels, applied rules, and run provenance.
-
-Maintainer-only private bootstrap:
-
-```bash
-uv run marygenai initial-load setup-data
-uv run marygenai initial-load run
-uv run marygenai initial-load persist
-```
-
-The initial load expects private files under `temp/legacy/`. Public contributors
-should not expect those files to exist.
-
-Review commands operate on local SQLite workflow state:
-
-```bash
-uv run marygenai review queues
-uv run marygenai review list --queue legacy_identity_review
-uv run marygenai review-api serve --host 127.0.0.1 --port 8000
-uv run marygenai review-ui serve --host 127.0.0.1 --port 8000
-```
+The private maintainer bootstrap under `temp/legacy/` is not distributed and is
+not required for the public source-discovery path.
 
 ## Repository Structure
 
 ```text
 src/marygenai/        # supported package and CLI workflows
 tests/                # tests for the supported package surface
-docs/                 # current product, architecture, operations, and decisions
-ontology/             # public ontology contracts and future versioned artifacts
-scripts/              # thin runners around supported package commands
-infra/                # Terraform and locked Lambda runtime dependencies
+docs/                 # public product, architecture, workflow, and history docs
+ontology/             # ontology contracts and future versioned artifacts
+scripts/              # thin orchestration around supported CLI commands
+infra/                # reproducible read-only MCP deployment configuration
 data/                 # generated datasets and source artifacts, ignored
-temp/                 # private inputs, archived experiments, and scratch, ignored
+temp/                 # private inputs, archived experiments, scratch, ignored
 build/                # generated deployment packages, ignored
 ```
 
-Historical POC implementations are intentionally not part of the supported public
-surface. Their durable findings are summarized in
-[Experimental Findings](docs/experimental_findings.md), and their implementation
-history remains available through Git.
-
 ## Documentation
 
+Start with the [Documentation Index](docs/README.md). The primary public
+documents are:
+
+- [Current Status](docs/current_status.md)
 - [Product Value](docs/product_value.md)
 - [Project Brief](docs/project_brief.md)
-- [Official Workflows](docs/official_workflows.md)
-- [2026-07-31 Remote MCP Pilot Handoff](docs/2026-07-31_mcp_pilot_handoff.md)
-- [2026-07-11 Batch And MCP Handoff](docs/2026-07-11_batch_and_mcp_handoff.md)
-- [2026-07-17 Identity And MCP Handoff](docs/2026-07-17_identity_and_mcp_handoff.md)
-- [Read-Only MCP Retrieval Contract](docs/mcp_retrieval_contract.md)
-- [MCP Clinical Retrieval Research](docs/mcp_clinical_retrieval_research.md)
 - [Architecture](docs/architecture.md)
-- [Classification Architecture](docs/classification_architecture.md)
-- [Classification Contract](docs/classification_dataset_plan.md)
-- [Classification Data Dictionary](docs/classification_data_dictionary.md)
-- [Candidate Classification V4 Plan](docs/classification_v4_plan.md)
+- [Official Workflows](docs/official_workflows.md)
 - [MVP Plan](docs/mvp_plan.md)
 - [Roadmap](docs/roadmap.md)
-- [Data Sources](docs/data_sources.md)
-- [Source Availability](docs/source_availability_assessment.md)
-- [Experimental Findings](docs/experimental_findings.md)
 - [Decision Log](docs/decisions.md)
+- [Experimental Findings](docs/experimental_findings.md)
 
 ## Development
 
@@ -315,3 +179,14 @@ history remains available through Git.
 uv run ruff check .
 uv run pytest
 ```
+
+All code, schemas, filenames, documentation, and CLI output are maintained in
+English. See [AGENTS.md](AGENTS.md) for repository-specific engineering and
+safety rules.
+
+## License
+
+No software or data license has been published yet. Public visibility of this
+repository does not grant permission to copy, modify, or redistribute its
+contents. Select and add an explicit license before describing MaryGenAI as
+open-source or inviting external reuse.

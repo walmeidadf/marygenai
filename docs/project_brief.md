@@ -1,7 +1,7 @@
 # Project Brief
 
-MaryGenAI is an open-source scientific source-intelligence and
-candidate-classification engine for cannabinoid medicine.
+MaryGenAI is a public scientific source-intelligence and
+candidate-classification research project for cannabinoid medicine.
 
 ## Problem
 
@@ -60,9 +60,8 @@ Near-term work should:
   clinically useful retrieval fields;
 - keep confidence, evidence, and trust boundaries explicit.
 
-See [Product Value](product_value.md), [MVP Plan](mvp_plan.md), and
-[Roadmap](roadmap.md). The current Batch/MCP handoff is documented in
-[2026-07-31 Remote MCP Pilot Handoff](2026-07-31_mcp_pilot_handoff.md).
+See [Current Status](current_status.md), [Product Value](product_value.md),
+[MVP Plan](mvp_plan.md), and [Roadmap](roadmap.md).
 
 ## Non-Goals
 
