@@ -75,6 +75,33 @@ be silently overwritten under the same corpus version. Selected inputs remain
 The first local v1 run selected eight records from a target of 100. It reported
 the shortfall and identity/source exclusions rather than weakening the gate.
 
+The authorized v1 provider smoke test produced 8/8 strict-valid candidate
+records and 28/28 extraction-tolerant grounded evidence spans, with zero errors,
+retries, or rerun documents. It used 42,930 prompt tokens and 7,380 completion
+tokens. No legacy English reference matched these new records, so independent
+inference agreement remains unmeasured.
+
+Build a read-only identity-repair overlay for the highest-priority source
+failures:
+
+```bash
+uv run marygenai classification-corpus repair-pubmed-source-identities \
+  --target-size 150 \
+  --no-apply
+```
+
+The command selects direct-focus, 2024+ candidates with a local open artifact
+that failed artifact identity verification. It queries PubMed only by the
+existing candidate PMID, stores hash-bound raw EFetch XML, compares official
+title, year, PMCID, DOI, and canonical URL, and writes ignored repair records
+and a PMC reenrichment worklist. `--apply` is deliberately rejected. The command
+does not call an LLM or mutate SQLite, review queues, review decisions, or
+reviewed knowledge.
+
+The first 150-record repair run resolved 150/150 PubMed records with zero
+errors. Titles and DOIs agreed throughout, all persisted PMCIDs changed, and 149
+records received a corrected official PMCID suitable for bounded reenrichment.
+
 ## Candidate Classification Schema
 
 Current schema:

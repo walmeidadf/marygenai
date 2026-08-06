@@ -5,7 +5,12 @@ import json
 import sqlite3
 from pathlib import Path
 
+import pytest
+
 from marygenai.classification_corpus.pubmed_canary import prepare_pubmed_canary
+from marygenai.classification_corpus.pubmed_identity_repair import (
+    repair_pubmed_source_identities,
+)
 from marygenai.storage import LocalStorage
 
 
@@ -277,3 +282,81 @@ def test_pubmed_canary_is_deduplicated_stable_and_preserves_protected_state(
     assert "not_direct_title_or_indexed_cannabinoid_focus" in exclusions_by_id[
         "publication:pubmed:abstract"
     ]["exclusion_reasons"]
+
+
+class FakePubMedIdentityClient:
+    def __init__(self) -> None:
+        self.calls: list[list[str]] = []
+
+    def fetch_xml(self, pmids: list[str]) -> str:
+        self.calls.append(pmids)
+        return """
+        <PubmedArticleSet>
+          <PubmedArticle>
+            <MedlineCitation>
+              <PMID>mismatch</PMID>
+              <Article>
+                <ArticleTitle>Cannabinoid identity mismatch</ArticleTitle>
+                <Journal><JournalIssue><PubDate><Year>2024</Year></PubDate></JournalIssue></Journal>
+              </Article>
+            </MedlineCitation>
+            <PubmedData>
+              <ArticleIdList>
+                <ArticleId IdType="pubmed">mismatch</ArticleId>
+                <ArticleId IdType="pmc">PMC-CORRECT</ArticleId>
+                <ArticleId IdType="doi">10.1/mismatch</ArticleId>
+              </ArticleIdList>
+            </PubmedData>
+          </PubmedArticle>
+        </PubmedArticleSet>
+        """
+
+
+def test_identity_repair_builds_overlay_without_mutating_database(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    database_path = create_canary_database(data_dir)
+    database_before = database_path.read_bytes()
+    client = FakePubMedIdentityClient()
+
+    result = repair_pubmed_source_identities(
+        storage=LocalStorage(data_dir),
+        database_path=database_path,
+        target_size=10,
+        run_id="repair-run",
+        client=client,
+    )
+
+    records = read_jsonl(Path(result["records_path"]))
+    worklist = read_jsonl(Path(result["worklist_path"]))
+    summary = json.loads(Path(result["summary_path"]).read_text(encoding="utf-8"))
+
+    assert client.calls == [["mismatch"]]
+    assert result["counts"]["selected_candidates"] == 1
+    assert result["counts"]["resolved_pubmed_records"] == 1
+    assert result["counts"]["pmcid_changes"] == 1
+    assert len(records) == 1
+    assert records[0]["document_id"] == "publication:pubmed:mismatch"
+    assert records[0]["resolved_identity"]["pmcid"] == "PMC-CORRECT"
+    assert records[0]["changed_fields"] == ["pmcid"]
+    assert records[0]["recommended_action"] == "reenrich_from_resolved_pmcid"
+    assert records[0]["apply_status"] == "not_applied"
+    assert records[0]["review_state"] == "needs_review"
+    assert records[0]["provenance"]["does_not_mutate_sqlite"] is True
+    assert records[0]["provenance"]["raw_pubmed_sha256"]
+    assert len(worklist) == 1
+    assert summary["protected_state_unchanged"] is True
+    assert database_path.read_bytes() == database_before
+
+
+def test_identity_repair_rejects_apply_mode(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    database_path = create_canary_database(data_dir)
+
+    with pytest.raises(ValueError, match="Applying identity changes is not supported"):
+        repair_pubmed_source_identities(
+            storage=LocalStorage(data_dir),
+            database_path=database_path,
+            target_size=1,
+            apply=True,
+            client=FakePubMedIdentityClient(),
+        )

@@ -27,6 +27,14 @@ a provider call. Provider-backed classification still requires explicit
 maintainer authorization, and any output remains `ai_classified_candidate` and
 `needs_review`.
 
+The authorized eight-record smoke test passed technical validity and grounding.
+A subsequent read-only repair campaign confirmed the defect boundary: 150/150
+selected records retained the same official title and DOI, while every PMCID
+changed and 149 corrected PMCIDs became available. MaryGenAI therefore uses a
+PMID-keyed ignored overlay and corrected-source reenrichment worklist instead of
+rewriting the existing candidate database. `--apply` is not a supported repair
+mode.
+
 ## 2026-08-05: Keep Candidate-Data Progress Independent From Human-Curation Activation
 
 Human curation remains essential before candidate evidence becomes reviewed

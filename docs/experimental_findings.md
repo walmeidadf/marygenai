@@ -171,6 +171,17 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
 
 - Metadata availability is not equivalent to classification-ready source text.
 - Persisted HTTP success is not proof of valid article content.
+- The first PubMed 2024+ source rollup inspected 1,104 open-artifact rows across
+  773 candidates. Only 12 artifact rows verified both title and PMID or DOI;
+  eight unique direct-focus documents passed the complete source gate.
+- The failure was traced to cited-reference identifiers overwriting primary
+  PubMed article identifiers during discovery. A read-only repair campaign
+  resolved 150/150 selected candidates by their existing PMID with no fetch
+  errors. Title and DOI agreed throughout, while all 150 persisted PMCIDs
+  changed. PubMed supplied a corrected PMCID for 149 records.
+- The corrected identities are an ignored reenrichment overlay, not applied
+  review decisions or canonical database mutations. One record without an
+  official PMCID remains routed to Europe PMC or Unpaywall.
 - PMC OAI-PMH was the strongest official full-text route in the legacy-core
   acquisition campaign.
 - Digital PDF extraction is a valid first-class classification source when the
@@ -284,6 +295,18 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
 
 ## Classification
 
+- The explicitly authorized PubMed v1 smoke test classified all eight frozen
+  source-valid records with HTTP 200, valid JSON, strict schema validity,
+  evidence spans, and no retries or errors. Usage was 42,930 prompt tokens and
+  7,380 completion tokens.
+- Evaluation accepted 26/28 evidence spans by exact normalized matching and all
+  28 with extraction tolerance. No record required rerun. Retrieval confidence
+  assigned one high and seven medium heuristic bands, with mean score 0.8863.
+- None of the eight new records matched normalized legacy English context.
+  These results validate technical execution, grounding, and provenance, not
+  independently referenced inference accuracy. Three model-declared confidence
+  values were low, including non-medical plant or processing records that
+  motivate an explicit medical-scope gate before v2 expansion.
 - The explicitly authorized targeted rerun for
   `publication:pmid:34102934` completed 1/1 with valid JSON, strict schema
   validity, four exactly grounded evidence spans, and zero errors. It used

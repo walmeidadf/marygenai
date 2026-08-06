@@ -177,6 +177,24 @@ gate admits eight documents, not 100, because most persisted open artifacts do
 not verify the candidate identity. Do not lower the identity gate to fill the
 target.
 
+Build a PMID-based identity-repair overlay for a bounded set of source failures:
+
+```bash
+uv run marygenai classification-corpus repair-pubmed-source-identities \
+  --target-size 150 \
+  --no-apply
+```
+
+This command makes a free PubMed EFetch request, writes ignored raw XML,
+normalized repair records, errors, summary, and a corrected-PMC reenrichment
+worklist under `data/normalized/pubmed_canary/identity_repairs/`. It rejects
+`--apply`, opens SQLite read-only/query-only, and verifies protected state before
+and after execution. It does not call an LLM or persist identity changes.
+
+The first run resolved 150/150 candidates with no errors. Every persisted PMCID
+changed, 149 corrected official PMCIDs entered the reenrichment worklist, and
+one no-PMCID record was routed to Europe PMC or Unpaywall.
+
 Inspect prompt packets without calling a model:
 
 ```bash

@@ -1,6 +1,6 @@
 # Current Status
 
-Last documentation verification: 2026-08-05.
+Last documentation verification: 2026-08-06.
 
 ## Product State
 
@@ -72,9 +72,24 @@ and review state were not rewritten. Expanding the canary requires a separately
 authorized rediscovery or source-reenrichment repair that preserves existing
 candidate and review provenance.
 
-Eight prompt packets were prepared locally with zero errors and no provider
-call. None of the 1,361 PubMed candidates is part of the existing 3,149-record
-MCP snapshot.
+The explicitly authorized eight-document provider smoke test produced 8/8 HTTP
+200 responses, valid JSON, strict schema-valid candidate records, and records
+with evidence spans, with no errors or retries. The evaluator accepted all
+28 evidence spans with extraction tolerance and selected no document for rerun.
+There is no normalized legacy reference for these new records, so this result
+validates technical execution, grounding, retrieval-field production, and
+provenance rather than independent scientific agreement.
+
+The supported read-only identity-repair overlay then selected 150 direct-focus,
+2024+ source-identity failures and resolved all 150 by their existing PMID with
+zero fetch errors. Title and DOI agreed for all 150, while every persisted PMCID
+changed. PubMed returned a corrected PMCID for 149 records; one record has no
+PMCID and remains routed to Europe PMC or Unpaywall. The 149 corrected PMC
+identities form the next ignored reenrichment worklist. SQLite, review queues,
+review decisions, and reviewed knowledge remained unchanged.
+
+None of the 1,361 PubMed candidates is part of the existing 3,149-record MCP
+snapshot.
 
 ## Implemented Surface
 
@@ -137,10 +152,10 @@ the existing 3,149-record index until a licensed public snapshot is published.
 
 Maintainer-controlled candidate-data work proceeds in this order:
 
-1. Build and evaluate a bounded PubMed 2024+ source-quality and classification
-   canary from the eight currently valid direct-focus records with open HTML.
-   Repair discovery identity and source routing before attempting to fill the
-   100-document target; do not relax the gate.
+1. Reenrich a bounded subset of the 149 PMID-resolved PMC identities through the
+   corrected official route, apply the same source-identity and content gate,
+   add an explicit medical-scope gate, and freeze an approximately 100-document
+   v2 canary without mutating protected review state.
 2. Build a read-only Dataset Viewer over the candidate retrieval contract, with
    explicit candidate/reviewed state and no private artifact exposure.
 3. Publish a physician-, professor-, and student-oriented project website that

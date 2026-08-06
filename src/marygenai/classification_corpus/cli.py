@@ -13,6 +13,10 @@ from marygenai.classification_corpus.pubmed_canary import (
     DEFAULT_TARGET_SIZE,
     prepare_pubmed_canary,
 )
+from marygenai.classification_corpus.pubmed_identity_repair import (
+    DEFAULT_REPAIR_TARGET_SIZE,
+    repair_pubmed_source_identities,
+)
 from marygenai.persistence.sqlite import sqlite_database_path
 from marygenai.settings import get_settings
 from marygenai.storage import LocalStorage
@@ -93,4 +97,42 @@ def prepare_pubmed_canary_command(
         target_model_provider=target_model_provider,
         target_model_name=target_model_name,
     )
+    console.print(result)
+
+
+@app.command("repair-pubmed-source-identities")
+def repair_pubmed_source_identities_command(
+    target_size: Annotated[
+        int,
+        typer.Option(
+            "--target-size",
+            min=1,
+            max=500,
+            help="Maximum source-identity failures to resolve through PubMed.",
+        ),
+    ] = DEFAULT_REPAIR_TARGET_SIZE,
+    apply: Annotated[
+        bool,
+        typer.Option(
+            "--apply/--no-apply",
+            help="Applying changes is intentionally unsupported; use --no-apply.",
+        ),
+    ] = False,
+    database_path: Annotated[
+        Path | None,
+        typer.Option("--database-path", help="Read-only SQLite candidate database path."),
+    ] = None,
+) -> None:
+    """Build a PubMed identity-repair overlay without applying changes."""
+    settings = get_settings()
+    try:
+        result = repair_pubmed_source_identities(
+            storage=LocalStorage(settings.data_dir),
+            database_path=database_path or sqlite_database_path(settings.data_dir),
+            target_size=target_size,
+            apply=apply,
+        )
+    except ValueError as exc:
+        console.print({"error": str(exc)})
+        raise typer.Exit(1) from exc
     console.print(result)

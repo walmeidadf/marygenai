@@ -154,3 +154,40 @@ class PubMedCanaryManifestRecord(BaseModel):
     review_state: Literal["needs_review"] = "needs_review"
     requires_human_review: Literal[True] = True
     provenance: dict[str, Any] = Field(default_factory=dict)
+
+
+class PubMedIdentitySet(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    primary_title: str | None = None
+    publication_year: int | None = None
+    pmid: str
+    pmcid: str | None = None
+    doi: str | None = None
+    canonical_url: str | None = None
+
+
+class PubMedIdentityRepairRecord(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["pubmed_source_identity_repair.v1"] = (
+        "pubmed_source_identity_repair.v1"
+    )
+    repair_run_id: str
+    selection_rank: int
+    document_id: str
+    current_identity: PubMedIdentitySet
+    resolved_identity: PubMedIdentitySet | None = None
+    resolution_status: Literal["resolved", "pubmed_record_missing", "fetch_error"]
+    changed_fields: list[str] = Field(default_factory=list)
+    source_quality_failure_reasons: list[str] = Field(default_factory=list)
+    recommended_action: Literal[
+        "reenrich_from_resolved_pmcid",
+        "refetch_existing_pmc_route",
+        "try_europe_pmc_or_unpaywall",
+        "manual_identity_investigation",
+    ]
+    apply_status: Literal["not_applied"] = "not_applied"
+    review_state: Literal["needs_review"] = "needs_review"
+    requires_human_review: Literal[True] = True
+    provenance: dict[str, Any] = Field(default_factory=dict)

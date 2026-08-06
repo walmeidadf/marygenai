@@ -93,9 +93,19 @@ uncertainty. The gate remains strict. Future discovery no longer allows cited
 reference identifiers to overwrite the primary article identifiers, but the
 existing local candidate database was not mutated or silently repaired.
 
-The first refresh freezes the eight currently valid documents, classifies only
-that source-valid subset after explicit provider authorization, and expands
-only after identity/source repair and evaluation gates pass.
+A read-only PMID-based repair campaign selected 150 of the direct-focus,
+2024+ artifact-identity failures. PubMed resolved 150/150 records with no fetch
+errors. All 150 current titles and DOIs agreed with the official records, while
+all 150 persisted PMCIDs differed. Correct official PMCIDs are available for
+149 records; the remaining record has no PMCID and is routed to Europe PMC or
+Unpaywall. The corrected identities remain an ignored candidate overlay and
+were not applied to SQLite or review state.
+
+The first refresh classified the eight valid v1 documents after explicit
+provider authorization. The technical and grounding gate passed, but inference
+quality has no legacy comparison for these new records. The next refresh
+reenriches a bounded subset of the 149 corrected PMC routes, adds a medical-scope
+gate, and freezes v2 only after the same identity and content validation passes.
 
 ## Validated Source Lessons
 
