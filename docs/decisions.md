@@ -35,6 +35,13 @@ PMID-keyed ignored overlay and corrected-source reenrichment worklist instead of
 rewriting the existing candidate database. `--apply` is not a supported repair
 mode.
 
+The corrected-PMC v2 corpus is frozen only after the same artifact identity,
+hash, content-length, section, and cannabinoid-signal checks as v1, plus a
+deterministic human medical/public-health title gate. Veterinary-only and
+clearly non-medical records do not enter this canary. The first run selected 100
+documents from 105 evaluated artifacts, and a cache-only rerun reproduced the
+manifest and corpus bytes exactly.
+
 ## 2026-08-05: Keep Candidate-Data Progress Independent From Human-Curation Activation
 
 Human curation remains essential before candidate evidence becomes reviewed

@@ -107,6 +107,14 @@ quality has no legacy comparison for these new records. The next refresh
 reenriches a bounded subset of the 149 corrected PMC routes, adds a medical-scope
 gate, and freezes v2 only after the same identity and content validation passes.
 
+That v2 refresh is now complete. It evaluated 105 corrected Europe PMC
+full-text XML artifacts, selected 100 documents, and rejected five evaluated
+sources at the identity/content gate. The human medical-scope gate separately
+excludes veterinary-only, clearly non-medical, and insufficiently medical or
+public-health titles. A cache-only rerun reproduced the frozen manifest and
+corpus hashes exactly, while SQLite and protected review state remained
+unchanged.
+
 ## Validated Source Lessons
 
 - PMC structured text is the preferred official full-text route.

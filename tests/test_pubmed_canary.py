@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from marygenai.classification_corpus.pubmed_canary import prepare_pubmed_canary
+from marygenai.classification_corpus.pubmed_canary_v2 import prepare_pubmed_canary_v2
 from marygenai.classification_corpus.pubmed_identity_repair import (
     repair_pubmed_source_identities,
 )
@@ -360,3 +361,140 @@ def test_identity_repair_rejects_apply_mode(tmp_path: Path) -> None:
             apply=True,
             client=FakePubMedIdentityClient(),
         )
+
+
+class FakeCorrectedPmcClient:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def fetch_full_text_xml_by_pmcid(self, pmcid: str) -> bytes:
+        self.calls.append(pmcid)
+        body = " ".join(
+            ["Introduction Methods Results Discussion cannabidiol clinical trial"] * 100
+        )
+        return f"""
+        <article>
+          <front>
+            <article-meta>
+              <article-id pub-id-type="pmid">v2-human</article-id>
+              <article-id pub-id-type="doi">10.1/v2-human</article-id>
+              <title-group>
+                <article-title>Cannabidiol clinical trial for chronic pain</article-title>
+              </title-group>
+            </article-meta>
+          </front>
+          <body><sec><title>Methods</title><p>{body}</p></sec></body>
+        </article>
+        """.encode()
+
+
+def write_v2_worklist(path: Path) -> None:
+    records = [
+        {
+            "repair_run_id": "repair-run",
+            "selection_rank": 1,
+            "document_id": "publication:pubmed:v2-human",
+            "current_identity": {
+                "primary_title": "Cannabidiol clinical trial for chronic pain",
+                "publication_year": 2024,
+                "pmid": "v2-human",
+                "pmcid": "PMC-WRONG",
+                "doi": "10.1/v2-human",
+                "canonical_url": "https://pubmed.ncbi.nlm.nih.gov/v2-human",
+            },
+            "resolved_identity": {
+                "primary_title": "Cannabidiol clinical trial for chronic pain",
+                "publication_year": 2024,
+                "pmid": "v2-human",
+                "pmcid": "PMC-V2-HUMAN",
+                "doi": "10.1/v2-human",
+                "canonical_url": "https://pubmed.ncbi.nlm.nih.gov/v2-human",
+            },
+            "resolution_status": "resolved",
+            "changed_fields": ["pmcid"],
+            "source_quality_failure_reasons": ["artifact_identity_mismatch"],
+            "recommended_action": "reenrich_from_resolved_pmcid",
+        },
+        {
+            "repair_run_id": "repair-run",
+            "selection_rank": 2,
+            "document_id": "publication:pubmed:v2-dog",
+            "current_identity": {
+                "primary_title": "Cannabidiol trial in dogs with pain",
+                "publication_year": 2024,
+                "pmid": "v2-dog",
+                "pmcid": "PMC-OLD-DOG",
+                "doi": "10.1/v2-dog",
+            },
+            "resolved_identity": {
+                "primary_title": "Cannabidiol trial in dogs with pain",
+                "publication_year": 2024,
+                "pmid": "v2-dog",
+                "pmcid": "PMC-V2-DOG",
+                "doi": "10.1/v2-dog",
+            },
+            "resolution_status": "resolved",
+            "changed_fields": ["pmcid"],
+            "source_quality_failure_reasons": ["artifact_identity_mismatch"],
+            "recommended_action": "reenrich_from_resolved_pmcid",
+        },
+    ]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "".join(json.dumps(record) + "\n" for record in records),
+        encoding="utf-8",
+    )
+
+
+def test_v2_canary_uses_corrected_pmcid_and_preserves_protected_state(
+    tmp_path: Path,
+) -> None:
+    data_dir = tmp_path / "data"
+    database_path = create_canary_database(data_dir)
+    database_before = database_path.read_bytes()
+    worklist_path = data_dir / "repair-worklist.jsonl"
+    write_v2_worklist(worklist_path)
+    client = FakeCorrectedPmcClient()
+
+    first = prepare_pubmed_canary_v2(
+        storage=LocalStorage(data_dir),
+        database_path=database_path,
+        worklist_path=worklist_path,
+        target_size=1,
+        corpus_version="test-pubmed-v2",
+        run_id="v2-first",
+        client=client,
+        prepare_prompt_packets=False,
+    )
+    manifest_before = Path(first["manifest_path"]).read_bytes()
+    second = prepare_pubmed_canary_v2(
+        storage=LocalStorage(data_dir),
+        database_path=database_path,
+        worklist_path=worklist_path,
+        target_size=1,
+        corpus_version="test-pubmed-v2",
+        run_id="v2-second",
+        client=client,
+        prepare_prompt_packets=False,
+    )
+
+    manifest = read_jsonl(Path(first["manifest_path"]))
+    corpus = read_jsonl(Path(first["corpus_path"]))
+    summary = json.loads(Path(first["summary_path"]).read_text(encoding="utf-8"))
+    exclusions = read_jsonl(
+        data_dir / "normalized/pubmed_canary/v2-first_v2_source_quality_exclusions.jsonl"
+    )
+
+    assert client.calls == ["PMC-V2-HUMAN"]
+    assert first["counts"]["selected_canary_documents"] == 1
+    assert second["counts"]["selected_canary_documents"] == 1
+    assert Path(second["manifest_path"]).read_bytes() == manifest_before
+    assert manifest[0]["identity"]["pmcid"] == "PMC-V2-HUMAN"
+    assert manifest[0]["origin"]["artifact_type"] == "europe_pmc_full_text_xml"
+    assert manifest[0]["origin"]["raw_artifact_sha256"]
+    assert corpus[0]["trust_level"] == "source_text_available"
+    assert corpus[0]["provenance"]["review_state"] == "needs_review"
+    assert summary["protected_state_unchanged"] is True
+    assert exclusions[0]["document_id"] == "publication:pubmed:v2-dog"
+    assert "veterinary_only_title_scope" in exclusions[0]["exclusion_reasons"]
+    assert database_path.read_bytes() == database_before

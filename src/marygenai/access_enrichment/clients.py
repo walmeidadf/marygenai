@@ -38,6 +38,13 @@ class EuropePmcClient:
         response.raise_for_status()
         return response.content
 
+    def fetch_full_text_xml_by_pmcid(self, pmcid: str) -> bytes:
+        response = self.client.get(
+            f"{EUROPE_PMC_ARTICLE_BASE_URL}/{pmcid}/fullTextXML"
+        )
+        response.raise_for_status()
+        return response.content
+
 
 class PmcClient:
     def __init__(self, *, timeout_seconds: float = 30.0) -> None:

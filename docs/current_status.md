@@ -1,6 +1,6 @@
 # Current Status
 
-Last documentation verification: 2026-08-06.
+Last documentation verification: 2026-08-07.
 
 ## Product State
 
@@ -88,6 +88,15 @@ PMCID and remains routed to Europe PMC or Unpaywall. The 149 corrected PMC
 identities form the next ignored reenrichment worklist. SQLite, review queues,
 review decisions, and reviewed knowledge remained unchanged.
 
+Corrected-PMC reenrichment then evaluated 105 Europe PMC full-text XML
+artifacts and froze the 100-document `pubmed_2024plus_canary.v2` corpus with no
+shortfall. Five evaluated sources failed the unchanged identity/content gate.
+The v2 gate also excludes veterinary-only, clearly non-medical, and titles
+without a human medical or public-health signal. A cached rerun reproduced the
+frozen manifest and corpus byte for byte. One local 100-request Batch input was
+prepared with zero errors and an estimated 1,000,188 enqueued tokens;
+preparation did not upload or call a model.
+
 None of the 1,361 PubMed candidates is part of the existing 3,149-record MCP
 snapshot.
 
@@ -152,10 +161,10 @@ the existing 3,149-record index until a licensed public snapshot is published.
 
 Maintainer-controlled candidate-data work proceeds in this order:
 
-1. Reenrich a bounded subset of the 149 PMID-resolved PMC identities through the
-   corrected official route, apply the same source-identity and content gate,
-   add an explicit medical-scope gate, and freeze an approximately 100-document
-   v2 canary without mutating protected review state.
+1. Complete and evaluate the explicitly authorized single 100-document Batch
+   for the frozen PubMed v2 canary. Preserve all outputs as
+   `ai_classified_candidate`, `needs_review` evidence and do not mutate protected
+   review state.
 2. Build a read-only Dataset Viewer over the candidate retrieval contract, with
    explicit candidate/reviewed state and no private artifact exposure.
 3. Publish a physician-, professor-, and student-oriented project website that

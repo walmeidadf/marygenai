@@ -102,6 +102,13 @@ The first 150-record repair run resolved 150/150 PubMed records with zero
 errors. Titles and DOIs agreed throughout, all persisted PMCIDs changed, and 149
 records received a corrected official PMCID suitable for bounded reenrichment.
 
+The corrected-PMC v2 run evaluated 105 Europe PMC XML sources and froze 100
+classification-ready records after the identity, content, cannabinoid-signal,
+and human medical-scope gates. Five evaluated sources failed quality checks.
+The manifest and corpus were byte-stable on a cached rerun. Local Batch
+preparation produced 100 unique requests with zero errors and an estimated
+1,000,188 enqueued tokens, below the 1.8-million-token guard.
+
 ## Candidate Classification Schema
 
 Current schema:

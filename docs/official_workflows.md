@@ -195,6 +195,28 @@ The first run resolved 150/150 candidates with no errors. Every persisted PMCID
 changed, 149 corrected official PMCIDs entered the reenrichment worklist, and
 one no-PMCID record was routed to Europe PMC or Unpaywall.
 
+Fetch corrected Europe PMC XML, apply the identity/content and human medical
+scope gates, and freeze the immutable v2 corpus without calling a model:
+
+```bash
+uv run marygenai classification-corpus prepare-pubmed-canary-v2 \
+  --target-size 100 \
+  --prepare-prompt-packets \
+  --max-source-chars 12000 \
+  --target-model-name gpt-5.4-mini
+```
+
+The command consumes the ignored PMID-resolved worklist, uses the corrected
+official PMCID, caches open Europe PMC full-text XML under ignored `data/`, and
+refuses to replace a frozen manifest or corpus with different bytes. It excludes
+veterinary-only, clearly non-medical, and titles without a human medical or
+public-health signal. SQLite and protected review state are checked before and
+after the run.
+
+The first v2 run evaluated 105 source artifacts and selected 100 documents.
+Five evaluated artifacts failed source identity or content quality. A cached
+rerun reproduced the manifest and corpus hashes exactly.
+
 Inspect prompt packets without calling a model:
 
 ```bash

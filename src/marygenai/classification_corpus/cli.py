@@ -13,6 +13,12 @@ from marygenai.classification_corpus.pubmed_canary import (
     DEFAULT_TARGET_SIZE,
     prepare_pubmed_canary,
 )
+from marygenai.classification_corpus.pubmed_canary_v2 import (
+    DEFAULT_REPAIR_WORKLIST,
+    DEFAULT_V2_CORPUS_VERSION,
+    DEFAULT_V2_TARGET_SIZE,
+    prepare_pubmed_canary_v2,
+)
 from marygenai.classification_corpus.pubmed_identity_repair import (
     DEFAULT_REPAIR_TARGET_SIZE,
     repair_pubmed_source_identities,
@@ -133,6 +139,65 @@ def repair_pubmed_source_identities_command(
             apply=apply,
         )
     except ValueError as exc:
+        console.print({"error": str(exc)})
+        raise typer.Exit(1) from exc
+    console.print(result)
+
+
+@app.command("prepare-pubmed-canary-v2")
+def prepare_pubmed_canary_v2_command(
+    target_size: Annotated[
+        int,
+        typer.Option("--target-size", min=1, max=150, help="Maximum v2 documents."),
+    ] = DEFAULT_V2_TARGET_SIZE,
+    worklist_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--worklist-path",
+            help="Ignored PMID-resolved reenrichment worklist JSONL.",
+        ),
+    ] = None,
+    corpus_version: Annotated[
+        str,
+        typer.Option("--corpus-version", help="Immutable v2 corpus version."),
+    ] = DEFAULT_V2_CORPUS_VERSION,
+    database_path: Annotated[
+        Path | None,
+        typer.Option("--database-path", help="Read-only SQLite candidate database path."),
+    ] = None,
+    prepare_prompt_packets: Annotated[
+        bool,
+        typer.Option(
+            "--prepare-prompt-packets/--no-prepare-prompt-packets",
+            help="Build local prompt packets without calling a provider.",
+        ),
+    ] = True,
+    max_source_chars: Annotated[
+        int,
+        typer.Option("--max-source-chars", min=1_000, max=80_000),
+    ] = DEFAULT_PROMPT_SOURCE_CHARS,
+    target_model_name: Annotated[
+        str,
+        typer.Option("--target-model-name", help="Model planned for Batch submission."),
+    ] = DEFAULT_OPENAI_MODEL,
+) -> None:
+    """Fetch corrected open PMC XML and freeze the provider-free v2 canary."""
+    settings = get_settings()
+    resolved_worklist_path = worklist_path
+    if resolved_worklist_path is None:
+        resolved_worklist_path = LocalStorage(settings.data_dir).path(DEFAULT_REPAIR_WORKLIST)
+    try:
+        result = prepare_pubmed_canary_v2(
+            storage=LocalStorage(settings.data_dir),
+            database_path=database_path or sqlite_database_path(settings.data_dir),
+            worklist_path=resolved_worklist_path,
+            target_size=target_size,
+            corpus_version=corpus_version,
+            prepare_prompt_packets=prepare_prompt_packets,
+            max_source_chars=max_source_chars,
+            target_model_name=target_model_name,
+        )
+    except (FileNotFoundError, ValueError) as exc:
         console.print({"error": str(exc)})
         raise typer.Exit(1) from exc
     console.print(result)

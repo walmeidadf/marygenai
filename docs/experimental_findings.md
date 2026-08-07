@@ -182,6 +182,10 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
 - The corrected identities are an ignored reenrichment overlay, not applied
   review decisions or canonical database mutations. One record without an
   official PMCID remains routed to Europe PMC or Unpaywall.
+- Corrected-PMC reenrichment evaluated 105 Europe PMC full-text XML artifacts
+  and selected 100 source-valid, human medical/public-health documents for the
+  frozen v2 canary. Five evaluated sources failed identity or content quality.
+  A cached rerun reproduced the manifest and corpus byte for byte.
 - PMC OAI-PMH was the strongest official full-text route in the legacy-core
   acquisition campaign.
 - Digital PDF extraction is a valid first-class classification source when the
