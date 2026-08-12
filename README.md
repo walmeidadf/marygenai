@@ -44,17 +44,21 @@ The implemented pilot includes:
 - an isolated DuckDB retrieval index over those records;
 - read-only search, study detail, facets, and capability discovery;
 - local CLI, MCP stdio, and stateless Streamable HTTP interfaces;
+- a read-only Dataset Viewer API over the same retrieval service;
+- a responsive public website and Dataset Viewer frontend with a clearly
+  labeled synthetic demonstration fallback;
 - a reproducible AWS deployment path for a private development pilot;
 - explicit candidate-result, zero-result, source-link, and study-detail
   presentation rules.
 
 All 3,149 records remain `ai_classified_candidate` with
 `review_state=needs_review`. The generated corpus and index are not committed
-public datasets. Near-term work is a bounded PubMed 2024+ candidate refresh, a
-read-only Dataset Viewer, a community-oriented website, and a complete curation
-readiness package. External curator availability does not block candidate-data
-work, and no candidate becomes reviewed knowledge without an explicit review
-workflow.
+public datasets. The website and Viewer are implemented locally but have not
+been published externally. Near-term work is controlled PubMed candidate
+growth, deliberate Viewer/index exposure, website publication review, and a
+complete curation-readiness package. External curator availability does not
+block candidate-data work, and no candidate becomes reviewed knowledge without
+an explicit review workflow.
 
 See [Current Status](docs/current_status.md) for the verified snapshot, known
 limitations, and next workstreams.
@@ -114,6 +118,30 @@ licensed public snapshot is released.
 See the [Read-Only MCP Retrieval Contract](docs/mcp_retrieval_contract.md) and
 [Official Workflows](docs/official_workflows.md).
 
+## Website And Dataset Viewer
+
+The frontend requires Node.js 22.13 or newer. A fresh clone starts with public,
+synthetic records because the complete candidate index is an ignored local
+artifact:
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+To connect the Viewer to a local immutable index, start the read-only API and
+configure the frontend proxy in a second terminal:
+
+```bash
+uv run marygenai viewer serve-api
+cd web
+MARYGENAI_VIEWER_API_BASE_URL=http://127.0.0.1:8010 npm run dev
+```
+
+The Viewer API reuses `RetrievalService`, opens DuckDB in read-only mode, and
+does not receive SQLite, review queues, provider credentials, or write tools.
+
 ## Candidate Classification
 
 Local packet generation and deterministic smoke validation do not call a model:
@@ -156,6 +184,7 @@ docs/                 # public product, architecture, workflow, and history docs
 ontology/             # ontology contracts and future versioned artifacts
 scripts/              # thin orchestration around supported CLI commands
 infra/                # reproducible read-only MCP deployment configuration
+web/                  # public website and read-only Dataset Viewer frontend
 data/                 # generated datasets and source artifacts, ignored
 temp/                 # private inputs, archived experiments, scratch, ignored
 build/                # generated deployment packages, ignored

@@ -112,6 +112,12 @@ class RetrievalService:
     def _connect(self) -> duckdb.DuckDBPyConnection:
         return duckdb.connect(str(self.index_path), read_only=True)
 
+    def cursor_for_offset(self, offset: int) -> str | None:
+        """Create an index-bound cursor for a non-negative presentation offset."""
+        if offset < 0:
+            raise ValueError("Retrieval offset must not be negative.")
+        return _encode_cursor(offset, self.build_id) if offset else None
+
     def _where_clause(
         self,
         request: SearchRequest,

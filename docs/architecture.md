@@ -24,6 +24,8 @@ Supported implementation lives under `src/marygenai/`:
 - `classification_corpus`: deduplicated source-ready corpus rollup;
 - `classification`: prompt preparation and bounded candidate classification;
 - `retrieval`: immutable DuckDB index construction and read-only queries;
+- `viewer`: web-safe projections of retrieval search, facets, snapshot identity,
+  and study detail;
 - `mcp_server`: MCP tools over local stdio or stateless Streamable HTTP;
 - `deployment`: reproducible Lambda packaging without embedding data;
 - `analytics`: read-only local reports;
@@ -31,6 +33,11 @@ Supported implementation lives under `src/marygenai/`:
 - `review`, `review_api`, `review_ui`: explicit human workflow surfaces.
 
 Public operations should call these modules through the `marygenai` CLI.
+
+The supported frontend lives under `web/`. It uses React with vinext and keeps
+website and Dataset Viewer presentation separate from Python data services. It
+does not contain a database, authentication layer, review-state writer, or
+provider integration.
 
 ## Data Layers
 
@@ -147,6 +154,42 @@ The retrieval layer is rebuildable. It is not the source of truth. The current
 host is responsible for translating non-English questions to concise English
 retrieval terms and for presenting candidate, zero-result, access-link, and
 study-detail limitations defined by the MCP contract.
+
+## Website And Dataset Viewer
+
+The first web release has two routes:
+
+- `/` explains the project, implemented pipeline, MCP role, current counts,
+  safety boundary, limitations, and future university collaboration;
+- `/dataset` provides text search, URL-backed filters, deterministic ordering,
+  pagination, trust labels, direct/tangential match presentation, and study
+  detail with identity, evidence, uncertainty, warnings, and provenance.
+
+The web data path is:
+
+```text
+browser
+  -> vinext same-origin viewer routes
+  -> optional MaryGenAI Viewer API
+  -> RetrievalService
+  -> immutable DuckDB opened read-only
+```
+
+`MARYGENAI_VIEWER_API_BASE_URL` enables the optional server-side proxy. Without
+it, the frontend serves a small versioned set of fictional public fixtures and
+labels the entire experience as a synthetic demonstration. No private legacy
+data or ignored candidate artifact is copied into the frontend.
+
+The Python Viewer API reuses `SearchRequest`, `SearchFilters`, facets, study
+detail, projected identity, and snapshot metadata from the retrieval layer. Its
+responses deliberately omit local source paths while retaining non-sensitive
+source hashes and classification provenance. Cursor pagination remains the
+retrieval contract; the web adapter presents stable numbered pages by following
+opaque cursors without changing index ordering.
+
+The frontend has a Sites-compatible build configuration but no external
+deployment has been created. Publication remains a deliberate operation after
+exposure, access, and licensing boundaries are reviewed.
 
 ## Persistence
 

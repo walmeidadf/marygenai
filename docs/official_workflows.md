@@ -112,6 +112,52 @@ tool. See `docs/mcp_retrieval_contract.md` for the contract and
 `docs/mcp_clinical_retrieval_research.md` for clinical acceptance questions and
 the future backlog.
 
+## Website And Dataset Viewer Workflow
+
+The frontend requires Node.js 22.13 or newer. Run the public website and
+synthetic Dataset Viewer demonstration without any private data:
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+The demonstration fixtures are fictional, versioned, and labeled in the
+interface. They are not scientific publications or a distributable copy of the
+maintainer-local candidate index.
+
+To use one existing immutable DuckDB index, start the read-only Viewer API:
+
+```bash
+uv run marygenai viewer serve-api \
+  --index-path data/normalized/retrieval_indexes/marygenai_candidate_retrieval_v1.duckdb
+```
+
+Then start the frontend in another terminal with the server-side proxy enabled:
+
+```bash
+cd web
+MARYGENAI_VIEWER_API_BASE_URL=http://127.0.0.1:8010 npm run dev
+```
+
+The API reuses the retrieval models and `RetrievalService`. It opens DuckDB with
+`read_only=True`, excludes local source paths from web responses, and does not
+receive SQLite, protected review state, provider credentials, or write tools.
+
+Validate the frontend independently:
+
+```bash
+cd web
+npm run lint
+npm test
+npm run build
+```
+
+The Sites-compatible frontend configuration is not proof of publication. Do not
+create a hosted site, publish a candidate index, or claim redistribution rights
+without explicit authorization and a reviewed exposure boundary.
+
 ## Public Source Workflow
 
 Initialize local operational storage:

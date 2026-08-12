@@ -1,5 +1,34 @@
 # Decision Log
 
+## 2026-08-12: Separate Web Presentation From The Read-Only Index Adapter
+
+MaryGenAI will ship its first website and Dataset Viewer as a React/vinext
+frontend under `web/`, while keeping candidate-index access in the supported
+Python package. The `marygenai viewer serve-api` command projects the existing
+`RetrievalService`, retrieval models, facets, projected identity, evidence, and
+snapshot metadata into a web-safe read-only API. It deliberately omits local
+source paths and receives no SQLite, review queues, review decisions, provider
+credentials, or data-write tools.
+
+The committed frontend must remain useful in a fresh public clone even though
+the 3,149-record DuckDB index is an ignored maintainer-local artifact. Its
+default mode therefore uses a small versioned set of fictional records and
+labels the snapshot, banner, records, evidence, and provenance as a synthetic
+demonstration. Private legacy context and ignored candidate artifacts must not
+be copied into versioned frontend fixtures.
+
+Website and Viewer share one design and terminology system, but have separate
+jobs: the website communicates implemented capability and limits; the Viewer
+searches and inspects candidate records. URL-backed filters, deterministic
+ordering, bounded zero-result language, preferred source links when available,
+explicit direct/tangential match presentation, confidence semantics, and
+candidate-versus-reviewed state are part of the first Viewer contract.
+
+The frontend keeps a Sites-compatible build configuration, but this decision
+does not authorize external deployment. Publication, access level, candidate
+index exposure, and licensing or redistribution boundaries remain deliberate
+later decisions.
+
 ## 2026-08-05: Require Artifact Identity Verification Before The PubMed Canary
 
 The first provider-free PubMed 2024+ rollup found 1,104 persisted open-artifact

@@ -28,6 +28,7 @@ from marygenai.retrieval.identity_review import export_identity_conflicts
 from marygenai.retrieval.index import build_retrieval_index, normalize_match_key
 from marygenai.retrieval.models import FilterGroup, SearchFilters, SearchRequest
 from marygenai.retrieval.service import RetrievalService
+from marygenai.viewer.app import create_app as create_viewer_app
 
 
 def write_jsonl(path: Path, rows: list[dict]) -> None:
@@ -724,3 +725,60 @@ async def test_mcp_exposes_only_read_only_candidate_retrieval_tools(
     assert capabilities_presentation["preferred_access_url_path"] == (
         "projected_identity.preferred_access_url"
     )
+
+
+def test_viewer_api_projects_search_and_detail_without_private_paths(
+    retrieval_index: Path,
+) -> None:
+    client = TestClient(create_viewer_app(retrieval_index))
+
+    meta_response = client.get("/api/viewer/meta")
+    assert meta_response.status_code == 200
+    meta = meta_response.json()
+    assert meta["mode"] == "index"
+    assert meta["documentCount"] == 3
+    assert meta["facets"]["conditions"]
+    assert meta["sortOptions"] == [
+        {"value": "confidence", "label": "Retrieval confidence"}
+    ]
+
+    search_response = client.get(
+        "/api/viewer/studies",
+        params={"query": "Dravet syndrome", "condition": "Dravet syndrome"},
+    )
+    assert search_response.status_code == 200
+    search = search_response.json()
+    assert search["total"] == 1
+    assert search["results"][0]["matchKind"] == "direct"
+    assert search["results"][0]["reviewState"] == "needs_review"
+    assert "does not establish absence" in search["zeroResultMessage"]
+    document_id = search["results"][0]["documentId"]
+
+    second_page = client.get(
+        "/api/viewer/studies",
+        params={"page": 2, "pageSize": 1},
+    ).json()
+    assert second_page["page"] == 2
+    assert len(second_page["results"]) == 1
+    assert second_page["results"][0]["documentId"] != document_id
+
+    detail_response = client.get(f"/api/viewer/studies/{document_id}")
+    assert detail_response.status_code == 200
+    detail = detail_response.json()
+    assert detail["evidence"]
+    assert detail["preferredAccessUrl"].startswith("https://pubmed.ncbi.nlm.nih.gov/")
+    assert detail["provenance"]["sourceHash"] == "a" * 64
+    assert "source_text_path" not in detail_response.text
+    assert "data/processed" not in detail_response.text
+
+
+def test_viewer_api_rejects_unsupported_sort_and_reversed_years(
+    retrieval_index: Path,
+) -> None:
+    client = TestClient(create_viewer_app(retrieval_index))
+
+    assert client.get("/api/viewer/studies", params={"sort": "title"}).status_code == 422
+    assert client.get(
+        "/api/viewer/studies",
+        params={"yearFrom": 2024, "yearTo": 2020},
+    ).status_code == 422

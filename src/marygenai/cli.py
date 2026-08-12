@@ -16,6 +16,7 @@ from marygenai.review.cli import app as review_app
 from marygenai.review_api.cli import app as review_api_app
 from marygenai.review_ui.cli import app as review_ui_app
 from marygenai.settings import get_settings
+from marygenai.viewer.cli import app as viewer_app
 
 app = typer.Typer(
     help="MaryGenAI scientific source-intelligence and candidate-classification workflows.",
@@ -35,6 +36,7 @@ app.add_typer(review_ui_app, name="review-ui")
 app.add_typer(retrieval_app, name="retrieval")
 app.add_typer(mcp_app, name="mcp")
 app.add_typer(deployment_app, name="deployment")
+app.add_typer(viewer_app, name="viewer")
 
 
 @app.callback()

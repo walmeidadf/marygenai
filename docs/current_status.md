@@ -10,6 +10,13 @@ records with evidence spans. An isolated DuckDB index exposes those records
 through the CLI, MCP stdio, stateless Streamable HTTP, and a private AWS
 development deployment.
 
+A first local website and Dataset Viewer are now implemented. The web frontend
+shares one visual and terminology system across project communication and
+candidate inspection. The Viewer has a read-only Python adapter over the
+existing retrieval service and a clearly labeled synthetic demonstration mode
+for fresh clones without the ignored DuckDB index. Neither surface has been
+published externally.
+
 Every indexed record remains `ai_classified_candidate` with
 `review_state=needs_review`. No candidate classification has been promoted to
 reviewed clinical knowledge by index construction or deployment.
@@ -134,6 +141,7 @@ uv run marygenai retrieval inspect-index
 uv run marygenai retrieval search --query "cannabidiol"
 uv run marygenai mcp serve
 uv run marygenai mcp serve-http
+uv run marygenai viewer serve-api
 ```
 
 The MCP surface provides:
@@ -146,6 +154,21 @@ The MCP surface provides:
 The same query service backs all interfaces. DuckDB is opened with
 `read_only=True`; the runtime receives no SQLite database, review state,
 provider credentials, provider tools, or data-write tools.
+
+The supported `web/` frontend provides:
+
+- a public project website for physicians, researchers, professors, students,
+  and scientific partners;
+- paginated candidate search with URL-backed filters and deterministic sorting;
+- explicit direct/tangential match, confidence, `needs_review`, and trust-state
+  presentation;
+- study detail with bibliographic identity, evidence, uncertainty, warnings,
+  provenance, and preferred source-link support;
+- loading, error, empty, unavailable, desktop, and mobile states;
+- synthetic public fixtures when the complete local index is unavailable.
+
+The frontend does not include SQLite, review queues, review decisions, private
+legacy context, provider credentials, or index-write operations.
 
 ## Local Artifact Boundary
 
@@ -180,6 +203,11 @@ the existing 3,149-record index until a licensed public snapshot is published.
   traversal, related-study lookup, or full-text delivery.
 - The private pilot uses shared access control and does not claim per-physician
   identity, scopes, or independent revocation.
+- The committed frontend defaults to fictional demonstration records because
+  the complete local index is not distributed.
+- The website and Viewer are validated local builds, not externally published
+  services. Public or shared deployment still requires deliberate exposure and
+  licensing review.
 
 ## Next Workstreams
 
@@ -189,10 +217,11 @@ Maintainer-controlled candidate-data work proceeds in this order:
    200-document v2+v3 index should remain a canary, join the full local MCP
    snapshot, or precede another non-overlapping PubMed slice. None of these
    operations may mutate protected review state.
-2. Build a read-only Dataset Viewer over the candidate retrieval contract, with
-   explicit candidate/reviewed state and no private artifact exposure.
-3. Publish a physician-, professor-, and student-oriented project website that
-   explains the current dataset, MCP, trust boundary, and collaboration path.
+2. Exercise the Viewer against the chosen immutable candidate index, add
+   acceptance cases from realistic non-identifying questions, and decide the
+   access boundary for an external environment.
+3. Review website exposure, repository links, hosting configuration, and the
+   no-license boundary before any explicit external publication.
 4. Expand the PubMed candidate slice only after technical, retrieval, grounding,
    provenance, cost, and regression gates pass.
 5. Run bounded automated legacy-recovery campaigns, starting with official PMC
