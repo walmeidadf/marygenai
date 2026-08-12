@@ -215,6 +215,21 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
   them without deleting their candidate artifacts. The qualified combined MCP
   canary contains 288 records and returns zero for targeted queries matching
   those false positives.
+- The qualified PubMed extension was combined with the 3,149-record strict
+  snapshot through a run-scoped gate. This preserved all prior rows, including
+  63 older classifications without a structured exposure, while excluding only
+  the three newly controlled false positives. The resulting immutable index
+  contains 3,437 candidates across 27 classification runs.
+- A reviewed snapshot-only Terraform apply promoted the combined index to the
+  private AWS MCP without changing the deployed Lambda code hash. Authenticated
+  remote checks confirmed the 3,437-record facet total, retrieval of both legacy
+  and new PubMed candidates, candidate-only trust state, and zero results for
+  the three targeted false-positive queries.
+- Free-text retrieval is sensitive to unmatched inflections because query terms
+  are conjunctive and are not stemmed. `non-medical cannabis pharmacies`
+  retrieved the expected PubMed record, while adding `selling` produced zero;
+  this is an acceptance and query-normalization backlog item rather than a
+  source or classification failure.
 - PMC OAI-PMH was the strongest official full-text route in the legacy-core
   acquisition campaign.
 - Digital PDF extraction is a valid first-class classification source when the

@@ -115,6 +115,22 @@ public-health titles. A cache-only rerun reproduced the frozen manifest and
 corpus hashes exactly, while SQLite and protected review state remained
 unchanged.
 
+The subsequent v3 slice deterministically excluded all 100 v2 document IDs and
+selected 100 new corrected-PMC records with zero overlap. The expanded identity
+overlay then resolved 500/500 selected PubMed records and recovered 499 official
+PMCIDs. After excluding the 200 prior v2-v3 documents, the v4 source and scope
+gates evaluated 99 artifacts, selected 91 new records, recorded eight source
+failures, and preserved a nine-document shortfall instead of weakening the
+criteria.
+
+The v2-v4 source-ready slices produced 291 strict-valid classifications. Three
+v4 records were later excluded from cannabinoid-focused retrieval because they
+had no structured cannabinoid or exposure label: one tobacco-cessation record
+and two surgical acronym collisions where `CBD` meant common bile duct. Their
+source and classification artifacts remain intact candidate evidence. The
+qualified extension contains 288 records and protected review state remains
+unchanged.
+
 ## Validated Source Lessons
 
 - PMC structured text is the preferred official full-text route.

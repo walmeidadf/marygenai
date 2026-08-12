@@ -20,47 +20,52 @@ MaryGenAI currently has:
 - evidence-backed candidate classification with strict schemas;
 - automated technical, retrieval, grounding, and inference evaluation;
 - 3,149 strict-valid legacy-core candidate records;
-- an isolated read-only DuckDB index and MCP interface;
+- 291 strict-valid candidate records across the controlled PubMed v2-v4
+  slices, of which 288 pass the slice-specific retrieval inclusion gate;
+- an immutable 3,437-record read-only DuckDB snapshot deployed to the private
+  AWS MCP environment;
 - local review CLI, API, and UI for identity workflow operations;
-- 1,361 post-legacy PubMed candidates awaiting a new corpus and classification
-  cycle;
+- 1,361 discovered post-legacy PubMed candidates available for later bounded
+  refreshes;
 - a provider-free PubMed source-quality rollup and frozen eight-document v1
   canary, with a visible 92-document shortfall caused by rejected source
   identity mismatches;
-- an archived website prototype that is not part of the public supported
-  surface.
+- an implemented public website and read-only Dataset Viewer with a synthetic
+  fallback when the private candidate snapshot is unavailable.
 
 All indexed records remain `ai_classified_candidate` with
 `review_state=needs_review`.
 
-## MVP Deliverables For The Next Cycle
+## MVP Deliverables And Current State
 
-### 1. PubMed Candidate Refresh
+### 1. PubMed Candidate Refresh — First Expansion Complete
 
-Produce a new, reproducible candidate-data slice from the already discovered
-PubMed 2024+ records:
+The first controlled expansion delivered:
 
 - source-quality rollup;
 - frozen canary manifest;
 - identity/source repair before filling the 100-document target;
-- bounded provider-backed classification after explicit authorization;
-- automated evaluation and regression report;
-- immutable local index rebuild;
-- deliberate remote snapshot promotion after validation.
+- three non-overlapping v2-v4 slices classified only after explicit
+  authorization;
+- automated evaluation and regression reports;
+- a qualified 288-record PubMed extension with three provenance-recorded
+  exclusions;
+- an immutable combined index and deliberate private AWS MCP promotion after
+  validation.
 
-### 2. Dataset Viewer MVP
+### 2. Dataset Viewer MVP — Implemented, Exposure Controlled
 
-Provide a table-and-detail experience over the candidate index with filters,
-source links, evidence, uncertainty, snapshot version, and explicit trust state.
-The Viewer must not imply that candidate records are reviewed or openly
+The Viewer provides a table-and-detail experience over the candidate index with
+filters, source links, evidence, uncertainty, snapshot version, and explicit
+trust state. It must not imply that candidate records are reviewed or openly
 redistributable.
 
-### 3. Public Website
+### 3. Public Website — Implemented
 
-Publish an accurate, community-oriented explanation of the project for
-physicians, professors, students, and potential collaborators. The website
-should make the dataset funnel, MCP role, safety boundary, limitations, and
-curation opportunity understandable without requiring repository knowledge.
+The website provides an accurate, community-oriented explanation of the project
+for physicians, professors, students, and potential collaborators. It makes the
+dataset funnel, MCP role, safety boundary, limitations, and curation opportunity
+understandable without requiring repository knowledge.
 
 ### 4. Curation-Ready Package
 
@@ -165,16 +170,21 @@ reviewer, institution, timestamp, task version, rationale, and provenance.
 
 ## Prioritized Execution Order
 
-1. Update the product contract and select the PubMed canary.
-2. Build the PubMed source-quality rollup and local dry-run artifacts.
-3. Build the Dataset Viewer read-only foundation.
-4. Publish the community-oriented website.
-5. Complete the annotation-tool spike and curation package adapters.
-6. Run the provider-backed PubMed canary only after explicit authorization.
-7. Expand eligible PubMed candidates after the canary passes.
-8. Rebuild and promote an immutable candidate snapshot.
-9. Run bounded automated legacy-recovery experiments.
-10. Activate trained curators when partnerships are operational.
+Completed milestones are the product-contract update, source-quality rollup,
+controlled PubMed classification, read-only Viewer foundation, public website,
+combined immutable snapshot, and private MCP promotion.
+
+The next controlled order is:
+
+1. Preserve realistic non-identifying retrieval and Viewer acceptance cases as
+   regression coverage, including the two v3 grounding-review findings.
+2. Decide and validate the access boundary before connecting the public website
+   to real candidate records.
+3. Expand eligible PubMed candidates only through another bounded,
+   non-overlapping corpus and explicit provider authorization.
+4. Complete the annotation-tool spike and curation package adapters.
+5. Run bounded automated legacy-recovery experiments.
+6. Activate trained curators when partnerships are operational.
 
 ## Product Evaluation
 

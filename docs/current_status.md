@@ -251,18 +251,20 @@ the active 3,437-record index until a licensed public snapshot is published.
 
 Maintainer-controlled candidate-data work proceeds in this order:
 
-1. Add acceptance cases from realistic non-identifying questions against the
-   deployed 3,437-record Viewer snapshot and preserve the two v3
-   grounding-review findings in regression coverage.
-2. Configure and test a Cloudflare Pages Function or Worker as the same-origin
+1. Preserve acceptance cases from realistic non-identifying questions against
+   the deployed 3,437-record snapshot, including the two v3 grounding-review
+   findings and known lexical-search sensitivity.
+2. Exercise the Viewer against the combined immutable candidate index and
+   decide the access boundary for an external environment.
+3. Configure and test a Cloudflare Pages Function or Worker as the same-origin
    server-side proxy without exposing the Viewer bearer credential to browsers.
-3. Review website access, repository links, hosting configuration, and the
+4. Review website access, repository links, hosting configuration, and the
    no-license boundary before enabling the real Viewer on the public Pages site.
-4. Expand the PubMed candidate slice only after technical, retrieval, grounding,
+5. Expand the PubMed candidate slice only after technical, retrieval, grounding,
    provenance, cost, and regression gates pass.
-5. Run bounded automated legacy-recovery campaigns, starting with official PMC
+6. Run bounded automated legacy-recovery campaigns, starting with official PMC
    failures and deterministic identity suggestions.
-6. Rebuild and deliberately promote immutable candidate indexes without
+7. Rebuild and deliberately promote immutable candidate indexes without
    mutating review state.
 
 The parallel curation-readiness track prepares:

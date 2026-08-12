@@ -24,26 +24,29 @@ public discovery and lawful source acquisition
 
 ## Now: Candidate-Data Growth And Product Readiness
 
-### PubMed 2024+ Vertical Slice
+### PubMed 2024+ Vertical Slice — First Expansion Complete
 
-1. Build a source-quality rollup for the already discovered PubMed candidates.
-2. Select a reproducible canary of approximately 100 direct-focus documents
-   with locally available open XML/HTML.
-3. Classify only records that pass the source-quality gate.
-4. Evaluate technical validity, retrieval-field coverage, evidence grounding,
-   provenance completeness, cost, and regressions against the existing index.
-5. Expand to the remaining eligible candidates only after the canary passes.
-6. Build and inspect a new immutable candidate index before deliberate remote
-   promotion.
+The first controlled expansion delivered a provider-free source-quality rollup,
+an eight-document smoke canary, and three non-overlapping corrected-PMC slices.
+The v2-v4 slices produced 291 strict-valid classifications. A
+provenance-recorded inclusion gate removed three records with no structured
+cannabinoid or exposure label, leaving 288 candidates. Local regression and
+authenticated remote MCP tests passed before those candidates were combined
+with the 3,149-record strict corpus and promoted as an immutable 3,437-record
+private AWS snapshot.
+
+The next expansion must start from explicit exclusions for every frozen prior
+slice, preserve source and medical-scope gates, run only one provider Batch
+sub-batch at a time unless limits are reconfirmed, and repeat the same technical,
+grounding, provenance, cost, and retrieval regressions before promotion.
 
 Human review is not required to create candidate records. New records must stay
 `ai_classified_candidate` and `needs_review` until an explicit review workflow
 promotes them.
 
-### Dataset Viewer
+### Dataset Viewer — Implemented, Exposure Controlled
 
-Build a read-only viewer that reuses the retrieval contract where practical and
-supports:
+The implemented read-only Viewer reuses the retrieval contract and supports:
 
 - paginated table and text search;
 - filters for condition, cannabinoid, study design, population, outcome, year,
@@ -59,10 +62,10 @@ The first Viewer may remain private or access-controlled. Public download and
 dataset publication require an explicit data license and source-distribution
 boundary.
 
-### Public Website
+### Public Website — Implemented
 
-Publish a website oriented to physicians, professors, students, and research
-partners. It should explain:
+The website is oriented to physicians, professors, students, and research
+partners. It explains:
 
 - the literature-discovery problem;
 - the implemented candidate dataset and MCP pilot;
@@ -150,7 +153,8 @@ Across all phases:
 
 ## Achieved Gates
 
-The completed 3,149-document campaign and deployed MCP pilot demonstrated:
+The completed 3,149-document campaign, qualified 288-record PubMed extension,
+and deployed 3,437-record MCP snapshot demonstrated:
 
 - resumable, provenance-complete candidate classification;
 - strict schema validation and deterministic technical repair;
@@ -158,7 +162,9 @@ The completed 3,149-document campaign and deployed MCP pilot demonstrated:
 - an isolated read-only retrieval index;
 - useful structured filters, source links, study detail, facets, and
   capabilities;
-- hosted MCP access without exposing review state or provider tools.
+- hosted MCP access without exposing review state or provider tools;
+- snapshot-only promotion that preserved every legacy candidate row and kept
+  all records at `ai_classified_candidate` and `needs_review`.
 
 These gates support continued candidate-data work. They do not establish a
 human-reviewed public dataset.
