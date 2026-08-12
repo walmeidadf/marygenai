@@ -66,11 +66,14 @@ Streamable HTTP:
 ```bash
 uv run marygenai mcp generate-access-token \
   --output-path data/private/mcp-dev-access-token.json
+uv run marygenai mcp generate-access-token \
+  --output-path data/private/viewer-dev-access-token.json
 export MARYGENAI_MCP_BEARER_TOKEN_SHA256=<reported_sha256>
 uv run marygenai mcp serve-http
 ```
 
-The plaintext token must remain outside repository files and logs. HTTP
+The two plaintext tokens must be different and remain outside repository files
+and logs. HTTP
 authentication prefers the `Authorization: Bearer` header. Query credentials
 remain disabled locally unless `--allow-query-token` is explicit. The optional
 output file is ignored, created with mode `0600`, and never overwritten.
@@ -94,9 +97,11 @@ terraform plan
 Terraform uploads the ignored DuckDB and manifest to a private versioned S3
 bucket under content-addressed keys. Lambda verifies the DuckDB SHA-256, copies
 it to `/tmp`, and opens it with `read_only=True`. Review a saved plan before any
-apply. The infrastructure does not use CloudFormation. The custom domain uses an
-ACM certificate with external Cloudflare DNS validation; follow the two-stage
-bootstrap in `infra/terraform/README.md` before creating the application CNAME.
+apply. The MCP and Viewer digests are configured separately; Viewer credentials
+are accepted only through the `Authorization` header. The infrastructure does
+not use CloudFormation. The custom domain uses an ACM certificate with external
+Cloudflare DNS validation; follow the two-stage bootstrap in
+`infra/terraform/README.md` before creating the application CNAME.
 
 The private development environment may enable the explicit query-token
 compatibility mode for hosts that cannot configure fixed request headers.

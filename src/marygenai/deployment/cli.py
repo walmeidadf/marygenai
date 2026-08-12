@@ -26,7 +26,7 @@ def build_lambda(
         typer.Option("--source-root", help="Python source root containing marygenai."),
     ] = Path("src"),
 ) -> None:
-    """Build the read-only MCP Lambda package for Linux x86_64."""
+    """Build the read-only retrieval gateway Lambda package for Linux x86_64."""
     result = build_lambda_package(
         output_path=output_path,
         requirements_path=requirements_path,

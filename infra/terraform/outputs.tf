@@ -8,6 +8,11 @@ output "health_endpoint" {
   value       = "https://${var.custom_domain_name}/health"
 }
 
+output "viewer_api_base_url" {
+  description = "Authenticated Dataset Viewer API base URL for the future Cloudflare proxy."
+  value       = "https://${var.custom_domain_name}/api/viewer"
+}
+
 output "execute_api_mcp_endpoint" {
   description = "Authenticated AWS fallback endpoint used before external DNS is configured."
   value       = "${aws_apigatewayv2_api.mcp.api_endpoint}/mcp"
@@ -16,6 +21,11 @@ output "execute_api_mcp_endpoint" {
 output "execute_api_health_endpoint" {
   description = "Unauthenticated AWS fallback health endpoint."
   value       = "${aws_apigatewayv2_api.mcp.api_endpoint}/health"
+}
+
+output "execute_api_viewer_base_url" {
+  description = "Authenticated AWS fallback Dataset Viewer API base URL."
+  value       = "${aws_apigatewayv2_api.mcp.api_endpoint}/api/viewer"
 }
 
 output "acm_dns_validation_records" {
@@ -46,6 +56,6 @@ output "retrieval_index_sha256" {
 }
 
 output "lambda_function_name" {
-  description = "Lambda function used for log and performance inspection."
+  description = "Read-only gateway Lambda function used for log and performance inspection."
   value       = aws_lambda_function.mcp.function_name
 }

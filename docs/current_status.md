@@ -173,6 +173,14 @@ The same query service backs all interfaces. DuckDB is opened with
 `read_only=True`; the runtime receives no SQLite database, review state,
 provider credentials, provider tools, or data-write tools.
 
+The AWS Lambda gateway now has a locally implemented and tested Viewer route
+set at `/api/viewer/*`. It reuses the same hash-verified S3 DuckDB snapshot as
+MCP but requires a distinct bearer credential and rejects query-string tokens.
+Terraform declares the three GET routes and preserves the public, corpus-free
+health endpoint. A local no-refresh plan reported three route creations, two
+in-place updates, and zero destroys. It used a placeholder Viewer digest, was
+inspected and removed, and was not applied to AWS.
+
 The supported `web/` frontend provides:
 
 - a public project website for physicians, researchers, professors, students,

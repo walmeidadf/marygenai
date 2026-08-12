@@ -53,3 +53,30 @@ test("original-study links open safely in a new browser tab", async () => {
   assert.match(source, /rel="noopener noreferrer"/);
   assert.match(source, /Open original study in a new tab/);
 });
+
+test("Viewer proxy keeps the AWS bearer token server-side and disables caching", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalBaseUrl = process.env.MARYGENAI_VIEWER_API_BASE_URL;
+  const originalToken = process.env.MARYGENAI_VIEWER_API_BEARER_TOKEN;
+  let upstreamRequest;
+  process.env.MARYGENAI_VIEWER_API_BASE_URL = "https://viewer.example/api/viewer";
+  process.env.MARYGENAI_VIEWER_API_BEARER_TOKEN = "viewer-secret";
+  globalThis.fetch = async (input, init) => {
+    upstreamRequest = { input: String(input), init };
+    return Response.json({ mode: "index", documentCount: 3 });
+  };
+
+  try {
+    const response = await request("/api/viewer/meta");
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("cache-control"), "private, no-store");
+    assert.equal(upstreamRequest.input, "https://viewer.example/api/viewer/meta");
+    assert.equal(upstreamRequest.init.headers.authorization, "Bearer viewer-secret");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalBaseUrl === undefined) delete process.env.MARYGENAI_VIEWER_API_BASE_URL;
+    else process.env.MARYGENAI_VIEWER_API_BASE_URL = originalBaseUrl;
+    if (originalToken === undefined) delete process.env.MARYGENAI_VIEWER_API_BEARER_TOKEN;
+    else process.env.MARYGENAI_VIEWER_API_BEARER_TOKEN = originalToken;
+  }
+});

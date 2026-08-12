@@ -4,7 +4,8 @@ import math
 from pathlib import Path
 from typing import Annotated, Any
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request, Response
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from marygenai.retrieval.models import FilterGroup, SearchFilters, SearchRequest
 from marygenai.retrieval.service import RetrievalService
@@ -182,7 +183,11 @@ def _detail(service: RetrievalService, document_id: str) -> dict[str, Any]:
     }
 
 
-def create_app(index_path: Path) -> FastAPI:
+def create_app(
+    index_path: Path,
+    *,
+    allowed_hosts: list[str] | None = None,
+) -> FastAPI:
     """Create a web API over one immutable retrieval index."""
     service = RetrievalService(index_path)
     app = FastAPI(
@@ -190,6 +195,15 @@ def create_app(index_path: Path) -> FastAPI:
         summary="Read-only web projection of the candidate retrieval contract.",
         version="0.1.0",
     )
+    if allowed_hosts is not None:
+        app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
+
+    @app.middleware("http")
+    async def private_no_store(request: Request, call_next: Any) -> Response:
+        response = await call_next(request)
+        response.headers["Cache-Control"] = "private, no-store"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        return response
 
     @app.get("/api/viewer/meta")
     def viewer_meta() -> dict[str, Any]:

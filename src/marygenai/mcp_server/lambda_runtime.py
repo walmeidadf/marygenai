@@ -7,8 +7,14 @@ from pathlib import Path
 from typing import Any
 
 from mangum import Mangum
+from starlette.types import ASGIApp, Receive, Scope, Send
 
-from marygenai.mcp_server.http import create_http_app, validate_token_sha256
+from marygenai.mcp_server.http import (
+    BearerTokenMiddleware,
+    create_http_app,
+    validate_token_sha256,
+)
+from marygenai.viewer.app import create_app as create_viewer_app
 
 
 @dataclass(frozen=True)
@@ -17,6 +23,21 @@ class IndexArtifactConfig:
     key: str
     sha256: str
     local_path: Path = Path("/tmp/marygenai_candidate_retrieval_v1.duckdb")
+
+
+class ReadOnlyGatewayApp:
+    """Route Viewer HTTP requests separately from the MCP ASGI lifecycle."""
+
+    def __init__(self, *, mcp_app: ASGIApp, viewer_app: ASGIApp) -> None:
+        self.mcp_app = mcp_app
+        self.viewer_app = viewer_app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        path = scope.get("path", "")
+        if scope["type"] == "http" and path.startswith("/api/viewer/"):
+            await self.viewer_app(scope, receive, send)
+            return
+        await self.mcp_app(scope, receive, send)
 
 
 def _environment_flag(name: str, *, default: bool = False) -> bool:
@@ -71,6 +92,30 @@ def materialize_index(
     return config.local_path
 
 
+def create_gateway_app(
+    index_path: Path,
+    *,
+    mcp_token_sha256: str,
+    viewer_token_sha256: str,
+    allowed_hosts: list[str],
+    allow_mcp_query_token: bool = False,
+) -> ASGIApp:
+    """Create isolated authenticated MCP and Viewer routes over one snapshot."""
+    mcp_app = create_http_app(
+        index_path,
+        bearer_token_sha256=mcp_token_sha256,
+        allowed_hosts=allowed_hosts,
+        allow_query_token=allow_mcp_query_token,
+    )
+    viewer_app = BearerTokenMiddleware(
+        create_viewer_app(index_path, allowed_hosts=allowed_hosts),
+        viewer_token_sha256,
+        public_paths=(),
+        allow_query_token=False,
+    )
+    return ReadOnlyGatewayApp(mcp_app=mcp_app, viewer_app=viewer_app)
+
+
 def create_lambda_adapter(*, s3_client: Any | None = None) -> Mangum:
     """Create the API Gateway adapter from Lambda environment configuration."""
     config = IndexArtifactConfig(
@@ -84,7 +129,12 @@ def create_lambda_adapter(*, s3_client: Any | None = None) -> Mangum:
             )
         ),
     )
-    token_sha256 = validate_token_sha256(os.environ["MARYGENAI_MCP_BEARER_TOKEN_SHA256"])
+    mcp_token_sha256 = validate_token_sha256(
+        os.environ["MARYGENAI_MCP_BEARER_TOKEN_SHA256"]
+    )
+    viewer_token_sha256 = validate_token_sha256(
+        os.environ["MARYGENAI_VIEWER_BEARER_TOKEN_SHA256"]
+    )
     allowed_hosts = [
         value.strip()
         for value in os.environ["MARYGENAI_MCP_ALLOWED_HOSTS"].split(",")
@@ -93,11 +143,12 @@ def create_lambda_adapter(*, s3_client: Any | None = None) -> Mangum:
     if not allowed_hosts:
         raise ValueError("MARYGENAI_MCP_ALLOWED_HOSTS must contain at least one host.")
     index_path = materialize_index(config, s3_client=s3_client)
-    app = create_http_app(
+    app = create_gateway_app(
         index_path,
-        bearer_token_sha256=token_sha256,
+        mcp_token_sha256=mcp_token_sha256,
+        viewer_token_sha256=viewer_token_sha256,
         allowed_hosts=allowed_hosts,
-        allow_query_token=_environment_flag("MARYGENAI_MCP_ALLOW_QUERY_TOKEN"),
+        allow_mcp_query_token=_environment_flag("MARYGENAI_MCP_ALLOW_QUERY_TOKEN"),
     )
     return Mangum(
         app,
@@ -107,5 +158,5 @@ def create_lambda_adapter(*, s3_client: Any | None = None) -> Mangum:
 
 
 def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
-    """Handle one request with a fresh stateless MCP lifecycle."""
+    """Handle one request with a fresh stateless read-only gateway lifecycle."""
     return create_lambda_adapter()(event, context)

@@ -9,6 +9,7 @@ from pathlib import Path
 
 import duckdb
 import pytest
+from mangum import Mangum
 from mcp.client.session import ClientSession
 from mcp.shared.memory import create_connected_server_and_client_session
 from starlette.testclient import TestClient
@@ -17,7 +18,11 @@ from typer.testing import CliRunner
 from marygenai.mcp_server import create_mcp_server, lambda_runtime
 from marygenai.mcp_server.cli import app as mcp_cli_app
 from marygenai.mcp_server.http import create_http_app, hash_access_token
-from marygenai.mcp_server.lambda_runtime import IndexArtifactConfig, materialize_index
+from marygenai.mcp_server.lambda_runtime import (
+    IndexArtifactConfig,
+    create_gateway_app,
+    materialize_index,
+)
 from marygenai.retrieval.identity import (
     build_identity_urls,
     choose_preferred_access_url,
@@ -831,3 +836,161 @@ def test_viewer_api_rejects_unsupported_sort_and_reversed_years(
         "/api/viewer/studies",
         params={"yearFrom": 2024, "yearTo": 2020},
     ).status_code == 422
+
+
+def test_lambda_gateway_isolates_viewer_and_mcp_credentials(
+    retrieval_index: Path,
+) -> None:
+    mcp_token = "mary_mcp_test_token_with_sufficient_entropy"
+    viewer_token = "mary_viewer_test_token_with_sufficient_entropy"
+    app = create_gateway_app(
+        retrieval_index,
+        mcp_token_sha256=hash_access_token(mcp_token),
+        viewer_token_sha256=hash_access_token(viewer_token),
+        allowed_hosts=["testserver"],
+        allow_mcp_query_token=True,
+    )
+
+    with TestClient(app) as client:
+        assert client.get("/health").status_code == 200
+
+        missing = client.get("/api/viewer/meta")
+        assert missing.status_code == 401
+        assert missing.headers["www-authenticate"] == "Bearer"
+
+        wrong_credential = client.get(
+            "/api/viewer/meta",
+            headers={"Authorization": f"Bearer {mcp_token}"},
+        )
+        assert wrong_credential.status_code == 401
+
+        query_credential = client.get(f"/api/viewer/meta?key={viewer_token}")
+        assert query_credential.status_code == 400
+
+        headers = {"Authorization": f"Bearer {viewer_token}"}
+        meta = client.get("/api/viewer/meta", headers=headers)
+        assert meta.status_code == 200
+        assert meta.json()["mode"] == "index"
+        assert meta.headers["cache-control"] == "private, no-store"
+        assert meta.headers["x-content-type-options"] == "nosniff"
+
+        search = client.get(
+            "/api/viewer/studies",
+            params={"query": "Dravet syndrome"},
+            headers=headers,
+        )
+        assert search.status_code == 200
+        result = search.json()["results"][0]
+        assert result["preferredAccessUrl"].startswith(
+            "https://pubmed.ncbi.nlm.nih.gov/"
+        )
+        assert "source_text_path" not in search.text
+
+        mcp_with_viewer_token = client.post(
+            "/mcp",
+            headers={"Authorization": f"Bearer {viewer_token}"},
+            json={},
+        )
+        assert mcp_with_viewer_token.status_code == 401
+
+        untrusted_host = client.get(
+            "/api/viewer/meta",
+            headers={**headers, "Host": "untrusted.example"},
+        )
+        assert untrusted_host.status_code == 400
+
+
+def test_lambda_adapter_configures_distinct_viewer_token(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    index_path = tmp_path / "retrieval.duckdb"
+    mcp_digest = "a" * 64
+    viewer_digest = "b" * 64
+    monkeypatch.setenv("MARYGENAI_INDEX_S3_BUCKET", "private-index-bucket")
+    monkeypatch.setenv("MARYGENAI_INDEX_S3_KEY", "retrieval-indexes/test.duckdb")
+    monkeypatch.setenv("MARYGENAI_INDEX_SHA256", "c" * 64)
+    monkeypatch.setenv("MARYGENAI_INDEX_LOCAL_PATH", str(index_path))
+    monkeypatch.setenv("MARYGENAI_MCP_BEARER_TOKEN_SHA256", mcp_digest)
+    monkeypatch.setenv("MARYGENAI_VIEWER_BEARER_TOKEN_SHA256", viewer_digest)
+    monkeypatch.setenv("MARYGENAI_MCP_ALLOWED_HOSTS", "api.example.test")
+    monkeypatch.setenv("MARYGENAI_MCP_ALLOW_QUERY_TOKEN", "true")
+    monkeypatch.setattr(
+        lambda_runtime,
+        "materialize_index",
+        lambda config, s3_client=None: config.local_path,
+    )
+    captured: dict[str, object] = {}
+
+    def fake_gateway(path: Path, **kwargs: object) -> object:
+        captured.update({"path": path, **kwargs})
+        return object()
+
+    monkeypatch.setattr(lambda_runtime, "create_gateway_app", fake_gateway)
+    monkeypatch.setattr(
+        lambda_runtime,
+        "Mangum",
+        lambda app, **kwargs: {"app": app, **kwargs},
+    )
+
+    adapter = lambda_runtime.create_lambda_adapter(s3_client=object())
+
+    assert adapter["lifespan"] == "auto"
+    assert captured == {
+        "path": index_path,
+        "mcp_token_sha256": mcp_digest,
+        "viewer_token_sha256": viewer_digest,
+        "allowed_hosts": ["api.example.test"],
+        "allow_mcp_query_token": True,
+    }
+
+
+def test_lambda_gateway_serves_authenticated_viewer_api_gateway_event(
+    retrieval_index: Path,
+) -> None:
+    viewer_token = "mary_viewer_test_token_with_sufficient_entropy"
+    app = create_gateway_app(
+        retrieval_index,
+        mcp_token_sha256=hash_access_token("mary_mcp_test_token"),
+        viewer_token_sha256=hash_access_token(viewer_token),
+        allowed_hosts=["api.example.test"],
+    )
+    adapter = Mangum(app, lifespan="off", api_gateway_base_path="/")
+    event = {
+        "version": "2.0",
+        "routeKey": "GET /api/viewer/meta",
+        "rawPath": "/api/viewer/meta",
+        "rawQueryString": "",
+        "headers": {
+            "accept": "application/json",
+            "authorization": f"Bearer {viewer_token}",
+            "host": "api.example.test",
+        },
+        "requestContext": {
+            "accountId": "123456789012",
+            "apiId": "api-id",
+            "domainName": "api.example.test",
+            "domainPrefix": "api",
+            "http": {
+                "method": "GET",
+                "path": "/api/viewer/meta",
+                "protocol": "HTTP/1.1",
+                "sourceIp": "127.0.0.1",
+                "userAgent": "pytest",
+            },
+            "requestId": "request-id",
+            "routeKey": "GET /api/viewer/meta",
+            "stage": "$default",
+            "time": "12/Aug/2026:00:00:00 +0000",
+            "timeEpoch": 0,
+        },
+        "isBase64Encoded": False,
+    }
+
+    response = adapter(event, None)
+
+    assert response["statusCode"] == 200
+    assert response["headers"]["cache-control"] == "private, no-store"
+    payload = json.loads(response["body"])
+    assert payload["mode"] == "index"
+    assert payload["documentCount"] == 3

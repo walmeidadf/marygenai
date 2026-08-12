@@ -1,21 +1,23 @@
 import { demoStudies } from "../../../../lib/demo-data";
+import {
+  proxyViewerResponse,
+  viewerUpstreamBase,
+  viewerUpstreamHeaders,
+} from "../../../../lib/viewer-upstream";
 
 export async function GET(
   _request: Request,
   context: { params: Promise<{ documentId: string }> },
 ) {
   const { documentId } = await context.params;
-  const upstream = process.env.MARYGENAI_VIEWER_API_BASE_URL;
+  const upstream = viewerUpstreamBase();
   if (upstream) {
     try {
       const response = await fetch(
-        `${upstream.replace(/\/$/, "")}/api/viewer/studies/${encodeURIComponent(documentId)}`,
-        { headers: { accept: "application/json" } },
+        `${upstream}/studies/${encodeURIComponent(documentId)}`,
+        { cache: "no-store", headers: viewerUpstreamHeaders() },
       );
-      return new Response(response.body, {
-        status: response.status,
-        headers: { "content-type": response.headers.get("content-type") ?? "application/json" },
-      });
+      return proxyViewerResponse(response);
     } catch {
       return Response.json({ detail: "The read-only dataset service is temporarily unavailable." }, { status: 503 });
     }

@@ -10,4 +10,5 @@ lambda_zip_path    = "../../build/lambda/marygenai-mcp.zip"
 # Generate locally with: uv run marygenai mcp generate-access-token
 # Store the plaintext token in a password manager. Terraform receives only its digest.
 mcp_bearer_token_sha256 = "replace-with-64-lowercase-hexadecimal-digits"
+viewer_bearer_token_sha256 = "replace-with-a-different-64-lowercase-hexadecimal-digest"
 allow_query_token       = true

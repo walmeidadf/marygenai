@@ -1,5 +1,5 @@
 variable "aws_region" {
-  description = "AWS region for the isolated MCP environment."
+  description = "AWS region for the isolated read-only retrieval environment."
   type        = string
   default     = "us-east-2"
 }
@@ -23,7 +23,7 @@ variable "environment" {
 }
 
 variable "custom_domain_name" {
-  description = "Public custom hostname for the remote MCP endpoint. DNS remains externally managed."
+  description = "Public custom hostname for the MCP and Viewer gateway. DNS remains externally managed."
   type        = string
   default     = "mcp-server.marygenai.com"
 
@@ -44,18 +44,29 @@ variable "manifest_file_path" {
 }
 
 variable "lambda_zip_path" {
-  description = "Local Lambda ZIP created by marygenai deployment build-lambda."
+  description = "Local read-only gateway Lambda ZIP created by marygenai deployment build-lambda."
   type        = string
 }
 
 variable "mcp_bearer_token_sha256" {
-  description = "SHA-256 of the temporary high-entropy pilot bearer token."
+  description = "SHA-256 of the temporary high-entropy MCP pilot bearer token."
   type        = string
   sensitive   = true
 
   validation {
     condition     = can(regex("^[0-9a-f]{64}$", var.mcp_bearer_token_sha256))
     error_message = "mcp_bearer_token_sha256 must contain 64 lowercase hexadecimal digits."
+  }
+}
+
+variable "viewer_bearer_token_sha256" {
+  description = "SHA-256 of the separate high-entropy Dataset Viewer proxy bearer token."
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = can(regex("^[0-9a-f]{64}$", var.viewer_bearer_token_sha256))
+    error_message = "viewer_bearer_token_sha256 must contain 64 lowercase hexadecimal digits."
   }
 }
 

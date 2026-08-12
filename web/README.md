@@ -52,7 +52,10 @@ routes are absent. A compatible Pages Functions or Worker deployment can host
 the proxy. The real Python/DuckDB Viewer API must run in an environment with
 access to the approved immutable index. The preferred first deployment reuses
 the existing AWS API Gateway/Lambda/S3 retrieval pattern and configures
-`MARYGENAI_VIEWER_API_BASE_URL` in the proxy runtime.
+`MARYGENAI_VIEWER_API_BASE_URL` and the secret
+`MARYGENAI_VIEWER_API_BEARER_TOKEN` in the proxy runtime. The token is
+server-side only and must never use a `NEXT_PUBLIC_` prefix. Proxy and upstream
+responses use `Cache-Control: private, no-store`.
 
 ## Validation
 

@@ -135,11 +135,13 @@ and [Classification Data Dictionary](classification_data_dictionary.md).
 ## Retrieval Surface
 
 The first external integration is a read-only MCP server over discovered,
-metadata-enriched, source-ready, and candidate-classified documents. The pilot
-serves one content-addressed DuckDB snapshot through API Gateway and a Python
-3.13 Lambda. Lambda verifies the S3 object hash, caches the snapshot under
-`/tmp`, and opens it with `read_only=True`. It receives no SQLite database,
-review workflow state, or provider credentials.
+metadata-enriched, source-ready, and candidate-classified documents. The AWS
+gateway now also has a locally implemented web-safe Dataset Viewer projection.
+Both interfaces use one content-addressed DuckDB snapshot through API Gateway
+and a Python 3.13 Lambda. Lambda verifies the S3 object hash, caches the snapshot
+under `/tmp`, and opens it with `read_only=True`. It receives no SQLite database,
+review workflow state, or provider credentials. MCP and Viewer have separate
+bearer credentials, while `/health` remains public and corpus-free.
 
 Retrieval should support:
 
@@ -180,6 +182,12 @@ it, the frontend serves a small versioned set of fictional public fixtures and
 labels the entire experience as a synthetic demonstration. No private legacy
 data or ignored candidate artifact is copied into the frontend.
 
+The authenticated AWS path additionally requires the server-only
+`MARYGENAI_VIEWER_API_BEARER_TOKEN`. The proxy adds that credential upstream,
+never exposes it to browser JavaScript, and marks candidate responses private
+and non-cacheable. A static Pages upload cannot hold this secret; the later
+Cloudflare Functions or Worker step provides that server-side boundary.
+
 The Python Viewer API reuses `SearchRequest`, `SearchFilters`, facets, study
 detail, projected identity, and snapshot metadata from the retrieval layer. Its
 responses deliberately omit local source paths while retaining non-sensitive
@@ -194,8 +202,8 @@ fictional fixtures when `/api/viewer/*` is absent. A deployment with compatible
 Pages Functions or Worker output can also serve the same-origin proxy routes.
 Real candidate retrieval still needs a separately hosted read-only Viewer API
 with access to an approved immutable snapshot. The preferred initial production
-path is to reuse the existing AWS
-API Gateway, Lambda, S3, and hash-verified DuckDB pattern rather than duplicate
+path is to reuse the existing AWS API Gateway, Lambda, S3, and hash-verified
+DuckDB pattern rather than duplicate
 retrieval behavior in the frontend. Publication of candidate data remains a
 deliberate operation after exposure, access, and licensing boundaries are
 reviewed.

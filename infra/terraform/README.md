@@ -1,11 +1,14 @@
-# MaryGenAI AWS Dev Environment
+# MaryGenAI AWS Read-Only Retrieval Environment
 
-This Terraform root deploys the first remote, read-only MaryGenAI MCP test
-environment:
+This Terraform root deploys the remote, read-only MaryGenAI MCP and Dataset
+Viewer test environment:
 
 ```text
 API Gateway HTTP API
   -> Lambda Python 3.13
+     -> /mcp with the MCP credential
+     -> /api/viewer/* with a separate Viewer credential
+     -> /health without corpus data
   -> immutable DuckDB copied from private S3 to /tmp
   -> DuckDB opened with read_only=True
 ```
@@ -29,17 +32,20 @@ DNS remains in Cloudflare and is never changed by this Terraform root.
 
 ## Prepare
 
-Generate a temporary pilot token into an ignored private file. The command
-prints only the digest and path, not the token:
+Generate separate temporary MCP and Viewer tokens into ignored private files.
+The commands print only each digest and path, not the token:
 
 ```bash
 uv run marygenai mcp generate-access-token \
   --output-path data/private/mcp-dev-access-token.json
+uv run marygenai mcp generate-access-token \
+  --output-path data/private/viewer-dev-access-token.json
 ```
 
-Store the plaintext token in a password manager. Copy only the reported SHA-256
-digest into a local `terraform.tfvars`. The ignored token file is created with
-mode `0600` and is never overwritten by the command:
+Store both plaintext tokens in a password manager and keep them distinct. Copy
+only the reported SHA-256 digests into `mcp_bearer_token_sha256` and
+`viewer_bearer_token_sha256` in a local `terraform.tfvars`. The ignored token
+files are created with mode `0600` and are never overwritten by the command:
 
 ```bash
 cp infra/terraform/dev.tfvars.example infra/terraform/terraform.tfvars
@@ -113,6 +119,7 @@ After apply:
 ```bash
 terraform output -raw health_endpoint
 terraform output -raw mcp_endpoint
+terraform output -raw viewer_api_base_url
 ```
 
 Health does not expose corpus data:
@@ -127,6 +134,21 @@ MCP requests require:
 Authorization: Bearer <pilot-token>
 ```
 
+Viewer requests require the separate Viewer token:
+
+```bash
+curl --fail-with-body \
+  --header "Authorization: Bearer <viewer-token>" \
+  "$(terraform output -raw viewer_api_base_url)/meta"
+curl --fail-with-body \
+  --header "Authorization: Bearer <viewer-token>" \
+  "$(terraform output -raw viewer_api_base_url)/studies?page=1&pageSize=6"
+```
+
+The Viewer token must fail on `/mcp`, the MCP token must fail on
+`/api/viewer/*`, and Viewer credentials are never accepted in a query string.
+The future Cloudflare proxy receives only the Viewer token.
+
 Bearer remains the preferred transport. The development environment can enable
 an explicit query-token compatibility mode only for hosts that cannot configure
 fixed request headers. Other credential parameter names remain rejected, and
@@ -138,10 +160,10 @@ endpoint and credential directly in the authorized host, then rotate the token
 after any unintended exposure. Never include patient-identifying information in
 MCP requests.
 
-The query-token mode is a temporary shared-pilot compatibility boundary. Disable
-it when fixed request headers are available. OAuth or another per-user mechanism
-is required before claiming individual identity, scopes, or independent
-revocation.
+The MCP query-token mode is a temporary shared-pilot compatibility boundary.
+It never applies to Viewer routes. Disable it when fixed request headers are
+available. OAuth or another per-user mechanism is required before claiming
+individual identity, scopes, or independent revocation.
 
 ## Snapshot Update
 

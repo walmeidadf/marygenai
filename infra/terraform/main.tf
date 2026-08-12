@@ -144,7 +144,7 @@ resource "aws_cloudwatch_log_group" "lambda" {
 
 resource "aws_lambda_function" "mcp" {
   function_name = local.name_prefix
-  description   = "Read-only MaryGenAI candidate-evidence MCP server."
+  description   = "Read-only MaryGenAI MCP and Dataset Viewer gateway."
   role          = aws_iam_role.lambda.arn
   handler       = "marygenai.mcp_server.lambda_runtime.handler"
   runtime       = "python3.13"
@@ -170,6 +170,7 @@ resource "aws_lambda_function" "mcp" {
       MARYGENAI_MCP_BEARER_TOKEN_SHA256     = var.mcp_bearer_token_sha256
       MARYGENAI_MCP_ALLOW_QUERY_TOKEN       = tostring(var.allow_query_token)
       MARYGENAI_MCP_ALLOWED_HOSTS           = "${aws_apigatewayv2_api.mcp.id}.execute-api.${var.aws_region}.amazonaws.com,${var.custom_domain_name}"
+      MARYGENAI_VIEWER_BEARER_TOKEN_SHA256  = var.viewer_bearer_token_sha256
       MARYGENAI_RETRIEVAL_MANIFEST_S3_KEY   = aws_s3_object.manifest.key
       MARYGENAI_CANDIDATE_EVIDENCE_BOUNDARY = "ai_classified_candidate"
     }
@@ -185,7 +186,7 @@ resource "aws_lambda_function" "mcp" {
 resource "aws_apigatewayv2_api" "mcp" {
   name          = local.name_prefix
   protocol_type = "HTTP"
-  description   = "Stateless Streamable HTTP endpoint for read-only candidate retrieval."
+  description   = "Authenticated MCP and Dataset Viewer endpoints for read-only candidate retrieval."
 }
 
 resource "aws_acm_certificate" "mcp" {
@@ -232,6 +233,9 @@ resource "aws_apigatewayv2_route" "routes" {
   for_each = toset([
     "ANY /mcp",
     "GET /health",
+    "GET /api/viewer/meta",
+    "GET /api/viewer/studies",
+    "GET /api/viewer/studies/{document_id}",
   ])
 
   api_id    = aws_apigatewayv2_api.mcp.id
