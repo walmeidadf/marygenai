@@ -109,8 +109,17 @@ The next corrected-PMC slice resolved 350/350 PubMed identities, froze 100 new
 documents after excluding the v2 manifest, and reproduced its v3 manifest and
 corpus byte for byte from cache. The prepared second Batch contains 100 unique
 requests, zero local errors, no overlap with v2, and an estimated 999,836
-enqueued tokens. It was submitted as the only active provider Batch and is
-awaiting terminal completion.
+enqueued tokens. The Batch completed 100/100 with no provider or conversion
+errors. Evaluation accepted 462/464 evidence spans with extraction tolerance,
+preserved two spans in the grounding-review worklist, and selected no document
+for a paid rerun.
+
+An isolated combined v2+v3 DuckDB index now exposes 200 candidates from both
+classification runs. It has PMID and PMCID coverage for all 200 records, DOI
+coverage for 199, and no projected identity conflicts. Direct MCP regression
+calls retrieved v2 and v3 results, returned preferred PMC access URLs, opened a
+flagged study detail with `grounding_review.status=requires_review`, and
+preserved `needs_review` and human-review-required boundaries.
 
 None of the 1,361 PubMed candidates is part of the existing 3,149-record MCP
 snapshot.
@@ -176,9 +185,10 @@ the existing 3,149-record index until a licensed public snapshot is published.
 
 Maintainer-controlled candidate-data work proceeds in this order:
 
-1. Watch and evaluate the submitted second 100-document Batch for the frozen
-   PubMed v3 slice. Then rebuild a combined v2+v3 candidate index and repeat MCP
-   retrieval regression checks without mutating protected review state.
+1. Inspect the two v3 grounding-review spans and decide whether the isolated
+   200-document v2+v3 index should remain a canary, join the full local MCP
+   snapshot, or precede another non-overlapping PubMed slice. None of these
+   operations may mutate protected review state.
 2. Build a read-only Dataset Viewer over the candidate retrieval contract, with
    explicit candidate/reviewed state and no private artifact exposure.
 3. Publish a physician-, professor-, and student-oriented project website that

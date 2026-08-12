@@ -195,6 +195,15 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
 - A direct in-memory MCP check over the isolated v2 index successfully called
   `search_studies` and `get_study`, returned preferred PMC access, and preserved
   the `needs_review` and human-review-required boundaries.
+- The non-overlapping v3 Batch completed 100/100 without provider or conversion
+  errors and used 705,563 total tokens. Evaluation accepted 462/464 evidence
+  spans with extraction tolerance, preserved two spans for grounding review,
+  and selected no paid reruns. Retrieval confidence assigned 45 high and 55
+  medium heuristic bands.
+- The combined v2+v3 DuckDB index contains 200 candidates, has complete PMID and
+  PMCID coverage, 199 DOI values, and no projected identity conflicts. Direct
+  MCP regression calls retrieved records from both slices and exposed a flagged
+  span through `get_study` without weakening the candidate trust boundary.
 - PMC OAI-PMH was the strongest official full-text route in the legacy-core
   acquisition campaign.
 - Digital PDF extraction is a valid first-class classification source when the

@@ -116,6 +116,12 @@ DOI identity for every record. The subsequent v3 slice excluded all v2 manifest
 document IDs, selected 100 new records, and prepared 100 unique Batch requests
 with zero errors and an estimated 999,836 enqueued tokens.
 
+The v3 Batch completed 100/100 with strict-valid candidate records and no
+provider or conversion errors. Evaluation grounded 462/464 evidence spans with
+extraction tolerance, kept two spans in the grounding-review worklist, and
+required no paid rerun. The combined v2+v3 retrieval index contains 200 unique
+candidate records with no projected identity conflicts.
+
 ## Candidate Classification Schema
 
 Current schema:
