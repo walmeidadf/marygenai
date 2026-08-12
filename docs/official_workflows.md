@@ -305,6 +305,19 @@ with document identity, reason, uncertainty, confidence, review state, and
 provenance. It does not delete classification records or mutate SQLite. The
 default remains unchanged for non-cannabinoid or diagnostic index builds.
 
+When adding a qualified slice to an older snapshot whose existing records must
+remain unchanged, scope the gate to the new classification runs instead of
+using the global flag:
+
+```bash
+uv run marygenai retrieval build-index \
+  --require-cannabinoid-exposure-run-id <new_classification_run_id> \
+  --require-cannabinoid-exposure-run-id <another_new_run_id>
+```
+
+The option is repeatable. Supplying both the global gate and run-scoped gates is
+rejected, as is naming a run that is absent from the selected candidate inputs.
+
 Inspect prompt packets without calling a model:
 
 ```bash

@@ -144,10 +144,17 @@ surgical articles where `CBD` meant common bile duct. The retrieval index now
 supports an explicit, provenance-recorded cannabinoid-exposure inclusion gate.
 The qualified v2+v3+v4 canary contains 288 candidates, preserves the excluded
 records in an ignored report, retains the two prior v3 grounding-review spans,
-and exposes only `needs_review` candidate evidence through MCP.
+and exposes only `needs_review` candidate evidence through MCP. A run-scoped
+variant of the gate preserves the existing 3,149 records, including 63 older
+classifications with no structured exposure, while applying the new exclusion
+rule only to the three PubMed classification runs.
 
-None of the 1,361 PubMed candidates is part of the existing 3,149-record MCP
-snapshot.
+The private AWS development MCP now serves an immutable combined snapshot of
+3,437 candidates: all 3,149 prior records plus the 288 qualified PubMed
+candidates. The snapshot-only update preserved the deployed Lambda code hash,
+changed no Viewer routes, and passed authenticated remote smoke tests for old
+and new records. All records remain `ai_classified_candidate` and
+`needs_review`.
 
 ## Implemented Surface
 

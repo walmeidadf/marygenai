@@ -117,6 +117,12 @@ provenance-recorded candidate routing decisions, not review decisions: source
 and classification artifacts remain intact, `needs_review` remains unchanged,
 and no record is promoted or deleted.
 
+When a qualified PubMed slice is appended to an existing snapshot, the same
+gate may be scoped to explicit classification run IDs. This prevents a new
+selection rule from retroactively removing older candidates that have not been
+evaluated under that rule, while preserving the exclusions and their provenance
+for the newly controlled slice.
+
 ## 2026-08-05: Keep Candidate-Data Progress Independent From Human-Curation Activation
 
 Human curation remains essential before candidate evidence becomes reviewed
