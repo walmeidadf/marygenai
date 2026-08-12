@@ -48,6 +48,16 @@ def build_index(
             help="Classification evaluation report JSON. Repeat for multiple runs.",
         ),
     ] = None,
+    require_cannabinoid_exposure: Annotated[
+        bool,
+        typer.Option(
+            "--require-cannabinoid-exposure/--allow-missing-cannabinoid-exposure",
+            help=(
+                "Exclude classifications with no structured cannabinoid or exposure "
+                "label and write a provenance report."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """Materialize an isolated DuckDB index without mutating SQLite or reviewed knowledge."""
     settings = get_settings()
@@ -57,6 +67,7 @@ def build_index(
         records_paths=records_path,
         corpus_path=corpus_path,
         evaluation_report_paths=evaluation_report_path,
+        require_cannabinoid_exposure=require_cannabinoid_exposure,
     )
     _print_json(manifest.model_dump(mode="json"))
 

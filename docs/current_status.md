@@ -130,6 +130,22 @@ calls retrieved v2 and v3 results, returned preferred PMC access URLs, opened a
 flagged study detail with `grounding_review.status=requires_review`, and
 preserved `needs_review` and human-review-required boundaries.
 
+The v4 identity expansion resolved 500/500 PubMed records and recovered 499
+official PMCIDs. After excluding the 200 prior documents, the unchanged source
+and medical-scope gates selected 91 new records and reported a nine-document
+shortfall rather than weakening criteria. The v4 Batch completed 91/91 with no
+provider or conversion errors. Evaluation accepted all 425 evidence spans with
+extraction tolerance, selected no grounding-review spans, and required no paid
+reruns.
+
+Post-classification inspection found three source-selection false positives
+with no structured cannabinoid or exposure: a tobacco-cessation article and two
+surgical articles where `CBD` meant common bile duct. The retrieval index now
+supports an explicit, provenance-recorded cannabinoid-exposure inclusion gate.
+The qualified v2+v3+v4 canary contains 288 candidates, preserves the excluded
+records in an ignored report, retains the two prior v3 grounding-review spans,
+and exposes only `needs_review` candidate evidence through MCP.
+
 None of the 1,361 PubMed candidates is part of the existing 3,149-record MCP
 snapshot.
 
@@ -217,10 +233,9 @@ the existing 3,149-record index until a licensed public snapshot is published.
 
 Maintainer-controlled candidate-data work proceeds in this order:
 
-1. Inspect the two v3 grounding-review spans and decide whether the isolated
-   200-document v2+v3 index should remain a canary, join the full local MCP
-   snapshot, or precede another non-overlapping PubMed slice. None of these
-   operations may mutate protected review state.
+1. Inspect the two v3 grounding-review spans and decide whether the qualified
+   288-document v2+v3+v4 index should remain a canary or join the full local MCP
+   snapshot. Neither operation may mutate protected review state.
 2. Exercise the Viewer against the chosen immutable candidate index, add
    acceptance cases from realistic non-identifying questions, and decide the
    access boundary for an external environment.

@@ -214,6 +214,55 @@ def test_normalize_match_key_consolidates_case_and_trailing_abbreviations() -> N
     assert normalize_match_key("Cannabinoid (unspecified)") == "cannabinoid unspecified"
 
 
+def test_index_can_provenance_exclude_candidates_without_structured_exposure(
+    retrieval_index: Path,
+    tmp_path: Path,
+) -> None:
+    source_manifest = RetrievalService(retrieval_index).manifest()
+    source_paths = [Path(record["path"]) for record in source_manifest["input_files"]]
+    source_records_path = next(
+        path for path in source_paths if path.name == "records.jsonl"
+    )
+    source_corpus_path = next(
+        path for path in source_paths if path.name == "corpus.jsonl"
+    )
+    source_report_path = next(
+        path for path in source_paths if path.name == "report.json"
+    )
+    records = [json.loads(line) for line in source_records_path.read_text().splitlines()]
+    records[0]["cannabinoids_or_exposures"] = []
+    records[0]["missing_or_uncertain_fields"].append("cannabinoids_or_exposures")
+    filtered_records_path = tmp_path / "filtered-input-records.jsonl"
+    write_jsonl(filtered_records_path, records)
+    output_path = tmp_path / "filtered-retrieval.duckdb"
+
+    manifest = build_retrieval_index(
+        data_dir=tmp_path,
+        output_path=output_path,
+        records_paths=[filtered_records_path],
+        corpus_path=source_corpus_path,
+        evaluation_report_paths=[source_report_path],
+        require_cannabinoid_exposure=True,
+    )
+
+    assert manifest.document_count == 2
+    assert manifest.excluded_document_count == 1
+    assert manifest.inclusion_criteria == [
+        "at_least_one_structured_cannabinoid_or_exposure_label"
+    ]
+    assert manifest.exclusions_path is not None
+    exclusions = [
+        json.loads(line)
+        for line in Path(manifest.exclusions_path).read_text().splitlines()
+    ]
+    assert exclusions[0]["document_id"] == "publication:test:1"
+    assert exclusions[0]["exclusion_reason"] == (
+        "missing_structured_cannabinoid_or_exposure"
+    )
+    assert exclusions[0]["review_state"] == "needs_review"
+    assert exclusions[0]["provenance"]["does_not_mutate_sqlite"] is True
+
+
 def test_identity_normalization_and_physician_facing_link_selection() -> None:
     assert normalize_identifier("doi", "10.3389/fneur.2022.818522/full") == (
         "10.3389/fneur.2022.818522",

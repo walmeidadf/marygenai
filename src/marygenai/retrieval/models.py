@@ -308,6 +308,9 @@ class IndexManifest(BaseModel):
     input_files: list[dict[str, str]]
     source_corpus_path: str
     evaluation_report_paths: list[str]
+    inclusion_criteria: list[str] = Field(default_factory=list)
+    excluded_document_count: int = 0
+    exclusions_path: str | None = None
     trust_boundary: TrustBoundary = Field(default_factory=TrustBoundary)
     limitations: list[str]
 

@@ -94,6 +94,13 @@ records them as `previously_selected_document`, making provider batches
 non-overlapping by construction rather than relying on manual offsets. The v3
 slice used this rule to select 100 records with zero overlap against v2.
 
+Cannabinoid-focused retrieval indexes may require at least one structured
+`cannabinoids_or_exposures` label after classification. This gate is opt-in so
+historical and diagnostic index behavior does not change. Exclusions are
+provenance-recorded candidate routing decisions, not review decisions: source
+and classification artifacts remain intact, `needs_review` remains unchanged,
+and no record is promoted or deleted.
+
 ## 2026-08-05: Keep Candidate-Data Progress Independent From Human-Curation Activation
 
 Human curation remains essential before candidate evidence becomes reviewed

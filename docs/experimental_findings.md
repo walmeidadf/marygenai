@@ -204,6 +204,17 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
   PMCID coverage, 199 DOI values, and no projected identity conflicts. Direct
   MCP regression calls retrieved records from both slices and exposed a flagged
   span through `get_study` without weakening the candidate trust boundary.
+- The v4 provider Batch completed 91/91 with no provider or conversion errors
+  and used 642,099 total tokens. Evaluation accepted all 425 evidence spans
+  with extraction tolerance, selected no grounding-review spans, and required
+  no reruns. Retrieval confidence assigned 40 high and 51 medium heuristic
+  bands.
+- Three v4 classifications had no structured cannabinoid or exposure. Two were
+  acronym collisions where `CBD` meant common bile duct, and one was a tobacco
+  cessation record. A provenance-recorded retrieval inclusion gate excluded
+  them without deleting their candidate artifacts. The qualified combined MCP
+  canary contains 288 records and returns zero for targeted queries matching
+  those false positives.
 - PMC OAI-PMH was the strongest official full-text route in the legacy-core
   acquisition campaign.
 - Digital PDF extraction is a valid first-class classification source when the

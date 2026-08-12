@@ -282,6 +282,24 @@ before network acquisition, recorded in the source-quality report, and tested
 for deterministic non-overlap. The first v3 slice selected 100 new documents,
 had zero overlap with v2, and reproduced its frozen hashes from cache.
 
+For cannabinoid-focused retrieval canaries, apply the post-classification
+inclusion gate when building the index:
+
+```bash
+uv run marygenai retrieval build-index \
+  --output-path <qualified_canary.duckdb> \
+  --records-path <candidate_classification_records.jsonl> \
+  --corpus-path <combined_corpus_records.jsonl> \
+  --evaluation-report-path <classification_evaluation_report.json> \
+  --require-cannabinoid-exposure
+```
+
+The option excludes classifications with an empty structured
+`cannabinoids_or_exposures` list. It writes an adjacent ignored exclusions JSONL
+with document identity, reason, uncertainty, confidence, review state, and
+provenance. It does not delete classification records or mutate SQLite. The
+default remains unchanged for non-cannabinoid or diagnostic index builds.
+
 Inspect prompt packets without calling a model:
 
 ```bash

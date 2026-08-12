@@ -198,22 +198,47 @@ def build_retrieval_index(
     records_paths: list[Path] | None = None,
     corpus_path: Path | None = None,
     evaluation_report_paths: list[Path] | None = None,
+    require_cannabinoid_exposure: bool = False,
 ) -> IndexManifest:
     """Build an isolated candidate-evidence DuckDB index from ignored artifacts."""
     resolved_records_paths = _resolve_record_paths(data_dir, records_paths)
     resolved_corpus_path = _resolve_corpus_path(data_dir, corpus_path)
 
     candidates: list[dict[str, Any]] = []
+    excluded_candidates: list[dict[str, Any]] = []
     seen_document_ids: set[str] = set()
+    all_document_ids: set[str] = set()
     run_ids: set[str] = set()
     for path in resolved_records_paths:
         for raw_record in _read_jsonl(path):
             record = CandidateStudyClassification.model_validate(raw_record).model_dump(mode="json")
             document_id = record["document_id"]
-            if document_id in seen_document_ids:
+            if document_id in all_document_ids:
                 raise ValueError(f"Duplicate candidate document_id: {document_id}")
-            seen_document_ids.add(document_id)
+            all_document_ids.add(document_id)
             run_ids.add(record["classification_run_id"])
+            if require_cannabinoid_exposure and not record["cannabinoids_or_exposures"]:
+                excluded_candidates.append(
+                    {
+                        "document_id": document_id,
+                        "classification_id": record["classification_id"],
+                        "classification_run_id": record["classification_run_id"],
+                        "exclusion_reason": "missing_structured_cannabinoid_or_exposure",
+                        "classification_confidence": record["classification_confidence"],
+                        "missing_or_uncertain_fields": record["missing_or_uncertain_fields"],
+                        "review_state": record["review_state"],
+                        "provenance": {
+                            "method": "retrieval_candidate_inclusion_gate.v1",
+                            "requires_human_review": True,
+                            "does_not_mutate_sqlite": True,
+                            "review_boundary": (
+                                "retrieval_index_exclusion_not_reviewed_knowledge"
+                            ),
+                        },
+                    }
+                )
+                continue
+            seen_document_ids.add(document_id)
             candidates.append(record)
 
     corpus = {row["document_id"]: row for row in _read_jsonl(resolved_corpus_path)}
@@ -267,13 +292,13 @@ def build_retrieval_index(
             "Candidate documents missing retrieval-confidence evaluation: "
             + ", ".join(missing_confidence[:10])
         )
-    unexpected_confidence = sorted(retrieval_confidence.keys() - seen_document_ids)
+    unexpected_confidence = sorted(retrieval_confidence.keys() - all_document_ids)
     if unexpected_confidence:
         raise ValueError(
             "Retrieval-confidence records do not belong to the candidate index: "
             + ", ".join(unexpected_confidence[:10])
         )
-    unexpected_grounding = sorted(grounding_review.keys() - seen_document_ids)
+    unexpected_grounding = sorted(grounding_review.keys() - all_document_ids)
     if unexpected_grounding:
         raise ValueError(
             "Grounding-review records do not belong to the candidate index: "
@@ -297,6 +322,22 @@ def build_retrieval_index(
         *auxiliary_paths,
     ]
     input_files = [_input_file_record(path) for path in dict.fromkeys(input_paths)]
+    inclusion_criteria = (
+        ["at_least_one_structured_cannabinoid_or_exposure_label"]
+        if require_cannabinoid_exposure
+        else []
+    )
+    exclusions_path = resolved_output_path.with_suffix(".exclusions.jsonl")
+    if excluded_candidates:
+        exclusions_path.write_text(
+            "".join(
+                json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n"
+                for record in excluded_candidates
+            ),
+            encoding="utf-8",
+        )
+    elif exclusions_path.exists():
+        exclusions_path.unlink()
 
     connection = duckdb.connect(str(temporary_path))
     try:
@@ -358,6 +399,9 @@ def build_retrieval_index(
             "built_at": built_at.isoformat(),
             "document_count": str(len(candidates)),
             "classification_run_ids": _json(sorted(run_ids)),
+            "inclusion_criteria": _json(inclusion_criteria),
+            "excluded_document_count": str(len(excluded_candidates)),
+            "exclusions_path": str(exclusions_path) if excluded_candidates else "",
             "trust_level": "ai_classified_candidate",
             "review_state": "needs_review",
             "notice": TRUST_NOTICE,
@@ -481,6 +525,9 @@ def build_retrieval_index(
         input_files=input_files,
         source_corpus_path=str(resolved_corpus_path),
         evaluation_report_paths=[str(path) for path in resolved_report_paths],
+        inclusion_criteria=inclusion_criteria,
+        excluded_document_count=len(excluded_candidates),
+        exclusions_path=str(exclusions_path) if excluded_candidates else None,
         limitations=limitations,
     )
     manifest_path = resolved_output_path.with_suffix(".manifest.json")

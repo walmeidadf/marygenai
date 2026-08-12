@@ -122,6 +122,14 @@ extraction tolerance, kept two spans in the grounding-review worklist, and
 required no paid rerun. The combined v2+v3 retrieval index contains 200 unique
 candidate records with no projected identity conflicts.
 
+The v4 slice selected 91 new documents from the expanded 500-record identity
+overlay and preserved an explicit nine-document shortfall. Its Batch completed
+91/91, all 425 evidence spans passed extraction-tolerant grounding, and no rerun
+was required. A post-classification retrieval inclusion gate excluded three
+records with no structured cannabinoid or exposure label. The resulting
+qualified three-slice MCP canary contains 288 candidates; exclusion reasons and
+provenance remain in an ignored report.
+
 ## Candidate Classification Schema
 
 Current schema:
