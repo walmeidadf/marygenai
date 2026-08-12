@@ -1,4 +1,4 @@
-aws_profile        = "Pessoal"
+aws_profile        = null
 aws_region         = "us-east-2"
 environment        = "dev"
 custom_domain_name = "mcp-server.marygenai.com"
