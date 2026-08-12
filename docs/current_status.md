@@ -4,20 +4,22 @@ Last documentation verification: 2026-08-12.
 
 ## Product State
 
-MaryGenAI has an implemented read-only candidate-retrieval pilot. The
+MaryGenAI has an implemented read-only candidate-retrieval pilot. The original
 maintainer-local classification campaign produced 3,149 strict-valid candidate
-records with evidence spans. An isolated DuckDB index exposes those records
-through the CLI, MCP stdio, stateless Streamable HTTP, and a private AWS
-development deployment.
+records with evidence spans, and the qualified PubMed extension added 288
+candidate records. An isolated 3,437-record DuckDB snapshot exposes them through
+the CLI, MCP stdio, stateless Streamable HTTP, and a private AWS development
+deployment.
 
 A first website and Dataset Viewer are now implemented. The web frontend
 shares one visual and terminology system across project communication and
 candidate inspection. The Viewer has a read-only Python adapter over the
 existing retrieval service and a clearly labeled synthetic demonstration mode
 for fresh clones without the ignored DuckDB index. The maintainer reports that
-the website is deployed through Cloudflare Pages. Until a hosted Viewer API and
-an approved candidate snapshot are connected, the deployed Viewer remains in
-synthetic demonstration mode.
+the website is deployed through Cloudflare Pages. The authenticated AWS Viewer
+API and approved candidate snapshot are now deployed, but the Pages deployment
+remains in synthetic demonstration mode until a server-side Function or Worker
+proxy is configured.
 
 Every indexed record remains `ai_classified_candidate` with
 `review_state=needs_review`. No candidate classification has been promoted to
@@ -180,13 +182,14 @@ The same query service backs all interfaces. DuckDB is opened with
 `read_only=True`; the runtime receives no SQLite database, review state,
 provider credentials, provider tools, or data-write tools.
 
-The AWS Lambda gateway now has a locally implemented and tested Viewer route
-set at `/api/viewer/*`. It reuses the same hash-verified S3 DuckDB snapshot as
-MCP but requires a distinct bearer credential and rejects query-string tokens.
-Terraform declares the three GET routes and preserves the public, corpus-free
-health endpoint. A local no-refresh plan reported three route creations, two
-in-place updates, and zero destroys. It used a placeholder Viewer digest, was
-inspected and removed, and was not applied to AWS.
+The AWS Lambda gateway now deploys the Viewer route set at `/api/viewer/*`. It
+reuses the same hash-verified 3,437-record S3 DuckDB snapshot as MCP but requires
+a distinct bearer credential and rejects query-string tokens. The reviewed
+Terraform apply created three routes, updated the API and Lambda in place, and
+destroyed no resources. Authenticated remote smoke tests passed for metadata,
+listing, detail, preferred source links, credential isolation, private-path
+omission, no-store headers, the custom domain, and existing MCP initialization.
+The Cloudflare website is not yet connected to this credentialed API.
 
 The supported `web/` frontend provides:
 
@@ -215,7 +218,7 @@ The complete pilot depends on ignored maintainer-local artifacts:
 
 These artifacts are not distributed in the repository. A fresh public clone can
 run public source discovery and build new local corpora, but it cannot reproduce
-the existing 3,149-record index until a licensed public snapshot is published.
+the active 3,437-record index until a licensed public snapshot is published.
 
 ## Known Limitations
 
@@ -240,22 +243,21 @@ the existing 3,149-record index until a licensed public snapshot is published.
   the complete local index is not distributed.
 - The Cloudflare Pages deployment can serve the frontend and synthetic Viewer,
   including a browser-side demo fallback when same-origin API routes are absent.
-  Production access to real candidate records still requires a separately
-  hosted read-only API, an approved immutable snapshot, and deliberate exposure
-  and licensing review.
+  The separate authenticated AWS API and immutable snapshot are available, but
+  exposing real candidate records through Cloudflare still requires a
+  server-side proxy plus deliberate access and licensing review.
 
 ## Next Workstreams
 
 Maintainer-controlled candidate-data work proceeds in this order:
 
-1. Inspect the two v3 grounding-review spans and decide whether the qualified
-   288-document v2+v3+v4 index should remain a canary or join the full local MCP
-   snapshot. Neither operation may mutate protected review state.
-2. Exercise the Viewer against the chosen immutable candidate index, add
-   acceptance cases from realistic non-identifying questions, and decide the
-   access boundary for an external environment.
-3. Review website exposure, repository links, hosting configuration, and the
-   no-license boundary before any explicit external publication.
+1. Add acceptance cases from realistic non-identifying questions against the
+   deployed 3,437-record Viewer snapshot and preserve the two v3
+   grounding-review findings in regression coverage.
+2. Configure and test a Cloudflare Pages Function or Worker as the same-origin
+   server-side proxy without exposing the Viewer bearer credential to browsers.
+3. Review website access, repository links, hosting configuration, and the
+   no-license boundary before enabling the real Viewer on the public Pages site.
 4. Expand the PubMed candidate slice only after technical, retrieval, grounding,
    provenance, cost, and regression gates pass.
 5. Run bounded automated legacy-recovery campaigns, starting with official PMC

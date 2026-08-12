@@ -135,13 +135,14 @@ and [Classification Data Dictionary](classification_data_dictionary.md).
 ## Retrieval Surface
 
 The first external integration is a read-only MCP server over discovered,
-metadata-enriched, source-ready, and candidate-classified documents. The AWS
-gateway now also has a locally implemented web-safe Dataset Viewer projection.
-Both interfaces use one content-addressed DuckDB snapshot through API Gateway
-and a Python 3.13 Lambda. Lambda verifies the S3 object hash, caches the snapshot
-under `/tmp`, and opens it with `read_only=True`. It receives no SQLite database,
-review workflow state, or provider credentials. MCP and Viewer have separate
-bearer credentials, while `/health` remains public and corpus-free.
+metadata-enriched, source-ready, and candidate-classified documents. The same
+AWS gateway also deploys a web-safe Dataset Viewer projection at
+`/api/viewer/*`. Both interfaces use one content-addressed DuckDB snapshot
+through API Gateway and a Python 3.13 Lambda. Lambda verifies the S3 object hash,
+caches the snapshot under `/tmp`, and opens it with `read_only=True`. It receives
+no SQLite database, review workflow state, or provider credentials. MCP and
+Viewer have separate bearer credentials, while `/health` remains public and
+corpus-free.
 
 Retrieval should support:
 

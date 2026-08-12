@@ -659,10 +659,12 @@ classification artifacts and a content-addressed remote copy of the generated
 index. It must not mutate SQLite review queues, review decisions, or reviewed
 knowledge.
 
-The initial remote MCP demo uses the completed 3,149-document strict corpus.
-Sixty records have explicit projected-identity conflicts and require careful
-handling in physician-facing acceptance tests. All records remain candidate
-evidence.
+The private AWS MCP and Dataset Viewer use the current 3,437-document combined
+snapshot: the completed 3,149-document strict corpus plus 288 qualified PubMed
+candidates. Sixty records in the original corpus have explicit
+projected-identity conflicts and require careful handling in physician-facing
+acceptance tests. All records remain candidate evidence with
+`review_state=needs_review`.
 
 Current MCP capabilities support:
 

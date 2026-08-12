@@ -2,7 +2,7 @@
 
 ## 2026-08-12: Share The AWS Snapshot While Isolating MCP And Viewer Credentials
 
-The existing AWS API Gateway and Python 3.13 Lambda will expose the web-safe
+The existing AWS API Gateway and Python 3.13 Lambda expose the web-safe
 Dataset Viewer API alongside MCP. Both interfaces materialize the same
 content-addressed DuckDB object from private S3, verify its SHA-256, and query it
 read-only through the supported retrieval layer. No second candidate database
@@ -12,9 +12,17 @@ MCP and Viewer use separate bearer-token digests. The Viewer token never works
 on `/mcp`, the MCP token never works on `/api/viewer/*`, and the Viewer rejects
 all query-string credentials. This lets a future Cloudflare server-side proxy
 hold only the narrower Viewer credential. The unauthenticated `/health` route
-continues to expose no corpus data. The implementation and Terraform routes may
-be validated before deployment; activating an external candidate snapshot still
-requires a reviewed plan and explicit apply.
+continues to expose no corpus data. The implementation and Terraform routes were
+validated before deployment; activating the candidate snapshot required a
+reviewed plan and explicit apply.
+
+The reviewed apply completed on 2026-08-12 with three route creations, two
+in-place updates, and zero destroys. The deployed Viewer and MCP share immutable
+snapshot `20260812T170138542688Z` with 3,437 candidate records while retaining
+separate credentials. Authenticated remote smoke tests covered metadata,
+listing, detail, preferred source links, credential isolation, the custom
+domain, and MCP initialization. Cloudflare proxy activation remains a separate
+decision and deployment step.
 
 ## 2026-08-12: Keep Cloudflare Pages As The Web Edge And Host Real Retrieval Separately
 

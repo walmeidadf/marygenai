@@ -41,24 +41,27 @@ The implemented pilot includes:
 
 - 3,149 strict-valid candidate-classification records in maintainer-local,
   ignored artifacts;
-- an isolated DuckDB retrieval index over those records;
+- an isolated DuckDB retrieval index over the strict corpus and the qualified
+  PubMed candidate extension;
 - read-only search, study detail, facets, and capability discovery;
 - local CLI, MCP stdio, and stateless Streamable HTTP interfaces;
 - a read-only Dataset Viewer API over the same retrieval service;
 - a responsive public website and Dataset Viewer frontend with a clearly
   labeled synthetic demonstration fallback;
-- a reproducible AWS deployment path for a private development pilot;
+- a deployed private AWS development gateway for MCP and the Dataset Viewer;
 - explicit candidate-result, zero-result, source-link, and study-detail
   presentation rules.
 
-All 3,149 records remain `ai_classified_candidate` with
-`review_state=needs_review`. The generated corpus and index are not committed
-public datasets. The website and Viewer are implemented locally but have not
-been published externally. Near-term work is controlled PubMed candidate
-growth, deliberate Viewer/index exposure, website publication review, and a
-complete curation-readiness package. External curator availability does not
-block candidate-data work, and no candidate becomes reviewed knowledge without
-an explicit review workflow.
+The active private AWS snapshot contains 3,437 records: the 3,149-record strict
+corpus plus 288 qualified PubMed candidates. Every record remains
+`ai_classified_candidate` with `review_state=needs_review`. The generated corpus
+and index are not committed public datasets. The authenticated Viewer API is
+deployed, while connecting the separately deployed Cloudflare website to it
+remains a deliberate server-side proxy step. Near-term work is controlled
+PubMed candidate growth, website proxy activation, and a complete
+curation-readiness package. External curator availability does not block
+candidate-data work, and no candidate becomes reviewed knowledge without an
+explicit review workflow.
 
 See [Current Status](docs/current_status.md) for the verified snapshot, known
 limitations, and next workstreams.

@@ -170,4 +170,6 @@ individual identity, scopes, or independent revocation.
 Rebuild the ignored local index, verify it, and run a new plan. Terraform uploads
 the DuckDB and manifest under content-addressed S3 keys. Lambda validates the
 DuckDB SHA-256 before opening it and reuses the verified `/tmp` copy in a warm
-execution environment.
+execution environment. Before every apply, compare the planned Lambda index hash
+and object key with the approved snapshot; never let a stale local variable file
+replace a newer deployed snapshot unintentionally.
