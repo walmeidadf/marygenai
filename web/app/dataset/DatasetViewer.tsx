@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { TrustBadge } from "../components/TrustBadge";
+import { demoMeta, demoStudies, searchDemoStudies } from "../lib/demo-data";
 import type { StudyDetail, StudySummary, ViewerMeta, ViewerSearchResponse } from "../lib/viewer-types";
 
 type Filters = {
@@ -41,6 +42,10 @@ function confidenceNote(value: string) {
   return `${sentence(value)} categorical model assessment; not a probability or clinical evidence strength.`;
 }
 
+function hasJsonPayload(response: Response) {
+  return response.headers.get("content-type")?.includes("application/json") ?? false;
+}
+
 function FilterSelect({ label, name, value, values, onChange }: {
   label: string; name: keyof Filters; value: string; values: (string | number)[];
   onChange: (name: keyof Filters, value: string) => void;
@@ -76,6 +81,23 @@ function StudyRow({ study, onOpen }: { study: StudySummary; onOpen: (id: string)
         </span>
       </td>
       <td data-label="Trust"><TrustBadge reviewState={study.reviewState} /></td>
+      <td data-label="Original study">
+        {study.preferredAccessUrl ? (
+          <a
+            className="study-source-link"
+            href={study.preferredAccessUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`Open original study in a new tab: ${study.title}`}
+          >
+            Open study <span aria-hidden="true">↗</span>
+          </a>
+        ) : (
+          <span className="source-unavailable" title="Synthetic demonstration records do not represent real publications.">
+            Demo only
+          </span>
+        )}
+      </td>
     </tr>
   );
 }
@@ -115,8 +137,16 @@ function StudyPanel({ study, loading, error, onClose }: {
                 <div><dt>DOI</dt><dd>{study.identifiers.doi ?? "Unavailable"}</dd></div>
               </dl>
               {study.preferredAccessUrl ? (
-                <a className="source-link" href={study.preferredAccessUrl} target="_blank" rel="noreferrer">Open {study.preferredAccessLabel ?? "preferred source"} ↗</a>
-              ) : <p className="unavailable-note">No original-publication link exists for this synthetic demonstration record.</p>}
+                <a
+                  className="source-link"
+                  href={study.preferredAccessUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`Open original study in a new tab: ${study.title}`}
+                >
+                  Open original study on {study.preferredAccessLabel ?? "the preferred source"} <span aria-hidden="true">↗</span>
+                </a>
+              ) : <p className="unavailable-note">Original-study links appear here when the Viewer is connected to the real index. This fictional demonstration record has no publication to open.</p>}
             </section>
 
             <section className="detail-section">
@@ -194,7 +224,11 @@ export function DatasetViewer() {
 
   useEffect(() => {
     fetch("/api/viewer/meta")
-      .then(async (result) => { if (!result.ok) throw new Error((await result.json()).detail); return result.json(); })
+      .then(async (result) => {
+        if (!hasJsonPayload(result)) return demoMeta;
+        if (!result.ok) throw new Error((await result.json()).detail);
+        return result.json();
+      })
       .then(setMeta)
       .catch(() => setError("The dataset snapshot is unavailable. Try again shortly."));
   }, []);
@@ -210,7 +244,11 @@ export function DatasetViewer() {
   useEffect(() => {
     let active = true;
     fetch(`/api/viewer/studies?${queryString}`)
-      .then(async (result) => { if (!result.ok) throw new Error((await result.json()).detail); return result.json(); })
+      .then(async (result) => {
+        if (!hasJsonPayload(result)) return searchDemoStudies(new URLSearchParams(queryString));
+        if (!result.ok) throw new Error((await result.json()).detail);
+        return result.json();
+      })
       .then((payload) => { if (active) setResponse(payload); })
       .catch(() => { if (active) setError("The read-only dataset service is unavailable. No data was changed."); })
       .finally(() => { if (active) setLoading(false); });
@@ -241,7 +279,15 @@ export function DatasetViewer() {
   const openDetail = useCallback((documentId: string) => {
     setSelectedId(documentId); setDetail(null); setDetailLoading(true); setDetailError(null);
     fetch(`/api/viewer/studies/${encodeURIComponent(documentId)}`)
-      .then(async (result) => { if (!result.ok) throw new Error((await result.json()).detail); return result.json(); })
+      .then(async (result) => {
+        if (!hasJsonPayload(result)) {
+          const demoStudy = demoStudies.find((study) => study.documentId === documentId);
+          if (!demoStudy) throw new Error("Study not found in the demonstration snapshot.");
+          return demoStudy;
+        }
+        if (!result.ok) throw new Error((await result.json()).detail);
+        return result.json();
+      })
       .then(setDetail)
       .catch(() => setDetailError("Study detail could not be loaded from this snapshot."))
       .finally(() => setDetailLoading(false));
@@ -270,7 +316,7 @@ export function DatasetViewer() {
 
       {meta?.mode === "demo" && (
         <div className="demo-banner" role="note">
-          <div className="shell"><strong>Synthetic demonstration</strong><span>The complete local index is not distributed. These records are fictional and exist only to demonstrate the Viewer.</span></div>
+          <div className="shell"><strong>Synthetic demonstration</strong><span>The complete local index is not connected. These records are fictional, so original-study links become available only with a real index.</span></div>
         </div>
       )}
 
@@ -309,7 +355,7 @@ export function DatasetViewer() {
               <div className="table-scroll">
                 <table className="studies-table">
                   <caption className="sr-only">AI-classified candidate study matches</caption>
-                  <thead><tr><th>Study</th><th>Year</th><th>Condition</th><th>Cannabinoid</th><th>Design / population</th><th>Confidence</th><th>Trust state</th></tr></thead>
+                  <thead><tr><th>Study</th><th>Year</th><th>Condition</th><th>Cannabinoid</th><th>Design / population</th><th>Confidence</th><th>Trust state</th><th>Source</th></tr></thead>
                   <tbody>{response.results.map((study) => <StudyRow key={study.documentId} study={study} onOpen={openDetail} />)}</tbody>
                 </table>
               </div>

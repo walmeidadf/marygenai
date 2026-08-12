@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -44,4 +45,11 @@ test("demo API supports deterministic search, filters, and pagination", async ()
   assert.ok(payload.total >= 2);
   assert.ok(payload.results.every((study) => study.cannabinoids.includes("Cannabidiol")));
   assert.match(payload.zeroResultMessage, /does not establish absence/i);
+});
+
+test("original-study links open safely in a new browser tab", async () => {
+  const source = await readFile(new URL("../app/dataset/DatasetViewer.tsx", import.meta.url), "utf8");
+  assert.match(source, /target="_blank"/);
+  assert.match(source, /rel="noopener noreferrer"/);
+  assert.match(source, /Open original study in a new tab/);
 });

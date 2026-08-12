@@ -42,6 +42,18 @@ The Python API reuses `RetrievalService` and opens DuckDB with
 `read_only=True`. It does not receive SQLite, review workflow state, provider
 credentials, or write tools.
 
+With a real index, preferred PubMed, PMC, or DOI links appear in the results
+and study detail and open in a new browser tab. Synthetic records do not expose
+source links because they are fictional.
+
+Cloudflare Pages can host the site and synthetic Viewer even as a static build;
+the browser falls back to the labeled fictional fixtures if the same-origin API
+routes are absent. A compatible Pages Functions or Worker deployment can host
+the proxy. The real Python/DuckDB Viewer API must run in an environment with
+access to the approved immutable index. The preferred first deployment reuses
+the existing AWS API Gateway/Lambda/S3 retrieval pattern and configures
+`MARYGENAI_VIEWER_API_BASE_URL` in the proxy runtime.
+
 ## Validation
 
 ```bash
@@ -50,6 +62,6 @@ npm test
 npm run build
 ```
 
-The `.openai/hosting.json` file contains no site identifier or persistence
-binding. A successful local build does not publish the website or authorize
-candidate-index exposure.
+The `.openai/hosting.json` file contains no project identifier or persistence
+binding for deployment through OpenAI Sites. The maintainer's separate
+Cloudflare Pages deployment does not itself authorize candidate-index exposure.

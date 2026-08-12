@@ -1,5 +1,22 @@
 # Decision Log
 
+## 2026-08-12: Keep Cloudflare Pages As The Web Edge And Host Real Retrieval Separately
+
+The maintainer reports that the website is deployed through Cloudflare Pages.
+Pages remains responsible for the public frontend and synthetic demonstration.
+A static deployment uses an explicitly labeled browser-side demo fallback when
+`/api/viewer/*` is absent; a compatible Functions or Worker deployment may also
+host the same-origin proxy. The real Dataset Viewer will not embed the ignored
+DuckDB index or private candidate artifacts in the Pages deployment.
+
+The preferred first production data path is a separately hosted read-only
+Viewer API that reuses the supported Python retrieval service and the existing
+AWS API Gateway, Lambda, private S3, content-hash verification, and read-only
+DuckDB pattern. The Pages proxy can point to that API through
+`MARYGENAI_VIEWER_API_BASE_URL`, avoiding browser CORS exposure. Candidate
+snapshot selection, access control, licensing, and public-versus-shared
+exposure must be approved before that connection is activated.
+
 ## 2026-08-12: Separate Web Presentation From The Read-Only Index Adapter
 
 MaryGenAI will ship its first website and Dataset Viewer as a React/vinext

@@ -10,12 +10,14 @@ records with evidence spans. An isolated DuckDB index exposes those records
 through the CLI, MCP stdio, stateless Streamable HTTP, and a private AWS
 development deployment.
 
-A first local website and Dataset Viewer are now implemented. The web frontend
+A first website and Dataset Viewer are now implemented. The web frontend
 shares one visual and terminology system across project communication and
 candidate inspection. The Viewer has a read-only Python adapter over the
 existing retrieval service and a clearly labeled synthetic demonstration mode
-for fresh clones without the ignored DuckDB index. Neither surface has been
-published externally.
+for fresh clones without the ignored DuckDB index. The maintainer reports that
+the website is deployed through Cloudflare Pages. Until a hosted Viewer API and
+an approved candidate snapshot are connected, the deployed Viewer remains in
+synthetic demonstration mode.
 
 Every indexed record remains `ai_classified_candidate` with
 `review_state=needs_review`. No candidate classification has been promoted to
@@ -205,9 +207,11 @@ the existing 3,149-record index until a licensed public snapshot is published.
   identity, scopes, or independent revocation.
 - The committed frontend defaults to fictional demonstration records because
   the complete local index is not distributed.
-- The website and Viewer are validated local builds, not externally published
-  services. Public or shared deployment still requires deliberate exposure and
-  licensing review.
+- The Cloudflare Pages deployment can serve the frontend and synthetic Viewer,
+  including a browser-side demo fallback when same-origin API routes are absent.
+  Production access to real candidate records still requires a separately
+  hosted read-only API, an approved immutable snapshot, and deliberate exposure
+  and licensing review.
 
 ## Next Workstreams
 
