@@ -109,7 +109,8 @@ The next corrected-PMC slice resolved 350/350 PubMed identities, froze 100 new
 documents after excluding the v2 manifest, and reproduced its v3 manifest and
 corpus byte for byte from cache. The prepared second Batch contains 100 unique
 requests, zero local errors, no overlap with v2, and an estimated 999,836
-enqueued tokens. It remains local until explicit submission.
+enqueued tokens. It was submitted as the only active provider Batch and is
+awaiting terminal completion.
 
 None of the 1,361 PubMed candidates is part of the existing 3,149-record MCP
 snapshot.
@@ -175,10 +176,9 @@ the existing 3,149-record index until a licensed public snapshot is published.
 
 Maintainer-controlled candidate-data work proceeds in this order:
 
-1. Submit, watch, and evaluate the prepared second 100-document Batch for the
-   frozen PubMed v3 slice. Then rebuild a combined v2+v3 candidate index and
-   repeat MCP retrieval regression checks without mutating protected review
-   state.
+1. Watch and evaluate the submitted second 100-document Batch for the frozen
+   PubMed v3 slice. Then rebuild a combined v2+v3 candidate index and repeat MCP
+   retrieval regression checks without mutating protected review state.
 2. Build a read-only Dataset Viewer over the candidate retrieval contract, with
    explicit candidate/reviewed state and no private artifact exposure.
 3. Publish a physician-, professor-, and student-oriented project website that
