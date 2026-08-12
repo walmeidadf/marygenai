@@ -186,6 +186,15 @@ maintainer may keep local copies under ignored `temp/project_archive/`.
   and selected 100 source-valid, human medical/public-health documents for the
   frozen v2 canary. Five evaluated sources failed identity or content quality.
   A cached rerun reproduced the manifest and corpus byte for byte.
+- The v2 provider Batch completed 100/100 without provider or conversion
+  errors. Evaluation accepted all 467 evidence spans with extraction tolerance,
+  selected no reruns, and produced 37 high and 63 medium heuristic retrieval
+  confidence bands. One unsupported raw `quality_of_life` outcome-domain value
+  was removed by the provenance-recorded deterministic schema repair and marked
+  uncertain.
+- A direct in-memory MCP check over the isolated v2 index successfully called
+  `search_studies` and `get_study`, returned preferred PMC access, and preserved
+  the `needs_review` and human-review-required boundaries.
 - PMC OAI-PMH was the strongest official full-text route in the legacy-core
   acquisition campaign.
 - Digital PDF extraction is a valid first-class classification source when the

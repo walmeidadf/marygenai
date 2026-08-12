@@ -369,6 +369,19 @@ class FakeCorrectedPmcClient:
 
     def fetch_full_text_xml_by_pmcid(self, pmcid: str) -> bytes:
         self.calls.append(pmcid)
+        identities = {
+            "PMC-V2-HUMAN": (
+                "v2-human",
+                "10.1/v2-human",
+                "Cannabidiol clinical trial for chronic pain",
+            ),
+            "PMC-V3-HUMAN": (
+                "v3-human",
+                "10.1/v3-human",
+                "Cannabidiol randomized trial for anxiety",
+            ),
+        }
+        pmid, doi, title = identities[pmcid]
         body = " ".join(
             ["Introduction Methods Results Discussion cannabidiol clinical trial"] * 100
         )
@@ -376,10 +389,10 @@ class FakeCorrectedPmcClient:
         <article>
           <front>
             <article-meta>
-              <article-id pub-id-type="pmid">v2-human</article-id>
-              <article-id pub-id-type="doi">10.1/v2-human</article-id>
+              <article-id pub-id-type="pmid">{pmid}</article-id>
+              <article-id pub-id-type="doi">{doi}</article-id>
               <title-group>
-                <article-title>Cannabidiol clinical trial for chronic pain</article-title>
+                <article-title>{title}</article-title>
               </title-group>
             </article-meta>
           </front>
@@ -409,6 +422,31 @@ def write_v2_worklist(path: Path) -> None:
                 "pmcid": "PMC-V2-HUMAN",
                 "doi": "10.1/v2-human",
                 "canonical_url": "https://pubmed.ncbi.nlm.nih.gov/v2-human",
+            },
+            "resolution_status": "resolved",
+            "changed_fields": ["pmcid"],
+            "source_quality_failure_reasons": ["artifact_identity_mismatch"],
+            "recommended_action": "reenrich_from_resolved_pmcid",
+        },
+        {
+            "repair_run_id": "repair-run",
+            "selection_rank": 3,
+            "document_id": "publication:pubmed:v3-human",
+            "current_identity": {
+                "primary_title": "Cannabidiol randomized trial for anxiety",
+                "publication_year": 2025,
+                "pmid": "v3-human",
+                "pmcid": "PMC-WRONG-V3",
+                "doi": "10.1/v3-human",
+                "canonical_url": "https://pubmed.ncbi.nlm.nih.gov/v3-human",
+            },
+            "resolved_identity": {
+                "primary_title": "Cannabidiol randomized trial for anxiety",
+                "publication_year": 2025,
+                "pmid": "v3-human",
+                "pmcid": "PMC-V3-HUMAN",
+                "doi": "10.1/v3-human",
+                "canonical_url": "https://pubmed.ncbi.nlm.nih.gov/v3-human",
             },
             "resolution_status": "resolved",
             "changed_fields": ["pmcid"],
@@ -477,17 +515,33 @@ def test_v2_canary_uses_corrected_pmcid_and_preserves_protected_state(
         client=client,
         prepare_prompt_packets=False,
     )
+    third = prepare_pubmed_canary_v2(
+        storage=LocalStorage(data_dir),
+        database_path=database_path,
+        worklist_path=worklist_path,
+        exclude_manifest_paths=[Path(first["manifest_path"])],
+        target_size=1,
+        corpus_version="test-pubmed-v3",
+        run_id="v3-first",
+        client=client,
+        prepare_prompt_packets=False,
+    )
 
     manifest = read_jsonl(Path(first["manifest_path"]))
     corpus = read_jsonl(Path(first["corpus_path"]))
     summary = json.loads(Path(first["summary_path"]).read_text(encoding="utf-8"))
     exclusions = read_jsonl(
-        data_dir / "normalized/pubmed_canary/v2-first_v2_source_quality_exclusions.jsonl"
+        data_dir
+        / "normalized/pubmed_canary/v2-first_corrected_pmc_source_quality_exclusions.jsonl"
     )
 
-    assert client.calls == ["PMC-V2-HUMAN"]
+    third_manifest = read_jsonl(Path(third["manifest_path"]))
+
+    assert client.calls == ["PMC-V2-HUMAN", "PMC-V3-HUMAN"]
     assert first["counts"]["selected_canary_documents"] == 1
     assert second["counts"]["selected_canary_documents"] == 1
+    assert third["counts"]["selected_canary_documents"] == 1
+    assert third["counts"]["previously_selected_documents"] == 1
     assert Path(second["manifest_path"]).read_bytes() == manifest_before
     assert manifest[0]["identity"]["pmcid"] == "PMC-V2-HUMAN"
     assert manifest[0]["origin"]["artifact_type"] == "europe_pmc_full_text_xml"
@@ -497,4 +551,5 @@ def test_v2_canary_uses_corrected_pmcid_and_preserves_protected_state(
     assert summary["protected_state_unchanged"] is True
     assert exclusions[0]["document_id"] == "publication:pubmed:v2-dog"
     assert "veterinary_only_title_scope" in exclusions[0]["exclusion_reasons"]
+    assert third_manifest[0]["document_id"] == "publication:pubmed:v3-human"
     assert database_path.read_bytes() == database_before

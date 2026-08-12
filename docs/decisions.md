@@ -42,6 +42,12 @@ clearly non-medical records do not enter this canary. The first run selected 100
 documents from 105 evaluated artifacts, and a cache-only rerun reproduced the
 manifest and corpus bytes exactly.
 
+Later corrected-PMC slices must supply prior frozen manifests as explicit
+exclusions. MaryGenAI rejects those document IDs before network acquisition and
+records them as `previously_selected_document`, making provider batches
+non-overlapping by construction rather than relying on manual offsets. The v3
+slice used this rule to select 100 records with zero overlap against v2.
+
 ## 2026-08-05: Keep Candidate-Data Progress Independent From Human-Curation Activation
 
 Human curation remains essential before candidate evidence becomes reviewed

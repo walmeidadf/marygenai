@@ -1,6 +1,6 @@
 # Current Status
 
-Last documentation verification: 2026-08-07.
+Last documentation verification: 2026-08-12.
 
 ## Product State
 
@@ -97,6 +97,20 @@ frozen manifest and corpus byte for byte. One local 100-request Batch input was
 prepared with zero errors and an estimated 1,000,188 enqueued tokens;
 preparation did not upload or call a model.
 
+The completed v2 Batch produced 100/100 strict-valid candidate records with no
+provider or conversion errors. Local evaluation accepted all 467 evidence spans
+with extraction tolerance, selected no reruns, and assigned 37 high and 63
+medium retrieval-confidence bands. An isolated 100-document DuckDB index has
+complete PMID, PMCID, and DOI coverage with no identity conflicts. Direct MCP
+calls to `search_studies` and `get_study` succeeded and preserved preferred PMC
+access URLs, `needs_review`, and the human-review boundary.
+
+The next corrected-PMC slice resolved 350/350 PubMed identities, froze 100 new
+documents after excluding the v2 manifest, and reproduced its v3 manifest and
+corpus byte for byte from cache. The prepared second Batch contains 100 unique
+requests, zero local errors, no overlap with v2, and an estimated 999,836
+enqueued tokens. It remains local until explicit submission.
+
 None of the 1,361 PubMed candidates is part of the existing 3,149-record MCP
 snapshot.
 
@@ -161,10 +175,10 @@ the existing 3,149-record index until a licensed public snapshot is published.
 
 Maintainer-controlled candidate-data work proceeds in this order:
 
-1. Complete and evaluate the explicitly authorized single 100-document Batch
-   for the frozen PubMed v2 canary. Preserve all outputs as
-   `ai_classified_candidate`, `needs_review` evidence and do not mutate protected
-   review state.
+1. Submit, watch, and evaluate the prepared second 100-document Batch for the
+   frozen PubMed v3 slice. Then rebuild a combined v2+v3 candidate index and
+   repeat MCP retrieval regression checks without mutating protected review
+   state.
 2. Build a read-only Dataset Viewer over the candidate retrieval contract, with
    explicit candidate/reviewed state and no private artifact exposure.
 3. Publish a physician-, professor-, and student-oriented project website that

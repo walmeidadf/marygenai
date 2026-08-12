@@ -217,6 +217,25 @@ The first v2 run evaluated 105 source artifacts and selected 100 documents.
 Five evaluated artifacts failed source identity or content quality. A cached
 rerun reproduced the manifest and corpus hashes exactly.
 
+For later non-overlapping slices, use the generic command and explicitly exclude
+every prior frozen manifest:
+
+```bash
+uv run marygenai classification-corpus prepare-pubmed-canary-slice \
+  --target-size 100 \
+  --worklist-path <expanded_identity_reenrichment_worklist.jsonl> \
+  --exclude-manifest-path <prior_frozen_manifest.jsonl> \
+  --corpus-version pubmed_2024plus_canary.v3 \
+  --prepare-prompt-packets \
+  --max-source-chars 12000 \
+  --target-model-name gpt-5.4-mini
+```
+
+`--exclude-manifest-path` is repeatable. Excluded document IDs are rejected
+before network acquisition, recorded in the source-quality report, and tested
+for deterministic non-overlap. The first v3 slice selected 100 new documents,
+had zero overlap with v2, and reproduced its frozen hashes from cache.
+
 Inspect prompt packets without calling a model:
 
 ```bash

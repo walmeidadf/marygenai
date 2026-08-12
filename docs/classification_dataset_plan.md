@@ -109,6 +109,13 @@ The manifest and corpus were byte-stable on a cached rerun. Local Batch
 preparation produced 100 unique requests with zero errors and an estimated
 1,000,188 enqueued tokens, below the 1.8-million-token guard.
 
+The v2 Batch completed 100/100 with strict-valid records and no errors. All 467
+evidence spans passed extraction-tolerant grounding, no document required a
+rerun, and the isolated retrieval index projected consistent PMID, PMCID, and
+DOI identity for every record. The subsequent v3 slice excluded all v2 manifest
+document IDs, selected 100 new records, and prepared 100 unique Batch requests
+with zero errors and an estimated 999,836 enqueued tokens.
+
 ## Candidate Classification Schema
 
 Current schema:

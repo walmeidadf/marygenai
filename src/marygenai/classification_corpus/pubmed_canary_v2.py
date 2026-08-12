@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
@@ -156,6 +157,20 @@ def read_repair_worklist(path: Path) -> list[PubMedIdentityRepairRecord]:
         ]
 
 
+def read_excluded_document_ids(paths: list[Path] | None) -> set[str]:
+    document_ids: set[str] = set()
+    for path in paths or []:
+        with path.open(encoding="utf-8") as file:
+            for line in file:
+                if not line.strip():
+                    continue
+                record = json.loads(line)
+                document_id = record.get("document_id")
+                if document_id:
+                    document_ids.add(str(document_id))
+    return document_ids
+
+
 def raw_xml_path(storage: LocalStorage, pmcid: str) -> Path:
     return storage.path(V2_RAW_SUBDIR / f"{pmcid.casefold()}.xml")
 
@@ -275,6 +290,7 @@ def prepare_pubmed_canary_v2(
     storage: LocalStorage,
     database_path: Path,
     worklist_path: Path | None = None,
+    exclude_manifest_paths: list[Path] | None = None,
     target_size: int = DEFAULT_V2_TARGET_SIZE,
     corpus_version: str = DEFAULT_V2_CORPUS_VERSION,
     run_id: str | None = None,
@@ -292,6 +308,7 @@ def prepare_pubmed_canary_v2(
         read_repair_worklist(resolved_worklist_path),
         key=lambda record: (record.selection_rank, record.document_id),
     )
+    excluded_document_ids = read_excluded_document_ids(exclude_manifest_paths)
     protected_before = protected_state_snapshot(database_path)
     fetch_client = client or EuropePmcClient(timeout_seconds=60.0)
     owns_client = client is None
@@ -304,6 +321,11 @@ def prepare_pubmed_canary_v2(
     try:
         for repair in repairs:
             identity = repair.resolved_identity
+            if repair.document_id in excluded_document_ids:
+                exclusions.append(
+                    exclusion_record(repair, ["previously_selected_document"])
+                )
+                continue
             if repair.document_id in seen_document_ids:
                 exclusions.append(exclusion_record(repair, ["duplicate_document_id"]))
                 continue
@@ -394,12 +416,14 @@ def prepare_pubmed_canary_v2(
         corpus,
     )
     records_path = storage.write_jsonl(
-        V2_OUTPUT_SUBDIR / f"{resolved_run_id}_v2_source_quality_records.jsonl",
+        V2_OUTPUT_SUBDIR
+        / f"{resolved_run_id}_corrected_pmc_source_quality_records.jsonl",
         quality_records,
     )
     exclusions_path = write_dict_jsonl(
         storage.path(
-            V2_OUTPUT_SUBDIR / f"{resolved_run_id}_v2_source_quality_exclusions.jsonl"
+            V2_OUTPUT_SUBDIR
+            / f"{resolved_run_id}_corrected_pmc_source_quality_exclusions.jsonl"
         ),
         exclusions,
     )
@@ -409,7 +433,7 @@ def prepare_pubmed_canary_v2(
             storage=storage,
             limit=len(corpus),
             input_path=corpus_path,
-            run_id=f"{resolved_run_id}_pubmed_canary_v2",
+            run_id=f"{resolved_run_id}_pubmed_corrected_pmc",
             max_source_chars=max_source_chars,
             target_model_provider="openai",
             target_model_name=target_model_name,
@@ -424,6 +448,9 @@ def prepare_pubmed_canary_v2(
         "target_size": target_size,
         "counts": {
             "worklist_records": len(repairs),
+            "previously_selected_documents": len(
+                {record.document_id for record in repairs} & excluded_document_ids
+            ),
             "quality_evaluated": len(quality_records),
             "selected_canary_documents": len(selected),
             "selection_shortfall": max(0, target_size - len(selected)),
@@ -451,10 +478,12 @@ def prepare_pubmed_canary_v2(
             "No model provider was called during corpus preparation.",
             "All records remain needs_review candidate evidence.",
             "SQLite and protected review state were not mutated.",
+            "Documents in explicitly supplied prior manifests were excluded.",
         ],
     }
     summary_path = storage.write_json(
-        V2_OUTPUT_SUBDIR / f"{resolved_run_id}_v2_source_quality_summary.json",
+        V2_OUTPUT_SUBDIR
+        / f"{resolved_run_id}_corrected_pmc_source_quality_summary.json",
         summary,
     )
     return {

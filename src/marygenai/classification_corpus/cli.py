@@ -144,7 +144,8 @@ def repair_pubmed_source_identities_command(
     console.print(result)
 
 
-@app.command("prepare-pubmed-canary-v2")
+@app.command("prepare-pubmed-canary-v2", hidden=True)
+@app.command("prepare-pubmed-canary-slice")
 def prepare_pubmed_canary_v2_command(
     target_size: Annotated[
         int,
@@ -155,6 +156,13 @@ def prepare_pubmed_canary_v2_command(
         typer.Option(
             "--worklist-path",
             help="Ignored PMID-resolved reenrichment worklist JSONL.",
+        ),
+    ] = None,
+    exclude_manifest_path: Annotated[
+        list[Path] | None,
+        typer.Option(
+            "--exclude-manifest-path",
+            help="Prior frozen manifest whose documents must be excluded. Repeatable.",
         ),
     ] = None,
     corpus_version: Annotated[
@@ -191,6 +199,7 @@ def prepare_pubmed_canary_v2_command(
             storage=LocalStorage(settings.data_dir),
             database_path=database_path or sqlite_database_path(settings.data_dir),
             worklist_path=resolved_worklist_path,
+            exclude_manifest_paths=exclude_manifest_path,
             target_size=target_size,
             corpus_version=corpus_version,
             prepare_prompt_packets=prepare_prompt_packets,
