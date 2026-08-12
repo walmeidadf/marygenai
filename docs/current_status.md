@@ -191,6 +191,15 @@ listing, detail, preferred source links, credential isolation, private-path
 omission, no-store headers, the custom domain, and existing MCP initialization.
 The Cloudflare website is not yet connected to this credentialed API.
 
+MCP contract hardening now projects stored filesystem paths into opaque artifact
+references without changing the index, and exposes a typed path-free manifest
+in both local and Lambda runtimes. Regression tests cover search, detail, study
+resources, and the manifest fallback used when the adjacent operator manifest
+is intentionally absent from Lambda. The Lambda-only apply updated one resource
+in place and destroyed none. Authenticated remote smoke tests confirmed zero
+local-path occurrences, native manifest number/list types, unchanged 3,437-record
+results, preserved preferred access URLs, and no Viewer regression.
+
 The supported `web/` frontend provides:
 
 - a public project website for physicians, researchers, professors, students,

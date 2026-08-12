@@ -2,8 +2,9 @@
 
 ## Status
 
-This document describes the first implemented MaryGenAI retrieval-index and MCP
-contract over all 3,149 strict classification-ready documents.
+This document describes the implemented MaryGenAI retrieval-index and MCP
+contract over the active private 3,437-record snapshot: 3,149 strict
+classification-ready records plus 288 qualified PubMed candidates.
 
 The interface returns AI-classified candidate evidence. It does not return
 reviewed clinical truth, medical advice, or treatment recommendations.
@@ -191,7 +192,7 @@ Returns one complete candidate record with:
   raw value, normalization rule, and conflict status;
 - labeled PubMed, PMC full-text, DOI, canonical, and acquisition URLs;
 - a deterministic `preferred_access_url` that never prefers a machine endpoint;
-- source text path and SHA-256;
+- an opaque source-artifact reference and the source text SHA-256;
 - source trust level;
 - every v3 candidate field and evidence span;
 - missing or uncertain fields and warnings;
@@ -240,6 +241,12 @@ Returns supported filters, cardinalities, match modes, question types, cursor
 limits, ranking semantics, language and host-translation requirements, included
 classification runs, and v3 schema gaps.
 
+The public manifest uses stable JSON types for counts, lists, and trust fields
+in both local and AWS runtimes. It omits index, corpus, input-file, evaluation,
+and exclusion paths. Exact paths remain private internal provenance. Path-shaped
+fields retained for schema compatibility contain non-resolvable
+`artifact-ref://sha256/...` values on the MCP surface.
+
 ## MCP Resources
 
 - `marygenai://index/manifest` returns the index build manifest;
@@ -255,8 +262,8 @@ runtime, not from annotations alone.
 In the AWS dev runtime, Lambda can read exactly one content-addressed DuckDB
 object. It verifies SHA-256 before replacing the warm `/tmp` copy. The private
 deployment manifest is uploaded for operator provenance but is not copied next
-to the runtime index, preventing local absolute artifact paths from being
-exposed through the MCP manifest resource.
+to the runtime index. The MCP transport projection and typed public manifest
+prevent stored build-host paths from being returned by tools or resources.
 
 The public custom hostname terminates with an ACM certificate on API Gateway.
 Cloudflare remains the external DNS provider and is configured manually. The
@@ -280,7 +287,8 @@ Every response states:
 
 ## Known V1 Limits
 
-- The index covers all 3,149 strict classification-ready documents.
+- The active index covers 3,437 candidates: 3,149 strict classification-ready
+  documents plus 288 qualified PubMed candidates.
 - Sixty documents expose explicit projected-identity conflicts. Fifty-nine
   entered with the final offset and require source-routing or identity review.
 - Bibliographic `publication_year` does not yet distinguish online-first,

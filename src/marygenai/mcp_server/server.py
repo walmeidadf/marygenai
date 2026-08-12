@@ -8,6 +8,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ToolAnnotations
 
+from marygenai.mcp_server.projection import project_mcp_payload
 from marygenai.retrieval.common import DEFAULT_INDEX_RELATIVE_PATH
 from marygenai.retrieval.models import SearchRequest
 from marygenai.retrieval.service import RetrievalService
@@ -78,7 +79,7 @@ def create_mcp_server(
         structured_output=True,
     )
     def search_studies(request: SearchRequest) -> dict[str, Any]:
-        return service.search(request).model_dump(mode="json")
+        return project_mcp_payload(service.search(request).model_dump(mode="json"))
 
     @mcp.tool(
         title="Get MaryGenAI study detail",
@@ -93,7 +94,7 @@ def create_mcp_server(
         structured_output=True,
     )
     def get_study(document_id: str) -> dict[str, Any]:
-        return service.get_study(document_id).model_dump(mode="json")
+        return project_mcp_payload(service.get_study(document_id).model_dump(mode="json"))
 
     @mcp.tool(
         title="Get MaryGenAI search facets",
@@ -130,7 +131,7 @@ def create_mcp_server(
         mime_type="application/json",
     )
     def index_manifest() -> str:
-        return json.dumps(service.manifest(), ensure_ascii=False, sort_keys=True)
+        return service.public_manifest().model_dump_json()
 
     @mcp.resource(
         "marygenai://index/capabilities",
@@ -148,6 +149,7 @@ def create_mcp_server(
         mime_type="application/json",
     )
     def study_resource(document_id: str) -> str:
-        return service.get_study(document_id).model_dump_json()
+        detail = service.get_study(document_id).model_dump(mode="json")
+        return json.dumps(project_mcp_payload(detail), ensure_ascii=False, sort_keys=True)
 
     return mcp

@@ -10,10 +10,12 @@ import duckdb
 
 from marygenai.retrieval.common import normalize_match_key
 from marygenai.retrieval.models import (
+    INDEX_LIMITATIONS,
     FacetsResponse,
     FacetValue,
     MatchExplanation,
     ProjectedIdentity,
+    PublicIndexManifest,
     RetrievalConfidence,
     SearchCapabilities,
     SearchRequest,
@@ -394,6 +396,33 @@ class RetrievalService:
         if manifest_path.exists():
             return json.loads(manifest_path.read_text(encoding="utf-8"))
         return dict(self._metadata)
+
+    def public_manifest(self) -> PublicIndexManifest:
+        """Return a typed, path-free manifest for external read-only interfaces."""
+        manifest = self.manifest()
+
+        def decode_list(name: str) -> list[str]:
+            value = manifest.get(name, [])
+            if isinstance(value, str):
+                decoded = json.loads(value or "[]")
+                return [str(item) for item in decoded]
+            return [str(item) for item in value]
+
+        return PublicIndexManifest(
+            index_schema_version=str(manifest["index_schema_version"]),
+            build_id=str(manifest["build_id"]),
+            built_at=str(manifest["built_at"]),
+            document_count=int(manifest["document_count"]),
+            classification_run_ids=decode_list("classification_run_ids"),
+            inclusion_criteria=decode_list("inclusion_criteria"),
+            excluded_document_count=int(manifest.get("excluded_document_count", 0)),
+            trust_boundary=manifest.get("trust_boundary") or TrustBoundary(),
+            limitations=(
+                decode_list("limitations")
+                if manifest.get("limitations")
+                else list(INDEX_LIMITATIONS)
+            ),
+        )
 
     def identity_coverage(self) -> dict[str, Any]:
         connection = self._connect()

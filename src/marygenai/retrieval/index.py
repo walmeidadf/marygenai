@@ -13,6 +13,7 @@ from marygenai.classification.models import CandidateStudyClassification
 from marygenai.retrieval.common import DEFAULT_INDEX_RELATIVE_PATH, normalize_match_key
 from marygenai.retrieval.identity import project_bibliographic_identities
 from marygenai.retrieval.models import (
+    INDEX_LIMITATIONS,
     RETRIEVAL_INDEX_SCHEMA_VERSION,
     TRUST_NOTICE,
     IndexManifest,
@@ -539,13 +540,6 @@ def build_retrieval_index(
         connection.close()
 
     temporary_path.replace(resolved_output_path)
-    limitations = [
-        "The index contains AI-classified candidate evidence, not reviewed knowledge.",
-        "The indexed candidate corpus is bounded and may not be representative.",
-        "The v3 schema does not structure dose, route, comparator, duration, or specific outcomes.",
-        "Classification confidence is categorical and is not a calibrated probability.",
-        "Retrieval confidence is a deterministic heuristic ranking signal, not evidence strength.",
-    ]
     manifest = IndexManifest(
         build_id=build_id,
         built_at=built_at.isoformat(),
@@ -558,7 +552,7 @@ def build_retrieval_index(
         inclusion_criteria=inclusion_criteria,
         excluded_document_count=len(excluded_candidates),
         exclusions_path=str(exclusions_path) if excluded_candidates else None,
-        limitations=limitations,
+        limitations=list(INDEX_LIMITATIONS),
     )
     manifest_path = resolved_output_path.with_suffix(".manifest.json")
     manifest_path.write_text(

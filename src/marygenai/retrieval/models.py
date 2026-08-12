@@ -14,6 +14,13 @@ TRUST_NOTICE = (
     "Candidate retrieval metadata, not reviewed clinical truth, medical advice, "
     "or a treatment recommendation."
 )
+INDEX_LIMITATIONS = (
+    "The index contains AI-classified candidate evidence, not reviewed knowledge.",
+    "The indexed candidate corpus is bounded and may not be representative.",
+    "The v3 schema does not structure dose, route, comparator, duration, or specific outcomes.",
+    "Classification confidence is categorical and is not a calibrated probability.",
+    "Retrieval confidence is a deterministic heuristic ranking signal, not evidence strength.",
+)
 ZERO_RESULT_NOTICE = (
     "No candidate records were retrieved from the current MaryGenAI index for the "
     "effective query. This does not establish absence from the scientific literature."
@@ -313,6 +320,20 @@ class IndexManifest(BaseModel):
     exclusions_path: str | None = None
     trust_boundary: TrustBoundary = Field(default_factory=TrustBoundary)
     limitations: list[str]
+
+
+class PublicIndexManifest(BaseModel):
+    """Path-free manifest contract shared by local and hosted MCP runtimes."""
+
+    index_schema_version: str = RETRIEVAL_INDEX_SCHEMA_VERSION
+    build_id: str
+    built_at: str
+    document_count: int
+    classification_run_ids: list[str]
+    inclusion_criteria: list[str] = Field(default_factory=list)
+    excluded_document_count: int = 0
+    trust_boundary: TrustBoundary = Field(default_factory=TrustBoundary)
+    limitations: list[str] = Field(default_factory=lambda: list(INDEX_LIMITATIONS))
 
 
 class SearchCapabilities(BaseModel):

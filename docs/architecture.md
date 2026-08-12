@@ -144,6 +144,14 @@ no SQLite database, review workflow state, or provider credentials. MCP and
 Viewer have separate bearer credentials, while `/health` remains public and
 corpus-free.
 
+Exact filesystem provenance remains inside the immutable index for local
+operator and identity-review workflows. At the MCP boundary, path-bearing
+fields are replaced with stable opaque artifact references. The public MCP
+manifest uses a typed path-free schema so local and Lambda runtimes expose the
+same JSON types without publishing build-host locations. Source content hashes,
+bibliographic evidence, candidate evidence, and preferred access URLs remain
+available.
+
 Retrieval should support:
 
 - structured filters;

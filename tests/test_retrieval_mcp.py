@@ -12,6 +12,7 @@ import pytest
 from mangum import Mangum
 from mcp.client.session import ClientSession
 from mcp.shared.memory import create_connected_server_and_client_session
+from pydantic import AnyUrl
 from starlette.testclient import TestClient
 from typer.testing import CliRunner
 
@@ -217,6 +218,30 @@ def test_normalize_match_key_consolidates_case_and_trailing_abbreviations() -> N
     assert normalize_match_key("Cannabidiol (CBD)") == "cannabidiol"
     assert normalize_match_key("cannabidiol") == "cannabidiol"
     assert normalize_match_key("Cannabinoid (unspecified)") == "cannabinoid unspecified"
+
+
+def test_public_manifest_is_typed_and_path_free_without_adjacent_manifest(
+    retrieval_index: Path,
+) -> None:
+    manifest_path = retrieval_index.with_suffix(".manifest.json")
+    manifest_path.unlink()
+
+    manifest = RetrievalService(retrieval_index).public_manifest().model_dump(mode="json")
+
+    assert manifest["document_count"] == 3
+    assert isinstance(manifest["document_count"], int)
+    assert manifest["classification_run_ids"] == ["20260710T000000Z"]
+    assert isinstance(manifest["classification_run_ids"], list)
+    assert manifest["inclusion_criteria"] == []
+    assert isinstance(manifest["inclusion_criteria"], list)
+    assert manifest["excluded_document_count"] == 0
+    assert manifest["trust_boundary"]["trust_level"] == "ai_classified_candidate"
+    assert manifest["limitations"]
+    serialized = json.dumps(manifest)
+    assert str(retrieval_index.parent) not in serialized
+    assert "index_path" not in manifest
+    assert "exclusions_path" not in manifest
+    assert "input_files" not in manifest
 
 
 def test_index_can_provenance_exclude_candidates_without_structured_exposure(
@@ -766,6 +791,56 @@ async def test_mcp_exposes_only_read_only_candidate_retrieval_tools(
     assert presentation["distinguish_direct_from_tangential_matches"] is True
     assert presentation["study_detail_required_for_detailed_evidence_claims"] is True
     assert result.structuredContent["trust_boundary"]["medical_advice"] is False
+
+    search_payload = json.dumps(result.structuredContent)
+    assert "data/processed" not in search_payload
+    provenance_paths = [
+        item["source_artifact_path"]
+        for identifier in result.structuredContent["results"][0]["projected_identity"][
+            "identifiers"
+        ]
+        for candidate_value in identifier["candidate_values"]
+        for item in candidate_value["provenance"]
+    ]
+    assert provenance_paths
+    assert all(
+        path.startswith("artifact-ref://sha256/") for path in provenance_paths
+    )
+
+    detail = await mcp_client.call_tool(
+        "get_study",
+        {"document_id": result.structuredContent["results"][0]["document_id"]},
+    )
+    assert detail.isError is False
+    detail_payload = detail.structuredContent
+    assert detail_payload["source_text_path"].startswith("artifact-ref://sha256/")
+    assert detail_payload["candidate_classification"]["source_text_path"].startswith(
+        "artifact-ref://sha256/"
+    )
+    assert detail_payload["candidate_classification"]["evidence_spans"][0][
+        "source_text_path"
+    ].startswith("artifact-ref://sha256/")
+    serialized_detail = json.dumps(detail_payload)
+    assert "data/processed" not in serialized_detail
+    assert "data/raw" not in serialized_detail
+
+    manifest_resource = await mcp_client.read_resource(
+        AnyUrl("marygenai://index/manifest")
+    )
+    manifest = json.loads(manifest_resource.contents[0].text)
+    assert manifest["document_count"] == 3
+    assert isinstance(manifest["classification_run_ids"], list)
+    assert isinstance(manifest["inclusion_criteria"], list)
+    assert "index_path" not in manifest
+    assert "input_files" not in manifest
+    assert "exclusions_path" not in manifest
+
+    study_resource = await mcp_client.read_resource(
+        AnyUrl(result.structuredContent["results"][0]["detail_uri"])
+    )
+    resource_detail = json.loads(study_resource.contents[0].text)
+    assert resource_detail["source_text_path"].startswith("artifact-ref://sha256/")
+    assert "data/processed" not in study_resource.contents[0].text
 
     capabilities = await mcp_client.call_tool("get_search_capabilities", {})
     assert capabilities.isError is False

@@ -1,5 +1,27 @@
 # Decision Log
 
+## 2026-08-12: Project Internal Provenance Into A Path-Safe MCP Contract
+
+The retrieval index retains exact maintainer-local source and artifact paths for
+internal reproducibility and identity-review workflows. MCP tools and resources
+must not expose those filesystem locations. The MCP server therefore projects
+every path-bearing provenance field into a stable, non-resolvable
+`artifact-ref://sha256/...` reference at the transport boundary. The underlying
+DuckDB rows, source hashes, identifier evidence, and internal CLI behavior remain
+unchanged.
+
+The MCP manifest is a separate typed public model containing build identity,
+record and exclusion counts, included classification runs, inclusion criteria,
+limitations, and the candidate-evidence trust boundary. It deliberately omits
+operator paths and input-file locations. This model is identical whether an
+adjacent local manifest exists or the AWS Lambda reconstructs metadata from the
+DuckDB index.
+
+The deployed correction updated only the Lambda code package. It preserved the
+content-addressed 3,437-record snapshot, environment, routes, and credentials.
+Remote MCP smoke tests found no local path occurrences in search, detail,
+manifest, or study-resource responses and confirmed native manifest types.
+
 ## 2026-08-12: Share The AWS Snapshot While Isolating MCP And Viewer Credentials
 
 The existing AWS API Gateway and Python 3.13 Lambda expose the web-safe
