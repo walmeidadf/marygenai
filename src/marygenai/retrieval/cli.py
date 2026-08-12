@@ -58,6 +58,16 @@ def build_index(
             ),
         ),
     ] = False,
+    require_cannabinoid_exposure_run_id: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--require-cannabinoid-exposure-run-id",
+            help=(
+                "Apply the structured cannabinoid/exposure gate only to this "
+                "classification run. Repeat for multiple runs."
+            ),
+        ),
+    ] = None,
 ) -> None:
     """Materialize an isolated DuckDB index without mutating SQLite or reviewed knowledge."""
     settings = get_settings()
@@ -68,6 +78,7 @@ def build_index(
         corpus_path=corpus_path,
         evaluation_report_paths=evaluation_report_path,
         require_cannabinoid_exposure=require_cannabinoid_exposure,
+        require_cannabinoid_exposure_run_ids=require_cannabinoid_exposure_run_id,
     )
     _print_json(manifest.model_dump(mode="json"))
 

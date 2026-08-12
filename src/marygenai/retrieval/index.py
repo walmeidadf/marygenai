@@ -191,6 +191,15 @@ def _input_file_record(path: Path) -> dict[str, str]:
     return {"path": str(path), "sha256": _sha256(path)}
 
 
+def _requires_cannabinoid_exposure(
+    classification_run_id: str,
+    *,
+    require_for_all_runs: bool,
+    required_run_ids: set[str],
+) -> bool:
+    return require_for_all_runs or classification_run_id in required_run_ids
+
+
 def build_retrieval_index(
     *,
     data_dir: Path,
@@ -199,8 +208,14 @@ def build_retrieval_index(
     corpus_path: Path | None = None,
     evaluation_report_paths: list[Path] | None = None,
     require_cannabinoid_exposure: bool = False,
+    require_cannabinoid_exposure_run_ids: list[str] | None = None,
 ) -> IndexManifest:
     """Build an isolated candidate-evidence DuckDB index from ignored artifacts."""
+    scoped_exposure_run_ids = set(require_cannabinoid_exposure_run_ids or [])
+    if require_cannabinoid_exposure and scoped_exposure_run_ids:
+        raise ValueError(
+            "Use either the global cannabinoid-exposure gate or run-scoped gates, not both."
+        )
     resolved_records_paths = _resolve_record_paths(data_dir, records_paths)
     resolved_corpus_path = _resolve_corpus_path(data_dir, corpus_path)
 
@@ -217,7 +232,12 @@ def build_retrieval_index(
                 raise ValueError(f"Duplicate candidate document_id: {document_id}")
             all_document_ids.add(document_id)
             run_ids.add(record["classification_run_id"])
-            if require_cannabinoid_exposure and not record["cannabinoids_or_exposures"]:
+            gate_applies = _requires_cannabinoid_exposure(
+                record["classification_run_id"],
+                require_for_all_runs=require_cannabinoid_exposure,
+                required_run_ids=scoped_exposure_run_ids,
+            )
+            if gate_applies and not record["cannabinoids_or_exposures"]:
                 excluded_candidates.append(
                     {
                         "document_id": document_id,
@@ -240,6 +260,13 @@ def build_retrieval_index(
                 continue
             seen_document_ids.add(document_id)
             candidates.append(record)
+
+    unknown_scoped_run_ids = sorted(scoped_exposure_run_ids - run_ids)
+    if unknown_scoped_run_ids:
+        raise ValueError(
+            "Cannabinoid-exposure gate run IDs were not present in candidate inputs: "
+            + ", ".join(unknown_scoped_run_ids)
+        )
 
     corpus = {row["document_id"]: row for row in _read_jsonl(resolved_corpus_path)}
     missing_corpus = sorted(seen_document_ids - corpus.keys())
@@ -322,11 +349,14 @@ def build_retrieval_index(
         *auxiliary_paths,
     ]
     input_files = [_input_file_record(path) for path in dict.fromkeys(input_paths)]
-    inclusion_criteria = (
-        ["at_least_one_structured_cannabinoid_or_exposure_label"]
-        if require_cannabinoid_exposure
-        else []
-    )
+    if require_cannabinoid_exposure:
+        inclusion_criteria = ["at_least_one_structured_cannabinoid_or_exposure_label"]
+    else:
+        inclusion_criteria = [
+            "at_least_one_structured_cannabinoid_or_exposure_label:"
+            f"classification_run_id={run_id}"
+            for run_id in sorted(scoped_exposure_run_ids)
+        ]
     exclusions_path = resolved_output_path.with_suffix(".exclusions.jsonl")
     if excluded_candidates:
         exclusions_path.write_text(
