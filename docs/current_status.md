@@ -248,12 +248,11 @@ the existing 3,149-record index until a licensed public snapshot is published.
 
 Maintainer-controlled candidate-data work proceeds in this order:
 
-1. Inspect the two v3 grounding-review spans and decide whether the qualified
-   288-document v2+v3+v4 index should remain a canary or join the full local MCP
-   snapshot. Neither operation may mutate protected review state.
-2. Exercise the Viewer against the chosen immutable candidate index, add
-   acceptance cases from realistic non-identifying questions, and decide the
-   access boundary for an external environment.
+1. Preserve acceptance cases from realistic non-identifying questions against
+   the deployed 3,437-record snapshot, including the two v3 grounding-review
+   findings and known lexical-search sensitivity.
+2. Exercise the Viewer against the combined immutable candidate index and
+   decide the access boundary for an external environment.
 3. Review website exposure, repository links, hosting configuration, and the
    no-license boundary before any explicit external publication.
 4. Expand the PubMed candidate slice only after technical, retrieval, grounding,

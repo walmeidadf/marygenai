@@ -103,12 +103,13 @@ candidate value in study detail and provenance.
 
 ## Current Pilot Coverage And Acceptance Findings
 
-The deployed pilot now indexes all 3,149 strict-valid candidate records across
-twenty-four classification runs. It is available through local CLI and stdio,
-local stateless Streamable HTTP, and a remote AWS endpoint validated with hosted
-ChatGPT and Claude connectors. The source and candidate metadata remain
-primarily English, so the host translates Portuguese questions before calling
-the deterministic server.
+The deployed pilot now indexes 3,437 candidate records across twenty-seven
+classification runs: the 3,149-record strict corpus plus 288 qualified PubMed
+candidates. It is available through local CLI and stdio, local stateless
+Streamable HTTP, and a remote AWS endpoint validated with hosted ChatGPT and
+Claude connectors. The source and candidate metadata remain primarily English,
+so the host translates Portuguese questions before calling the deterministic
+server.
 
 The first hosted conversations established that translation works but result
 presentation varies by host. ChatGPT found adolescent-epilepsy candidates but
@@ -123,6 +124,15 @@ label variants. Inspection of five recent records demonstrated useful breadth
 and exposed bibliographic date, publication-type, DOI reconciliation, and
 directness gaps. These are priority acceptance and enrichment cases, not
 reviewed corrections.
+
+Post-expansion regression retrieved representative PubMed candidates for
+multiple sclerosis, primary insomnia, fibromyalgia, cannabis use disorder,
+CDKL5 deficiency disorder, sickle cell disease, diabetic retinopathy, and
+Tourette syndrome. Targeted queries for three known source-selection false
+positives returned zero. One acceptance case also exposed deterministic lexical
+sensitivity: `non-medical cannabis pharmacies` retrieved the intended record,
+while an extra unmatched inflection such as `selling` could force zero results
+because current free-text terms are combined conjunctively without stemming.
 
 ## Clinical Acceptance Questions
 

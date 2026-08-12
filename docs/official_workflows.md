@@ -103,6 +103,13 @@ not use CloudFormation. The custom domain uses an ACM certificate with external
 Cloudflare DNS validation; follow the two-stage bootstrap in
 `infra/terraform/README.md` before creating the application CNAME.
 
+Retain the previous ignored DuckDB and manifest locally with their hashes before
+applying a snapshot update. Terraform replacement of content-addressed object
+resources may remove the prior S3 keys; bucket versioning does not replace a
+tested rollback plan. Rollback therefore means planning and re-promoting the
+previous local snapshot and manifest, then repeating authenticated health and
+retrieval smoke tests.
+
 The private development environment may enable the explicit query-token
 compatibility mode for hosts that cannot configure fixed request headers.
 Bearer authentication remains preferred. Never commit or publish a complete

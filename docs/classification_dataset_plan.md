@@ -130,6 +130,14 @@ records with no structured cannabinoid or exposure label. The resulting
 qualified three-slice MCP canary contains 288 candidates; exclusion reasons and
 provenance remain in an ignored report.
 
+For promotion, the 288 qualified candidates were combined with the existing
+3,149-record strict snapshot. The inclusion gate was scoped only to the three
+PubMed classification run IDs because 63 older classifications also lack a
+structured exposure and had not been evaluated under the new rule. The combined
+3,437-record index preserves every prior candidate row, records the three new
+exclusions separately, and remains entirely `ai_classified_candidate` and
+`needs_review`.
+
 ## Candidate Classification Schema
 
 Current schema:
