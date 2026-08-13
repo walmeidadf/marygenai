@@ -4,26 +4,45 @@ import test from "node:test";
 
 const workerUrl = new URL("../dist/server/index.js", import.meta.url);
 
-async function request(path) {
+async function request(path, headers = {}) {
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}-${path}`);
   const { default: worker } = await import(workerUrl.href);
   return worker.fetch(
-    new Request(`http://localhost${path}`, { headers: { accept: "text/html" } }),
+    new Request(`http://localhost${path}`, { headers: { accept: "text/html", ...headers } }),
     { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
     { waitUntil() {}, passThroughOnException() {} },
   );
 }
 
-test("server-renders the public project website with accurate trust language", async () => {
+test("server-renders the public project website in Portuguese by default", async () => {
   const response = await request("/");
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /Find the study/);
-  assert.match(html, /3,149/);
+  assert.match(html, /lang="pt-BR"/);
+  assert.match(html, /Encontre o estudo/);
+  assert.match(html, /3\.437/);
   assert.match(html, /AI candidate/);
+  assert.match(html, /não são verdade clínica revisada/i);
+  assert.match(html, /Nenhuma licença de software ou dados foi publicada/i);
+  assert.match(html, /aria-label="Idioma do website"/);
+  assert.match(html, /href="\/#how-it-works"/);
+  assert.match(html, /id="how-it-works"/);
+  assert.match(html, /href="\/#current-state"/);
+  assert.match(html, /id="current-state"/);
+  assert.match(html, /href="\/#collaborate"/);
+  assert.match(html, /id="collaborate"/);
+  assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/i);
+});
+
+test("language cookie server-renders the English website", async () => {
+  const response = await request("/", { cookie: "marygenai_site_language=en" });
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /lang="en"/);
+  assert.match(html, /Find the study/);
+  assert.match(html, /3,437/);
   assert.match(html, /not reviewed clinical truth/i);
   assert.match(html, /No software or data license has been published/i);
-  assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/i);
 });
 
 test("server-renders the Dataset Viewer and synthetic-demo boundary", async () => {
@@ -52,6 +71,13 @@ test("original-study links open safely in a new browser tab", async () => {
   assert.match(source, /target="_blank"/);
   assert.match(source, /rel="noopener noreferrer"/);
   assert.match(source, /Open original study in a new tab/);
+});
+
+test("desktop Viewer columns reserve space for trust state and source actions", async () => {
+  const styles = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(styles, /th:nth-child\(7\) \{ width: 19%; \}/);
+  assert.match(styles, /\.studies-table \.trust-badge \{[^}]*max-width: 100%[^}]*white-space: normal/);
+  assert.match(styles, /\.study-source-link \{[^}]*white-space: nowrap/);
 });
 
 test("Viewer proxy keeps the AWS bearer token server-side and disables caching", async () => {

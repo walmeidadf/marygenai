@@ -204,6 +204,9 @@ The supported `web/` frontend provides:
 
 - a public project website for physicians, researchers, professors, students,
   and scientific partners;
+- Portuguese-first project communication with a persistent Portuguese/English
+  selector, while scientific dataset values and the Dataset Viewer remain in
+  English;
 - paginated candidate search with URL-backed filters and deterministic sorting;
 - explicit direct/tangential match, confidence, `needs_review`, and trust-state
   presentation;

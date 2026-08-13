@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { headers } from "next/headers";
+import { LanguageProvider } from "./components/LanguageProvider";
+import { LANGUAGE_COOKIE, type SiteLanguage } from "./lib/language";
 import "./globals.css";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -11,8 +14,8 @@ export async function generateMetadata(): Promise<Metadata> {
     ? requestedProtocol
     : host.startsWith("localhost") ? "http" : "https";
   const origin = `${protocol}://${host}`;
-  const title = "MaryGenAI | Scientific source intelligence";
-  const description = "Evidence-backed candidate retrieval infrastructure for cannabinoid medicine.";
+  const title = "MaryGenAI | Inteligência de fontes científicas";
+  const description = "Infraestrutura bilíngue de busca de evidências candidatas para medicina canabinoide.";
   return {
     metadataBase: new URL(origin),
     title,
@@ -22,6 +25,8 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body>{children}</body></html>;
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const cookieStore = await cookies();
+  const initialLanguage: SiteLanguage = cookieStore.get(LANGUAGE_COOKIE)?.value === "en" ? "en" : "pt-BR";
+  return <html lang={initialLanguage}><body><LanguageProvider initialLanguage={initialLanguage}>{children}</LanguageProvider></body></html>;
 }
