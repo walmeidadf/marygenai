@@ -21,6 +21,8 @@ test("server-renders the public project website in Portuguese by default", async
   assert.match(html, /lang="pt-BR"/);
   assert.match(html, /Encontre o estudo/);
   assert.match(html, /3\.437/);
+  assert.doesNotMatch(html, /3[.,]149/);
+  assert.doesNotMatch(html, />288</);
   assert.match(html, /AI candidate/);
   assert.match(html, /não são verdade clínica revisada/i);
   assert.match(html, /Nenhuma licença de software ou dados foi publicada/i);
@@ -31,6 +33,8 @@ test("server-renders the public project website in Portuguese by default", async
   assert.match(html, /id="current-state"/);
   assert.match(html, /href="\/#collaborate"/);
   assert.match(html, /id="collaborate"/);
+  assert.match(html, /Abrir repositório no GitHub/);
+  assert.match(html, /href="https:\/\/github\.com\/walmeidadf\/marygenai"/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/i);
 });
 
@@ -71,6 +75,18 @@ test("original-study links open safely in a new browser tab", async () => {
   assert.match(source, /target="_blank"/);
   assert.match(source, /rel="noopener noreferrer"/);
   assert.match(source, /Open original study in a new tab/);
+});
+
+test("Dataset Viewer navigation uses native links in the Worker runtime", async () => {
+  const sources = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/components/SiteHeader.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/components/SiteFooter.tsx", import.meta.url), "utf8"),
+  ]);
+  for (const source of sources) {
+    assert.match(source, /<a[^>]+href="\/dataset"|<a href="\/dataset"/);
+    assert.doesNotMatch(source, /<Link[^>]+href="\/dataset"/);
+  }
 });
 
 test("desktop Viewer columns reserve space for trust state and source actions", async () => {

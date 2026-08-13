@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { SiteFooter } from "./components/SiteFooter";
 import { SiteHeader } from "./components/SiteHeader";
 import { TrustBadge } from "./components/TrustBadge";
@@ -40,8 +39,6 @@ const copy = {
     stateBody: "Os números abaixo refletem o estado documentado do projeto, verificado em 13 de agosto de 2026.",
     metrics: [
       ["3.437", "registros candidatos no snapshot ativo somente leitura"],
-      ["3.149", "registros candidatos da campanha histórica estrita"],
-      ["288", "candidatos PubMed qualificados adicionados ao snapshot"],
       ["100%", "dos registros ainda precisam de revisão humana"],
     ],
     cards: [
@@ -49,6 +46,10 @@ const copy = {
       ["Implementado aqui", "Dataset Viewer v1", "Busca, filtros, estado estável na URL, paginação, rótulos explícitos de confiança, inspeção de evidências, proveniência e acesso ao índice candidato."],
       ["Planejado", "Referência pública revisada", "Curadoria universitária, licenciamento explícito, snapshots revisados e redistribuição pública continuam sendo etapas futuras — não afirmações atuais."],
     ],
+    sourceEyebrow: "Código e documentação",
+    sourceTitle: "Acompanhe o projeto no GitHub.",
+    sourceBody: "Explore a implementação, os contratos, as decisões de arquitetura e a documentação pública da MaryGenAI.",
+    sourceLink: "Abrir repositório no GitHub",
     mcpTitle: "Uma rota estruturada entre perguntas científicas e estudos candidatos inspecionáveis.",
     mcpBody: "O piloto MCP permite que assistentes compatíveis pesquisem o mesmo serviço somente leitura, inspecionem estudos selecionados e preservem linguagem segura e links preferenciais para as fontes.",
     mcpFine: "O aplicativo cliente deve distinguir correspondências diretas de tangenciais e inspecionar os detalhes antes de fazer afirmações específicas sobre evidências.",
@@ -89,12 +90,16 @@ const copy = {
     stateEyebrow: "Verified operating snapshot",
     stateTitle: "Useful today, explicit about tomorrow.",
     stateBody: "Counts below reflect the documented project state verified on 13 August 2026.",
-    metrics: [["3,437", "candidate records in the active read-only snapshot"], ["3,149", "candidate records from the strict historical campaign"], ["288", "qualified PubMed candidates added to the snapshot"], ["100%", "of records still require human review"]],
+    metrics: [["3,437", "candidate records in the active read-only snapshot"], ["100%", "of records still require human review"]],
     cards: [
       ["Implemented", "Read-only retrieval pilot", "Lexical and structured search, study detail, facets, capability discovery, CLI, MCP stdio, and stateless HTTP over an isolated DuckDB snapshot."],
       ["Implemented here", "Dataset Viewer v1", "Search, filters, stable URL state, pagination, explicit trust labels, evidence inspection, provenance, and access to the candidate index."],
       ["Planned", "Reviewed public baseline", "University curation, explicit licensing, reviewed snapshots, and public redistribution remain future gates—not current claims."],
     ],
+    sourceEyebrow: "Code and documentation",
+    sourceTitle: "Follow the project on GitHub.",
+    sourceBody: "Explore MaryGenAI's implementation, contracts, architecture decisions, and public documentation.",
+    sourceLink: "Open the GitHub repository",
     mcpTitle: "A structured route from scientific questions to inspectable candidate studies.",
     mcpBody: "The MCP pilot lets compatible assistants search the same read-only retrieval service, inspect shortlisted studies, and preserve safe result language and preferred source links.",
     mcpFine: "The host must distinguish direct from tangential matches and inspect study detail before making detailed evidence claims.",
@@ -123,7 +128,8 @@ export default function Home() {
             <h1>{text.heroTitle[0]}<br />{text.heroTitle[1]}<br /><em>{text.heroEmphasis}</em></h1>
             <p className="hero-lede">{text.heroLede}</p>
             <div className="button-row">
-              <Link className="button button-primary" href="/dataset">{text.explore}</Link>
+              {/* Native navigation avoids intercepted route transitions in the Worker runtime. */}
+              <a className="button button-primary" href="/dataset">{text.explore}</a>
               <a className="button button-secondary" href={`${repository}/tree/main/docs`}>{text.documentation}</a>
             </div>
             <p className="hero-caveat">{text.caveat}</p>
@@ -152,8 +158,12 @@ export default function Home() {
         <section className="section state-section" id="current-state">
           <div className="shell">
             <div className="section-heading split-heading"><div><p className="eyebrow">{text.stateEyebrow}</p><h2>{text.stateTitle}</h2></div><p>{text.stateBody}</p></div>
-            <div className="metrics-grid">{text.metrics.map(([value, label]) => <article key={label}><strong>{value}</strong><span>{label}</span></article>)}</div>
+            <div className="metrics-grid metrics-grid-compact">{text.metrics.map(([value, label]) => <article key={label}><strong>{value}</strong><span>{label}</span></article>)}</div>
             <div className="implemented-grid">{text.cards.map(([kicker, title, body], index) => <article className={`implemented-card ${index === 2 ? "planned-card" : ""}`} key={title}><p className="card-kicker">{kicker}</p><h3>{title}</h3><p>{body}</p></article>)}</div>
+            <div className="project-source-callout">
+              <div><p className="card-kicker">{text.sourceEyebrow}</p><h3>{text.sourceTitle}</h3><p>{text.sourceBody}</p></div>
+              <a className="button button-secondary" href={repository} target="_blank" rel="noopener noreferrer">{text.sourceLink} <span aria-hidden="true">↗</span></a>
+            </div>
           </div>
         </section>
 

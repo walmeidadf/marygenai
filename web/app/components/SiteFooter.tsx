@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { Brand } from "./SiteHeader";
 import { useSiteLanguage } from "./LanguageProvider";
 
@@ -21,7 +20,7 @@ export function SiteFooter() {
           </p>
         </div>
         <nav aria-label={portuguese ? "Navegação do rodapé" : "Footer navigation"}>
-          <Link href="/dataset">Dataset Viewer</Link>
+          <a href="/dataset">Dataset Viewer</a>
           <a href={`${repository}/tree/main/docs`}>{portuguese ? "Documentação" : "Documentation"}</a>
           <a href={repository}>{portuguese ? "Repositório" : "Repository"}</a>
         </nav>

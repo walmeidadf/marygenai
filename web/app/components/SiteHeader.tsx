@@ -48,9 +48,9 @@ export function SiteHeader() {
               <option value="en">EN</option>
             </select>
           </label>
-          <Link href="/dataset" className="nav-cta">
+          <a href="/dataset" className="nav-cta">
             Dataset Viewer
-          </Link>
+          </a>
         </nav>
       </div>
     </header>
