@@ -48,7 +48,8 @@ The implemented pilot includes:
 - a read-only Dataset Viewer API over the same retrieval service;
 - a responsive public website and Dataset Viewer frontend with a clearly
   labeled synthetic demonstration fallback;
-- a deployed private AWS development gateway for MCP and the Dataset Viewer;
+- a production Cloudflare same-origin Viewer proxy backed by the private AWS
+  development gateway and immutable candidate snapshot;
 - explicit candidate-result, zero-result, source-link, and study-detail
   presentation rules.
 
@@ -56,9 +57,10 @@ The active private AWS snapshot contains 3,437 records: the 3,149-record strict
 corpus plus 288 qualified PubMed candidates. Every record remains
 `ai_classified_candidate` with `review_state=needs_review`. The generated corpus
 and index are not committed public datasets. The authenticated Viewer API is
-deployed, while connecting the separately deployed Cloudflare website to it
-remains a deliberate server-side proxy step. Near-term work is controlled
-PubMed candidate growth, website proxy activation, and a complete
+deployed, and the production Cloudflare Worker proxies bounded read-only
+requests to it without exposing the Viewer credential or distributing the
+DuckDB artifact. Near-term work is production monitoring, documentation and
+repository review, controlled PubMed candidate growth, and a complete
 curation-readiness package. External curator availability does not block
 candidate-data work, and no candidate becomes reviewed knowledge without an
 explicit review workflow.

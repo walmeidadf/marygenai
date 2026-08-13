@@ -205,16 +205,15 @@ retrieval contract; the web adapter presents stable numbered pages by following
 opaque cursors without changing index ordering.
 
 The frontend has a Sites-compatible build configuration and is deployed as a
-Cloudflare Worker with Static Assets. The active static-only version serves the
-site and synthetic Viewer because the browser falls back to the explicitly
-labeled fictional fixtures when `/api/viewer/*` is absent. The vinext Worker
-entry point can serve the same-origin proxy routes while continuing to serve
-the static assets. Real candidate retrieval remains in the separately hosted
-read-only Viewer API with access to the approved immutable snapshot. The
-production path reuses the existing AWS API Gateway, Lambda, S3, and
-hash-verified DuckDB pattern rather than duplicating retrieval behavior in the
-frontend. Publication of candidate data remains a deliberate operation after
-exposure, access, and licensing boundaries are reviewed.
+Cloudflare Worker with Static Assets. The active production version serves both
+the static assets and the vinext same-origin `/api/viewer/*` proxy routes. The
+Worker holds only the narrower Viewer credential and forwards bounded read-only
+requests to the separately hosted Viewer API; browsers never receive that
+credential. Fresh clones and builds without the proxy configuration retain the
+explicitly labeled fictional fallback. The production path reuses the existing
+AWS API Gateway, Lambda, S3, and hash-verified DuckDB pattern rather than
+duplicating retrieval behavior or distributing the index artifact through the
+frontend.
 
 ## Persistence
 

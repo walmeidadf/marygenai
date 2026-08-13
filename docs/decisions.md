@@ -16,6 +16,13 @@ Viewer bearer token as a version secret, without changing production traffic.
 Production promotion remains a deliberate operation after proxy, credential,
 candidate-exposure, and no-license checks pass.
 
+After a Cloudflare Access-protected version preview and authenticated upstream
+smoke tests passed, the maintainer approved promotion on 2026-08-13. The exact
+validated Worker version now receives 100% of production traffic. Public edge
+checks confirmed the bilingual website, the same-origin Viewer API, the
+3,437-record snapshot, candidate-only trust state, and preferred source links;
+the upstream bearer credential remains server-side.
+
 ## 2026-08-12: Project Internal Provenance Into A Path-Safe MCP Contract
 
 The retrieval index retains exact maintainer-local source and artifact paths for

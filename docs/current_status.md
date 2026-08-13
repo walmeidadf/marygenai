@@ -16,10 +16,11 @@ shares one visual and terminology system across project communication and
 candidate inspection. The Viewer has a read-only Python adapter over the
 existing retrieval service and a clearly labeled synthetic demonstration mode
 for fresh clones without the ignored DuckDB index. The website is deployed as
-a Cloudflare Worker with Static Assets at `marygenai.com`. The authenticated
-AWS Viewer API and approved candidate snapshot are deployed, while the active
-Worker remains in synthetic demonstration mode until its server-side proxy
-version is validated and deliberately promoted.
+a Cloudflare Worker with Static Assets at `marygenai.com`. The production
+Worker now serves the vinext same-origin Viewer proxy, keeps the narrower AWS
+Viewer credential server-side, and exposes the approved 3,437-record candidate
+snapshot through the read-only Dataset Viewer. Fresh clones still use the
+clearly labeled synthetic fallback when no Viewer API is configured.
 
 Every indexed record remains `ai_classified_candidate` with
 `review_state=needs_review`. No candidate classification has been promoted to
@@ -189,7 +190,11 @@ Terraform apply created three routes, updated the API and Lambda in place, and
 destroyed no resources. Authenticated remote smoke tests passed for metadata,
 listing, detail, preferred source links, credential isolation, private-path
 omission, no-store headers, the custom domain, and existing MCP initialization.
-The Cloudflare website is not yet connected to this credentialed API.
+The production Cloudflare Worker now connects to this credentialed API through
+same-origin server routes. Post-promotion checks returned HTTP 200 for the
+website, Dataset Viewer, metadata, and search; confirmed 3,437 indexed records,
+1,173 `cannabidiol` matches, `needs_review` throughout, preferred PMC access
+URLs, and private no-store API responses.
 
 MCP contract hardening now projects stored filesystem paths into opaque artifact
 references without changing the index, and exposes a typed path-free manifest
@@ -253,11 +258,9 @@ the active 3,437-record index until a licensed public snapshot is published.
   identity, scopes, or independent revocation.
 - The committed frontend defaults to fictional demonstration records because
   the complete local index is not distributed.
-- The active Cloudflare Worker serves the frontend as Static Assets and the
-  synthetic Viewer remains the fallback when same-origin API routes are absent.
-  The separate authenticated AWS API and immutable snapshot are available, but
-  exposing real candidate records through Cloudflare still requires deliberate
-  promotion of the server-side proxy plus access and licensing review.
+- The production Cloudflare Worker exposes bounded read-only candidate
+  retrieval through its same-origin proxy. It does not distribute the DuckDB
+  artifact, expose the upstream credential, or grant redistribution rights.
 
 ## Next Workstreams
 
@@ -266,18 +269,15 @@ Maintainer-controlled candidate-data work proceeds in this order:
 1. Preserve acceptance cases from realistic non-identifying questions against
    the deployed 3,437-record snapshot, including the two v3 grounding-review
    findings and known lexical-search sensitivity.
-2. Exercise the Viewer against the combined immutable candidate index and
-   decide the access boundary for an external environment.
-3. Configure and test a new version of the existing Cloudflare Worker as the
-   same-origin server-side proxy without exposing the Viewer bearer credential
-   to browsers.
-4. Review website access, repository links, hosting configuration, and the
-   no-license boundary before enabling the real Viewer on the public site.
-5. Expand the PubMed candidate slice only after technical, retrieval, grounding,
+2. Monitor the production Viewer, website navigation, source links, language
+   selection, and public read-only access boundary.
+3. Audit repository documentation, project organization, and deployment
+   instructions against the promoted production architecture.
+4. Expand the PubMed candidate slice only after technical, retrieval, grounding,
    provenance, cost, and regression gates pass.
-6. Run bounded automated legacy-recovery campaigns, starting with official PMC
+5. Run bounded automated legacy-recovery campaigns, starting with official PMC
    failures and deterministic identity suggestions.
-7. Rebuild and deliberately promote immutable candidate indexes without
+6. Rebuild and deliberately promote immutable candidate indexes without
    mutating review state.
 
 The parallel curation-readiness track prepares:
