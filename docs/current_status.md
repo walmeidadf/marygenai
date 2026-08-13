@@ -1,6 +1,6 @@
 # Current Status
 
-Last documentation verification: 2026-08-12.
+Last documentation verification: 2026-08-13.
 
 ## Product State
 
@@ -15,11 +15,11 @@ A first website and Dataset Viewer are now implemented. The web frontend
 shares one visual and terminology system across project communication and
 candidate inspection. The Viewer has a read-only Python adapter over the
 existing retrieval service and a clearly labeled synthetic demonstration mode
-for fresh clones without the ignored DuckDB index. The maintainer reports that
-the website is deployed through Cloudflare Pages. The authenticated AWS Viewer
-API and approved candidate snapshot are now deployed, but the Pages deployment
-remains in synthetic demonstration mode until a server-side Function or Worker
-proxy is configured.
+for fresh clones without the ignored DuckDB index. The website is deployed as
+a Cloudflare Worker with Static Assets at `marygenai.com`. The authenticated
+AWS Viewer API and approved candidate snapshot are deployed, while the active
+Worker remains in synthetic demonstration mode until its server-side proxy
+version is validated and deliberately promoted.
 
 Every indexed record remains `ai_classified_candidate` with
 `review_state=needs_review`. No candidate classification has been promoted to
@@ -250,11 +250,11 @@ the active 3,437-record index until a licensed public snapshot is published.
   identity, scopes, or independent revocation.
 - The committed frontend defaults to fictional demonstration records because
   the complete local index is not distributed.
-- The Cloudflare Pages deployment can serve the frontend and synthetic Viewer,
-  including a browser-side demo fallback when same-origin API routes are absent.
+- The active Cloudflare Worker serves the frontend as Static Assets and the
+  synthetic Viewer remains the fallback when same-origin API routes are absent.
   The separate authenticated AWS API and immutable snapshot are available, but
-  exposing real candidate records through Cloudflare still requires a
-  server-side proxy plus deliberate access and licensing review.
+  exposing real candidate records through Cloudflare still requires deliberate
+  promotion of the server-side proxy plus access and licensing review.
 
 ## Next Workstreams
 
@@ -265,10 +265,11 @@ Maintainer-controlled candidate-data work proceeds in this order:
    findings and known lexical-search sensitivity.
 2. Exercise the Viewer against the combined immutable candidate index and
    decide the access boundary for an external environment.
-3. Configure and test a Cloudflare Pages Function or Worker as the same-origin
-   server-side proxy without exposing the Viewer bearer credential to browsers.
+3. Configure and test a new version of the existing Cloudflare Worker as the
+   same-origin server-side proxy without exposing the Viewer bearer credential
+   to browsers.
 4. Review website access, repository links, hosting configuration, and the
-   no-license boundary before enabling the real Viewer on the public Pages site.
+   no-license boundary before enabling the real Viewer on the public site.
 5. Expand the PubMed candidate slice only after technical, retrieval, grounding,
    provenance, cost, and regression gates pass.
 6. Run bounded automated legacy-recovery campaigns, starting with official PMC

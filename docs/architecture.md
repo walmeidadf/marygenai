@@ -194,8 +194,8 @@ data or ignored candidate artifact is copied into the frontend.
 The authenticated AWS path additionally requires the server-only
 `MARYGENAI_VIEWER_API_BEARER_TOKEN`. The proxy adds that credential upstream,
 never exposes it to browser JavaScript, and marks candidate responses private
-and non-cacheable. A static Pages upload cannot hold this secret; the later
-Cloudflare Functions or Worker step provides that server-side boundary.
+and non-cacheable. The deployed Cloudflare Worker provides that server-side
+boundary once a proxy-enabled version is deliberately promoted.
 
 The Python Viewer API reuses `SearchRequest`, `SearchFilters`, facets, study
 detail, projected identity, and snapshot metadata from the retrieval layer. Its
@@ -204,18 +204,17 @@ source hashes and classification provenance. Cursor pagination remains the
 retrieval contract; the web adapter presents stable numbered pages by following
 opaque cursors without changing index ordering.
 
-The frontend has a Sites-compatible build configuration and the maintainer
-reports a Cloudflare Pages deployment. A static Pages build can serve the site
-and synthetic Viewer because the browser falls back to the explicitly labeled
-fictional fixtures when `/api/viewer/*` is absent. A deployment with compatible
-Pages Functions or Worker output can also serve the same-origin proxy routes.
-Real candidate retrieval still needs a separately hosted read-only Viewer API
-with access to an approved immutable snapshot. The preferred initial production
-path is to reuse the existing AWS API Gateway, Lambda, S3, and hash-verified
-DuckDB pattern rather than duplicate
-retrieval behavior in the frontend. Publication of candidate data remains a
-deliberate operation after exposure, access, and licensing boundaries are
-reviewed.
+The frontend has a Sites-compatible build configuration and is deployed as a
+Cloudflare Worker with Static Assets. The active static-only version serves the
+site and synthetic Viewer because the browser falls back to the explicitly
+labeled fictional fixtures when `/api/viewer/*` is absent. The vinext Worker
+entry point can serve the same-origin proxy routes while continuing to serve
+the static assets. Real candidate retrieval remains in the separately hosted
+read-only Viewer API with access to the approved immutable snapshot. The
+production path reuses the existing AWS API Gateway, Lambda, S3, and
+hash-verified DuckDB pattern rather than duplicating retrieval behavior in the
+frontend. Publication of candidate data remains a deliberate operation after
+exposure, access, and licensing boundaries are reviewed.
 
 ## Persistence
 

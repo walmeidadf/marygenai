@@ -1,5 +1,21 @@
 # Decision Log
 
+## 2026-08-13: Keep The Existing Cloudflare Worker And Add The Viewer Proxy As A Version
+
+Dashboard and API inspection established that the public website is deployed
+as Cloudflare Worker `morning-bird-b701` with Static Assets, not as a Pages
+project. The Worker already owns `marygenai.com`, supports version previews,
+and matches the repository's vinext and Cloudflare Vite build output. Moving to
+Pages would add a migration without improving the required same-origin proxy or
+manual deployment workflow.
+
+The existing Worker therefore remains the web edge. Deployment automation uses
+a scoped `Workers Scripts` token from an ignored local environment file. A
+preview build adds the non-secret AWS Viewer API base URL and the distinct
+Viewer bearer token as a version secret, without changing production traffic.
+Production promotion remains a deliberate operation after proxy, credential,
+candidate-exposure, and no-license checks pass.
+
 ## 2026-08-12: Project Internal Provenance Into A Path-Safe MCP Contract
 
 The retrieval index retains exact maintainer-local source and artifact paths for

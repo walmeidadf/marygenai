@@ -5,15 +5,24 @@ import { sites } from "./build/sites-vite-plugin";
 
 const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
   "00000000-0000-4000-8000-000000000000";
+const DEFAULT_WORKER_NAME = "marygenai-web";
 
 const { d1, r2 } = hostingConfig;
+const workerName =
+  process.env.MARYGENAI_CLOUDFLARE_WORKER ?? DEFAULT_WORKER_NAME;
+const viewerApiBaseUrl = process.env.MARYGENAI_VIEWER_API_BASE_URL;
 
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 
 const localBindingConfig = {
+  name: workerName,
   main: "./worker/index.ts",
+  compatibility_date: "2026-05-15",
   compatibility_flags: ["nodejs_compat"],
+  vars: viewerApiBaseUrl
+    ? { MARYGENAI_VIEWER_API_BASE_URL: viewerApiBaseUrl }
+    : {},
   d1_databases: d1
     ? [
         {

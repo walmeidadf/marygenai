@@ -46,16 +46,37 @@ With a real index, preferred PubMed, PMC, or DOI links appear in the results
 and study detail and open in a new browser tab. Synthetic records do not expose
 source links because they are fictional.
 
-Cloudflare Pages can host the site and synthetic Viewer even as a static build;
-the browser falls back to the labeled fictional fixtures if the same-origin API
-routes are absent. A compatible Pages Functions or Worker deployment can host
-the proxy. The real Python/DuckDB Viewer API must run in an environment with
-access to the approved immutable index. The preferred first deployment reuses
+The deployed Cloudflare Worker serves the public site as Static Assets. The
+same Worker can also execute the vinext server routes that proxy
+`/api/viewer/*` to AWS. The real Python/DuckDB Viewer API remains in an
+environment with access to the approved immutable index. The deployment reuses
 the existing AWS API Gateway/Lambda/S3 retrieval pattern and configures
 `MARYGENAI_VIEWER_API_BASE_URL` and the secret
 `MARYGENAI_VIEWER_API_BEARER_TOKEN` in the proxy runtime. The token is
 server-side only and must never use a `NEXT_PUBLIC_` prefix. Proxy and upstream
 responses use `Cache-Control: private, no-store`.
+
+Local Cloudflare automation uses the ignored `.env.cloudflare.local` file and
+the ignored Viewer token under `data/private/`. Validate the generated Worker
+package without uploading it:
+
+```bash
+npm run cloudflare:preview:dry-run
+```
+
+Exercise the built proxy against the authenticated AWS Viewer API without
+starting a public server:
+
+```bash
+npm run cloudflare:proxy:smoke
+```
+
+After confirming that Worker preview URLs are access-protected, upload a new
+version without changing production traffic:
+
+```bash
+npm run cloudflare:preview:upload
+```
 
 ## Validation
 
@@ -66,5 +87,5 @@ npm run build
 ```
 
 The `.openai/hosting.json` file contains no project identifier or persistence
-binding for deployment through OpenAI Sites. The maintainer's separate
-Cloudflare Pages deployment does not itself authorize candidate-index exposure.
+binding for deployment through OpenAI Sites. The Cloudflare deployment does not
+itself authorize candidate-index exposure.
