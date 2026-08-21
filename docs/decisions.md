@@ -32,6 +32,13 @@ resources, preserved the content-addressed 3,437-record snapshot, and passed
 authenticated MCP checks through both the custom domain and native API Gateway
 endpoint. The post-deploy plan reported no drift.
 
+Before PR handoff, the final package was rebuilt from commit `956c9b3` after
+adding transport-level payload-budget coverage and correcting filter-only match
+semantics. A second Lambda-only plan again contained zero additions and zero
+destroys. Remote custom-domain and native API Gateway checks passed, and the
+post-deploy plan reported no drift. A later documentation-only commit does not
+change the packaged application source.
+
 ## 2026-08-13: Keep The Existing Cloudflare Worker And Add The Viewer Proxy As A Version
 
 Dashboard and API inspection established that the public website is deployed

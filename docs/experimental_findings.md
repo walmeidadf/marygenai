@@ -38,6 +38,21 @@ MCP, and cross-use of the MCP token on Viewer each returned HTTP 401. Viewer
 regression retained all 3,437 records. The immutable index and review state were
 not changed, and the post-deploy Terraform plan reported no drift.
 
+The final pre-PR package was rebuilt from commit `956c9b3`. A new regression
+test budgets the combined structured and compatibility-text payload at the MCP
+transport boundary rather than testing the service JSON alone. The match
+contract also now treats filter-only searches constrained exclusively by
+non-core metadata as tangential, while condition or cannabinoid/exposure
+filters provide a direct anchor. In the deployed 3,437-record snapshot, a
+15-result `outcome_domains=safety` filter-only call returned 15 tangential
+matches and every result carried the expected field-level filter reason.
+
+The final package was promoted with a second in-place Lambda code update, zero
+resource additions, and zero destroys. The tool description, Viewer trust
+projection, credential isolation, compact payload measurements, and Viewer
+record count passed through both remote endpoints. The final Terraform plan
+reported no drift.
+
 ## 2026-07-31: Alzheimer Retrieval Exposed Bibliographic Enrichment Gaps
 
 A read-only search for Alzheimer disease returned 77 candidate records across
