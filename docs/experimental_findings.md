@@ -1,5 +1,58 @@
 # Experimental Findings
 
+## 2026-08-21: Compact Search Removed Most Agent Payload Overhead
+
+A local MCP measurement used the active 3,437-record snapshot and the query
+`obesity` with a 15-result limit. The prior search contract produced 120,392
+bytes of structured JSON plus 179,902 bytes of FastMCP compatibility text,
+about 300 KB in one tool result. Repeated identifier candidate values and their
+near-identical provenance trees were the main source of growth.
+
+The retrieval API v3 projection reduced the same structured response to 24,748
+bytes and the compatibility text to 33,160 bytes. That is a 79.4% structured
+reduction and an 80.7% reduction across both representations. The compact
+records preserve shortlist identity, preferred access, retrieval facets,
+uncertainty, review state, a bounded extractive evidence preview, and
+field-level match reasons. Opening the selected record through `get_study`
+still returns complete identity and classification provenance.
+
+All four MCP tools now advertise concrete output schemas instead of a generic
+`additionalProperties` object. The initial measurement and regression checks
+were read-only; no DuckDB content, SQLite state, review state, candidate record,
+or deployed environment was changed during that phase.
+
+The same code was then promoted to the private AWS pilot through a saved
+Terraform plan containing zero additions, one in-place Lambda update, and zero
+destroys. Remote measurements were identical through the custom domain and the
+native API Gateway endpoint: 24,748 structured bytes, 33,160 compatibility-text
+bytes, and 57,908 bytes combined for 15 `obesity` results. The deployed query
+returned 80 bounded candidates from the 3,437-record snapshot.
+
+Remote behavior checks confirmed API v3, concrete schemas for all four tools,
+preferred access, evidence previews no longer than 320 characters, complete
+detail provenance with path-safe artifact references, and bounded zero-result
+language. A 15-result `safety` query produced one direct title/core match and 14
+tangential matches; all 14 tangential results explained the match through
+`outcome_domains`. Missing MCP authentication, cross-use of the Viewer token on
+MCP, and cross-use of the MCP token on Viewer each returned HTTP 401. Viewer
+regression retained all 3,437 records. The immutable index and review state were
+not changed, and the post-deploy Terraform plan reported no drift.
+
+The final pre-PR package was rebuilt from commit `956c9b3`. A new regression
+test budgets the combined structured and compatibility-text payload at the MCP
+transport boundary rather than testing the service JSON alone. The match
+contract also now treats filter-only searches constrained exclusively by
+non-core metadata as tangential, while condition or cannabinoid/exposure
+filters provide a direct anchor. In the deployed 3,437-record snapshot, a
+15-result `outcome_domains=safety` filter-only call returned 15 tangential
+matches and every result carried the expected field-level filter reason.
+
+The final package was promoted with a second in-place Lambda code update, zero
+resource additions, and zero destroys. The tool description, Viewer trust
+projection, credential isolation, compact payload measurements, and Viewer
+record count passed through both remote endpoints. The final Terraform plan
+reported no drift.
+
 ## 2026-07-31: Alzheimer Retrieval Exposed Bibliographic Enrichment Gaps
 
 A read-only search for Alzheimer disease returned 77 candidate records across

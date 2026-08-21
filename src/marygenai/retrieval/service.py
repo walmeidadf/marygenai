@@ -14,12 +14,16 @@ from marygenai.retrieval.models import (
     FacetsResponse,
     FacetValue,
     MatchExplanation,
+    MatchReason,
     ProjectedIdentity,
     PublicIndexManifest,
-    RetrievalConfidence,
+    SearchAccessLink,
     SearchCapabilities,
+    SearchEvidencePreview,
+    SearchIdentifiers,
     SearchRequest,
     SearchResponse,
+    SearchRetrievalConfidence,
     SearchTrace,
     SourceIdentity,
     StudyDetailResponse,
@@ -45,6 +49,10 @@ _STOP_WORDS = {
     "with",
 }
 _CURSOR_VERSION = 1
+_EVIDENCE_PREVIEW_MAX_CHARS = 320
+_CORE_MATCH_FIELDS = frozenset(
+    {"title", "medical_conditions", "cannabinoids_or_exposures"}
+)
 
 FILTER_FAMILIES = {
     "medical_conditions": "medical_conditions",
@@ -58,6 +66,20 @@ FILTER_FAMILIES = {
     "overall_directions": "overall_directions",
     "classification_confidences": "classification_confidences",
     "review_states": "review_states",
+}
+
+_FILTER_MATCH_FIELDS = {
+    "medical_conditions": "medical_conditions",
+    "cannabinoids_or_exposures": "cannabinoids_or_exposures",
+    "study_design_categories": "study_design_category",
+    "study_design_subtypes": "study_design_subtype",
+    "evidence_contexts": "evidence_context",
+    "population_categories": "population_category",
+    "intervention_or_exposure_roles": "intervention_or_exposure_role",
+    "outcome_domains": "outcome_domains",
+    "overall_directions": "overall_direction",
+    "classification_confidences": "classification_confidence",
+    "review_states": "review_state",
 }
 
 
@@ -202,19 +224,196 @@ class RetrievalService:
         return original, projected
 
     @staticmethod
-    def _matched_filters(request: SearchRequest) -> list[str]:
-        matched: list[str] = []
-        for field_name in FILTER_FAMILIES:
-            group = getattr(request.filters, field_name)
-            if group:
-                matched.append(f"{field_name} ({group.match}): {', '.join(group.values)}")
-        if request.filters.publication_year_from is not None:
-            matched.append(f"publication_year >= {request.filters.publication_year_from}")
-        if request.filters.publication_year_to is not None:
-            matched.append(f"publication_year <= {request.filters.publication_year_to}")
+    def _candidate_labels(values: list[dict[str, Any]]) -> list[str]:
+        labels: list[str] = []
+        for value in values:
+            label = value.get("normalized_label") or value.get("free_text_label")
+            if label and label not in labels:
+                labels.append(str(label))
+        return labels
+
+    @classmethod
+    def _search_field_values(
+        cls,
+        row: dict[str, Any],
+        classification: dict[str, Any],
+    ) -> dict[str, list[str]]:
+        population = classification["population_or_model"]
+        return {
+            "title": [str(row["title"])] if row.get("title") else [],
+            "medical_conditions": cls._candidate_labels(
+                classification["medical_conditions"]
+            ),
+            "cannabinoids_or_exposures": cls._candidate_labels(
+                classification["cannabinoids_or_exposures"]
+            ),
+            "study_design_category": [classification["study_design_category"]],
+            "study_design_subtype": [classification["study_design_subtype"]],
+            "evidence_context": [classification["evidence_context"]],
+            "population_category": [population["category"]],
+            "population_description": (
+                [str(population["description"])] if population.get("description") else []
+            ),
+            "intervention_or_exposure_role": [
+                classification["intervention_or_exposure_role"]
+            ],
+            "outcome_domains": [str(value) for value in classification["outcome_domains"]],
+            "overall_direction": [classification["overall_direction"]],
+            "classification_confidence": [row["classification_confidence"]],
+            "review_state": [row["review_state"]],
+            "publication_year": (
+                [str(row["publication_year"])]
+                if row.get("publication_year") is not None
+                else []
+            ),
+            "has_uncertainty": [str(bool(row["has_uncertainty"])).lower()],
+        }
+
+    @staticmethod
+    def _first_matching_value(term: str, values: list[str]) -> str | None:
+        folded = term.casefold()
+        return next((value for value in values if folded in value.casefold()), None)
+
+    @classmethod
+    def _match_explanation(
+        cls,
+        request: SearchRequest,
+        field_values: dict[str, list[str]],
+    ) -> MatchExplanation:
+        reasons: list[MatchReason] = []
+        query_terms = _query_terms(request.query)
+        query_match_fields: list[str] = []
+        filter_match_fields: list[str] = []
+        for term in query_terms:
+            for field_name, values in field_values.items():
+                matched_value = cls._first_matching_value(term, values)
+                if matched_value is None:
+                    continue
+                reasons.append(
+                    MatchReason(
+                        criterion=term,
+                        criterion_type="query_term",
+                        matched_field=field_name,
+                        matched_value=matched_value,
+                    )
+                )
+                query_match_fields.append(field_name)
+                break
+
+        for filter_name in FILTER_FAMILIES:
+            group = getattr(request.filters, filter_name)
+            if group is None:
+                continue
+            matched_field = _FILTER_MATCH_FIELDS[filter_name]
+            values = field_values[matched_field]
+            normalized_values = {
+                normalize_match_key(value): value for value in values if normalize_match_key(value)
+            }
+            for requested_value in group.values:
+                matched_value = normalized_values.get(normalize_match_key(requested_value))
+                if matched_value is None:
+                    continue
+                reasons.append(
+                    MatchReason(
+                        criterion=f"{filter_name}:{requested_value}",
+                        criterion_type="filter",
+                        matched_field=matched_field,
+                        matched_value=matched_value,
+                    )
+                )
+                filter_match_fields.append(matched_field)
+
+        publication_year = field_values["publication_year"]
+        if request.filters.publication_year_from is not None and publication_year:
+            reasons.append(
+                MatchReason(
+                    criterion=f"publication_year_from:{request.filters.publication_year_from}",
+                    criterion_type="filter",
+                    matched_field="publication_year",
+                    matched_value=publication_year[0],
+                )
+            )
+            filter_match_fields.append("publication_year")
+        if request.filters.publication_year_to is not None and publication_year:
+            reasons.append(
+                MatchReason(
+                    criterion=f"publication_year_to:{request.filters.publication_year_to}",
+                    criterion_type="filter",
+                    matched_field="publication_year",
+                    matched_value=publication_year[0],
+                )
+            )
+            filter_match_fields.append("publication_year")
         if request.filters.has_uncertainty is not None:
-            matched.append(f"has_uncertainty = {request.filters.has_uncertainty}")
-        return matched
+            reasons.append(
+                MatchReason(
+                    criterion=f"has_uncertainty:{str(request.filters.has_uncertainty).lower()}",
+                    criterion_type="filter",
+                    matched_field="has_uncertainty",
+                    matched_value=field_values["has_uncertainty"][0],
+                )
+            )
+            filter_match_fields.append("has_uncertainty")
+
+        if query_terms:
+            is_direct = (
+                len(query_match_fields) == len(query_terms)
+                and all(field_name in _CORE_MATCH_FIELDS for field_name in query_match_fields)
+            )
+        elif filter_match_fields:
+            is_direct = any(
+                field_name in _CORE_MATCH_FIELDS for field_name in filter_match_fields
+            )
+        else:
+            is_direct = True
+        kind = "direct" if is_direct else "tangential"
+        return MatchExplanation(kind=kind, reasons=reasons)
+
+    @staticmethod
+    def _evidence_preview(
+        classification: dict[str, Any],
+        request: SearchRequest,
+    ) -> SearchEvidencePreview | None:
+        candidates: list[tuple[str, str | None, str]] = []
+        for span in classification.get("evidence_spans", []):
+            text = str(span.get("text") or "").strip()
+            if text:
+                candidates.append(("evidence_spans", span.get("section"), text))
+        for source_field in ("medical_conditions", "cannabinoids_or_exposures"):
+            for value in classification.get(source_field, []):
+                text = str(value.get("evidence_text") or "").strip()
+                if text:
+                    candidates.append((source_field, "Candidate field evidence", text))
+        if not candidates:
+            return None
+
+        target_terms = _query_terms(request.query)
+        for filter_name in FILTER_FAMILIES:
+            group = getattr(request.filters, filter_name)
+            if group is None:
+                continue
+            for value in group.values:
+                target_terms.extend(_query_terms(value))
+                normalized = normalize_match_key(value)
+                if normalized:
+                    target_terms.append(normalized)
+        target_terms = list(dict.fromkeys(target_terms))
+
+        def evidence_score(candidate: tuple[str, str | None, str]) -> int:
+            text = candidate[2].casefold()
+            return sum(term.casefold() in text for term in target_terms)
+
+        source_field, section, text = max(candidates, key=evidence_score)
+        truncated = len(text) > _EVIDENCE_PREVIEW_MAX_CHARS
+        if truncated:
+            clipped = text[:_EVIDENCE_PREVIEW_MAX_CHARS]
+            text = clipped.rsplit(" ", 1)[0] or clipped
+        return SearchEvidencePreview(
+            text=text,
+            section=section,
+            source_field=source_field,
+            truncated=truncated,
+        )
 
     def search(self, request: SearchRequest) -> SearchResponse:
         where_clause, parameters, trace = self._where_clause(request)
@@ -228,12 +427,11 @@ class RetrievalService:
             cursor = connection.execute(
                 f"""
                 SELECT
-                    d.document_id, d.classification_id, d.title, d.doi, d.pmid, d.pmcid,
-                    d.canonical_url, d.source_url, d.publication_year,
+                    d.document_id, d.title, d.publication_year,
                     d.classification_confidence, d.retrieval_confidence_score,
-                    d.retrieval_confidence_band, d.retrieval_confidence_version,
+                    d.retrieval_confidence_band,
                     d.has_uncertainty, d.review_state, d.classification_json,
-                    d.original_corpus_identity_json, d.projected_identity_json
+                    d.projected_identity_json
                 FROM documents d
                 WHERE {where_clause}
                 ORDER BY d.retrieval_confidence_score DESC NULLS LAST,
@@ -249,44 +447,56 @@ class RetrievalService:
             connection.close()
 
         results: list[StudySearchResult] = []
-        matched = self._matched_filters(request)
         for row in rows:
             classification = json.loads(row.pop("classification_json"))
-            original_identity, projected_identity = self._identity_contract(row)
+            projected_identity = ProjectedIdentity.model_validate(
+                json.loads(row["projected_identity_json"])
+            )
+            preferred_access = projected_identity.preferred_access_url
+            field_values = self._search_field_values(row, classification)
             results.append(
                 StudySearchResult(
                     document_id=row["document_id"],
-                    classification_id=row["classification_id"],
-                    source_identity=self._source_identity(row),
-                    original_corpus_identity=original_identity,
-                    projected_identity=projected_identity,
-                    retrieval_metadata={
-                        "medical_conditions": classification["medical_conditions"],
-                        "cannabinoids_or_exposures": classification["cannabinoids_or_exposures"],
-                        "study_design_category": classification["study_design_category"],
-                        "study_design_subtype": classification["study_design_subtype"],
-                        "evidence_context": classification["evidence_context"],
-                        "population_or_model": classification["population_or_model"],
-                        "intervention_or_exposure_role": classification[
-                            "intervention_or_exposure_role"
-                        ],
-                        "outcome_domains": classification["outcome_domains"],
-                        "overall_direction": classification["overall_direction"],
-                    },
+                    title=row.get("title"),
+                    publication_year=row.get("publication_year"),
+                    identifiers=SearchIdentifiers(
+                        pmid=projected_identity.pmid,
+                        pmcid=projected_identity.pmcid,
+                        doi=projected_identity.doi,
+                        status=projected_identity.status,
+                    ),
+                    preferred_access_url=(
+                        SearchAccessLink(
+                            label=preferred_access.label,
+                            url=preferred_access.url,
+                            url_kind=preferred_access.url_kind,
+                        )
+                        if preferred_access
+                        else None
+                    ),
+                    medical_conditions=field_values["medical_conditions"],
+                    cannabinoids_or_exposures=field_values[
+                        "cannabinoids_or_exposures"
+                    ],
+                    study_design_category=classification["study_design_category"],
+                    study_design_subtype=classification["study_design_subtype"],
+                    evidence_context=classification["evidence_context"],
+                    population_category=classification["population_or_model"]["category"],
+                    intervention_or_exposure_role=classification[
+                        "intervention_or_exposure_role"
+                    ],
+                    outcome_domains=classification["outcome_domains"],
+                    overall_direction=classification["overall_direction"],
                     classification_confidence=row["classification_confidence"],
-                    retrieval_confidence=RetrievalConfidence(
+                    retrieval_confidence=SearchRetrievalConfidence(
                         score=row["retrieval_confidence_score"],
                         band=row["retrieval_confidence_band"],
-                        version=row["retrieval_confidence_version"],
                     ),
                     has_uncertainty=row["has_uncertainty"],
+                    uncertain_fields=classification["missing_or_uncertain_fields"],
                     review_state=row["review_state"],
-                    trust_boundary=TrustBoundary(),
-                    match=MatchExplanation(
-                        matched=matched,
-                        uncertain_fields=classification["missing_or_uncertain_fields"],
-                        not_represented=request.unsupported_dimensions,
-                    ),
+                    evidence_preview=self._evidence_preview(classification, request),
+                    match=self._match_explanation(request, field_values),
                     detail_uri=f"marygenai://studies/{row['document_id']}",
                 )
             )

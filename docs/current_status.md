@@ -1,6 +1,6 @@
 # Current Status
 
-Last documentation verification: 2026-08-13.
+Last documentation verification: 2026-08-21.
 
 ## Product State
 
@@ -174,10 +174,40 @@ uv run marygenai viewer serve-api
 
 The MCP surface provides:
 
-- `search_studies` for lexical and structured candidate retrieval;
+- `search_studies` for compact lexical and structured candidate retrieval;
 - `get_study` for full identity, evidence, uncertainty, and provenance;
 - `get_facets` for bounded index counts;
 - `get_search_capabilities` for supported filters and presentation rules.
+
+The repository implementation now exposes `candidate_retrieval_api.v3`.
+Search results retain shortlist fields, bounded extractive evidence previews,
+preferred access links, deterministic field-level match reasons, uncertainty,
+and review state while moving complete identity and classification provenance
+to `get_study`. A measured local 15-result `obesity` response over the active
+snapshot decreased from 120,392 to 24,748 structured JSON bytes. Tool discovery
+now exposes concrete output schemas for all four tools.
+
+The compact contract was promoted to the private AWS pilot on 2026-08-21 with
+one in-place Lambda code update, zero resource additions, and zero destroys.
+The content-addressed 3,437-record index, manifest, routes, credentials, and
+Viewer configuration were unchanged. Authenticated smoke tests passed through
+both the custom domain and the native API Gateway endpoint. The deployed
+15-result `obesity` call returned API v3 in 24,748 structured bytes plus 33,160
+compatibility-text bytes; search omitted rich provenance, `get_study` retained
+it, evidence previews remained below 320 characters, and preferred access URLs
+were present. Authentication isolation, bounded zero-result language, facets,
+the 3,437-record Viewer, and direct-versus-tangential match reasons also passed.
+A post-deploy Terraform plan reported no drift.
+
+Final pre-PR hardening was rebuilt from commit `956c9b3` and promoted through a
+second Lambda-only in-place update with zero additions and zero destroys. The
+tool description now matches the compact contract, the Viewer consumes the
+response-level trust boundary, and filter-only searches constrained exclusively
+by non-core metadata are tangential. Remote checks through both endpoints
+confirmed that 15 `outcome_domains=safety` filter-only results were tangential
+and carried explicit filter reasons. The local suite now has 151 passing tests,
+including a combined structured-plus-compatibility-text payload budget at the
+MCP transport boundary. The final post-deploy Terraform plan reported no drift.
 
 The same query service backs all interfaces. DuckDB is opened with
 `read_only=True`; the runtime receives no SQLite database, review state,

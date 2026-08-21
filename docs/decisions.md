@@ -1,5 +1,44 @@
 # Decision Log
 
+## 2026-08-21: Keep Search Agent-Compact And Study Detail Audit-Complete
+
+`search_studies` is a shortlist interface, not the audit record. Retrieval API
+v3 therefore returns compact accepted identifiers, preferred access, core
+candidate facets, bounded extractive evidence, uncertainty, review state, and
+field-level match reasons. Original identity, identifier-candidate trees,
+complete evidence spans, and model, prompt, repair, and source provenance remain
+available through `get_study`.
+
+The boundary is driven by measured agent cost. On the active local snapshot, a
+15-result `obesity` search serialized to 120,392 structured JSON bytes before
+the change and 24,748 bytes after it. FastMCP also emits a compatibility text
+representation, so compacting the source model reduces both representations
+without depending on a transport-specific omission. Typed return models also
+replace generic free-form output schemas with concrete tool schemas.
+
+The compact contract does not weaken the candidate-evidence boundary. Search
+still carries one response-level trust contract, explicit uncertainty, bounded
+zero-result language, preferred physician-facing access, and a required detail
+step before detailed evidence claims. The scientific vocabulary and query
+contract remain canonical English, with translation delegated to the MCP host;
+no multilingual index or aliases are introduced. Existing key-based pilot
+authentication is unchanged. Per-user identity and social login remain a later
+authorization decision, with Cognito as a candidate when that requirement is
+active.
+
+The compact contract was promoted on 2026-08-21 through a saved Terraform plan
+that updated only the Lambda code in place. The apply added and destroyed no
+resources, preserved the content-addressed 3,437-record snapshot, and passed
+authenticated MCP checks through both the custom domain and native API Gateway
+endpoint. The post-deploy plan reported no drift.
+
+Before PR handoff, the final package was rebuilt from commit `956c9b3` after
+adding transport-level payload-budget coverage and correcting filter-only match
+semantics. A second Lambda-only plan again contained zero additions and zero
+destroys. Remote custom-domain and native API Gateway checks passed, and the
+post-deploy plan reported no drift. A later documentation-only commit does not
+change the packaged application source.
+
 ## 2026-08-13: Keep The Existing Cloudflare Worker And Add The Viewer Proxy As A Version
 
 Dashboard and API inspection established that the public website is deployed

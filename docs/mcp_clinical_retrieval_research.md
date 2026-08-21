@@ -140,7 +140,7 @@ The retrieval contract should be evaluated against at least the following
 question families. Expected status reflects v3 field coverage and must be
 revalidated against the complete pilot index with physician feedback.
 
-| Specialty | Representative question | Structured retrieval intent | Expected v1 status | Important gaps |
+| Specialty | Representative question | Structured retrieval intent | Expected pilot status | Important gaps |
 |---|---|---|---|---|
 | Pediatric neurology | What studies evaluated CBD efficacy and adverse events in children with Dravet syndrome or refractory epilepsy? | Dravet or epilepsy, CBD, pediatric humans, clinical trials or syntheses, efficacy and safety | Supported for discovery | Dose, seizure-frequency outcome, concomitant medication, comparator |
 | Neurology | Does CBD appear relevant to sleep, anxiety, or cognition in Parkinson's disease? | Parkinson's disease, CBD, adult humans, efficacy, safety, cognition | Partially supported | Specific sleep and anxiety outcomes, dose, older-adult subgroup |
@@ -158,7 +158,7 @@ Acceptance testing should label each question `supported`,
 correct limitations. Returning no results is valid when the effective query and
 coverage gap are explicit.
 
-## V1 Retrieval Contract Implications
+## Current Retrieval Contract Implications
 
 ### Required tools
 
@@ -224,7 +224,7 @@ are:
 
 The smaller `andybrandt/mcp-simple-pubmed` project demonstrates PICO and
 systematic-review prompts. MaryGenAI should keep PICO translation in the host
-rather than adding an MCP prompt or server-side LLM to v1.
+rather than adding an MCP prompt or server-side LLM to the current pilot.
 
 ### Scholarly graph services
 
@@ -235,7 +235,7 @@ MaryGenAI-specific clinical candidate metadata and provenance.
 
 Europe PMC exposes publications, preprints, full text, references, citations,
 citation networks, and text-mined entities. These are future enrichment inputs,
-not a reason to add network calls to the closed local MCP v1.
+not a reason to add network calls to the closed local MCP pilot.
 
 NCBI E-utilities separate search, fetch, link, spelling, and other operations.
 PubMed Clinical Queries use distinct retrieval filters for therapy, diagnosis,

@@ -6,6 +6,12 @@ This document describes the implemented MaryGenAI retrieval-index and MCP
 contract over the active private 3,437-record snapshot: 3,149 strict
 classification-ready records plus 288 qualified PubMed candidates.
 
+`search_studies` uses `candidate_retrieval_api.v3`, an agent-compact result
+contract. Search carries only the fields needed to shortlist records; complete
+bibliographic provenance and candidate-classification detail remain available
+through `get_study`. API v3 was promoted to the private AWS pilot on
+2026-08-21 without changing the immutable retrieval snapshot.
+
 The interface returns AI-classified candidate evidence. It does not return
 reviewed clinical truth, medical advice, or treatment recommendations.
 
@@ -125,17 +131,22 @@ Search responses and capabilities expose a machine-readable
 - interpret zero results only as no candidate records retrieved from the
   current index for the effective query, never as evidence that the scientific
   literature contains no such studies;
-- include `projected_identity.preferred_access_url` whenever citing a returned
-  record;
+- include `results[].preferred_access_url` whenever citing a returned record;
 - call `get_study` for shortlisted records before making detailed evidence
   claims;
 - distinguish direct matches from tangential matches using the question,
   effective query, title, candidate metadata, match explanation, and detailed
   source evidence.
 
-The server does not assign a new direct-versus-tangential relevance label. That
-judgment remains visible host reasoning over candidate metadata rather than an
-unevaluated clinical relevance classifier.
+The server assigns a deterministic lexical `direct` or `tangential` match kind.
+`direct` means every effective query term matched the title, condition labels,
+or cannabinoid/exposure labels. A match only in design, context, population,
+outcome, or direction metadata is `tangential`. This is an inspectable search
+explanation, not a clinical relevance classification; the host must still
+compare shortlisted records with the user's question and study detail.
+For filter-only searches, at least one condition or cannabinoid/exposure filter
+anchors a `direct` match; searches constrained only by non-core metadata are
+`tangential`. Unfiltered browsing retains `direct` as a neutral default.
 
 The first implementation applies question type as context only, not as a hidden
 filter or ranking adjustment.
@@ -163,21 +174,25 @@ The response includes:
 
 - total matches and returned count;
 - opaque next cursor;
-- query terms;
-- requested and applied filters;
-- host-declared unsupported dimensions;
-- an empty `relaxations` list in v1;
-- compact source identity and candidate retrieval metadata;
-- original corpus identity and the separate projected bibliographic identity;
-- identifier-level provenance, explicit conflicts, labeled identity URLs, and
-  the deterministic preferred physician-facing access URL;
-- classification and retrieval confidence with separate semantics;
-- declared uncertainty and review state;
-- deterministic match explanations;
-- a study-detail resource URI;
-- the candidate-evidence trust boundary;
+- one search trace containing query terms, requested and applied filters,
+  host-declared unsupported dimensions, and explicit relaxations;
+- per-result title, year, compact accepted identifiers, condition and exposure
+  labels, the main retrieval facets, classification and retrieval-confidence
+  bands, uncertainty fields, and review state;
+- one bounded extractive evidence preview of at most 320 characters when
+  candidate evidence is available;
+- deterministic match kind and field-level reasons;
+- the deterministic preferred physician-facing access URL and a study-detail
+  resource URI;
+- one response-level candidate-evidence trust boundary;
 - the host presentation contract for candidate wording, zero-result scope,
   preferred access links, study-detail inspection, and tangential matches.
+
+Search deliberately omits original identity, identifier-candidate provenance,
+the full classification object, repeated trust language, and model/prompt
+provenance. `get_study` is the audit-complete interface for those fields. The
+MCP tools return typed models so discovery exposes concrete output schemas
+rather than generic free-form objects.
 
 Results are ordered by retrieval-confidence heuristic, publication year, and
 stable document identity. The retrieval-confidence value is not a calibrated
@@ -285,7 +300,7 @@ Every response states:
 }
 ```
 
-## Known V1 Limits
+## Known Pilot Limits
 
 - The active index covers 3,437 candidates: 3,149 strict classification-ready
   documents plus 288 qualified PubMed candidates.
@@ -309,7 +324,7 @@ Every response states:
 - Question type does not yet select validated Clinical Query-style evidence
   filters.
 - No citations, references, related-study graph, or full-text content is exposed
-  through MCP v1.
+  through the current MCP pilot.
 
 The research and backlog behind these limits are preserved in
 `docs/mcp_clinical_retrieval_research.md`.

@@ -5,7 +5,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 RETRIEVAL_INDEX_SCHEMA_VERSION = "candidate_retrieval_index.v2"
-RETRIEVAL_API_VERSION = "candidate_retrieval_api.v2"
+RETRIEVAL_API_VERSION = "candidate_retrieval_api.v3"
 RETRIEVAL_CONFIDENCE_SEMANTICS = (
     "Deterministic heuristic retrieval-ranking signal; not a calibrated probability "
     "and not clinical evidence strength."
@@ -153,8 +153,8 @@ class SearchPresentationContract(BaseModel):
     zero_result_message: str = ZERO_RESULT_NOTICE
     literature_absence_inference_allowed: Literal[False] = False
     preferred_access_url_required_for_cited_results: Literal[True] = True
-    preferred_access_url_path: Literal["projected_identity.preferred_access_url"] = (
-        "projected_identity.preferred_access_url"
+    preferred_access_url_path: Literal["results[].preferred_access_url"] = (
+        "results[].preferred_access_url"
     )
     study_detail_required_for_detailed_evidence_claims: Literal[True] = True
     study_detail_tool: Literal["get_study"] = "get_study"
@@ -224,24 +224,88 @@ class RetrievalConfidence(BaseModel):
     semantics: str = RETRIEVAL_CONFIDENCE_SEMANTICS
 
 
+class SearchRetrievalConfidence(BaseModel):
+    """Compact per-result ranking signal without repeated global semantics."""
+
+    score: float | None = None
+    band: str | None = None
+
+
+class SearchIdentifiers(BaseModel):
+    pmid: str | None = None
+    pmcid: str | None = None
+    doi: str | None = None
+    status: Literal["consistent", "conflict"]
+
+
+class SearchAccessLink(BaseModel):
+    label: str
+    url: str
+    url_kind: Literal["pubmed", "pmc_full_text", "doi", "canonical", "source"]
+
+
+class SearchEvidencePreview(BaseModel):
+    """Bounded extractive candidate evidence for search-result triage."""
+
+    text: str = Field(min_length=1, max_length=320)
+    section: str | None = None
+    source_field: Literal[
+        "evidence_spans",
+        "medical_conditions",
+        "cannabinoids_or_exposures",
+    ]
+    truncated: bool = False
+
+
+class MatchReason(BaseModel):
+    criterion: str
+    criterion_type: Literal["query_term", "filter"]
+    matched_field: Literal[
+        "title",
+        "medical_conditions",
+        "cannabinoids_or_exposures",
+        "study_design_category",
+        "study_design_subtype",
+        "evidence_context",
+        "population_category",
+        "population_description",
+        "intervention_or_exposure_role",
+        "outcome_domains",
+        "overall_direction",
+        "classification_confidence",
+        "review_state",
+        "publication_year",
+        "has_uncertainty",
+    ]
+    matched_value: str
+
+
 class MatchExplanation(BaseModel):
-    matched: list[str] = Field(default_factory=list)
-    uncertain_fields: list[str] = Field(default_factory=list)
-    not_represented: list[str] = Field(default_factory=list)
+    kind: Literal["direct", "tangential"]
+    reasons: list[MatchReason] = Field(default_factory=list)
 
 
 class StudySearchResult(BaseModel):
     document_id: str
-    classification_id: str
-    source_identity: SourceIdentity
-    original_corpus_identity: SourceIdentity
-    projected_identity: ProjectedIdentity
-    retrieval_metadata: dict[str, Any]
-    classification_confidence: str
-    retrieval_confidence: RetrievalConfidence
+    title: str | None = None
+    publication_year: int | None = None
+    identifiers: SearchIdentifiers
+    preferred_access_url: SearchAccessLink | None = None
+    medical_conditions: list[str] = Field(default_factory=list)
+    cannabinoids_or_exposures: list[str] = Field(default_factory=list)
+    study_design_category: str
+    study_design_subtype: str
+    evidence_context: str
+    population_category: str
+    intervention_or_exposure_role: str
+    outcome_domains: list[str] = Field(default_factory=list)
+    overall_direction: str
+    classification_confidence: Literal["high", "medium", "low"]
+    retrieval_confidence: SearchRetrievalConfidence
     has_uncertainty: bool
-    review_state: str
-    trust_boundary: TrustBoundary
+    uncertain_fields: list[str] = Field(default_factory=list)
+    review_state: Literal["needs_review"]
+    evidence_preview: SearchEvidencePreview | None = None
     match: MatchExplanation
     detail_uri: str
 
