@@ -143,21 +143,25 @@ size, geography, study period, conflicting evidence, and related publications.
 The MCP server should expose retrieval evidence. It must not convert retrieval
 rank into a treatment recommendation.
 
-## Implemented Read-Only V1 Retrieval Layer
+## Implemented Read-Only Retrieval Layer
 
-The first retrieval layer materializes all 3,149 strict candidate v3 records,
-corpus identity, and evaluation outputs into an isolated ignored DuckDB artifact.
-It exposes search, detail, facets, and capabilities through the supported
-`marygenai` CLI, MCP stdio, and stateless Streamable HTTP server. The deployed
-AWS pilot serves a content-addressed copy of that artifact through API Gateway
-and Lambda while preserving the same read-only query service.
+The retrieval layer materializes all 3,149 strict candidate v3 records plus 288
+qualified PubMed candidates, corpus identity, and evaluation outputs into an
+isolated ignored DuckDB artifact. It exposes search, detail, facets, and
+capabilities through the supported `marygenai` CLI, MCP stdio, and stateless
+Streamable HTTP server. The deployed AWS pilot serves a content-addressed copy
+of that 3,437-record artifact through API Gateway and Lambda while preserving
+the same read-only query service.
 
-V1 uses deterministic case-folded alias keys, explicit `any` or `all` facet
-semantics, opaque build-bound pagination cursors, and no silent filter
+The layer uses deterministic case-folded alias keys, explicit `any` or `all`
+facet semantics, opaque build-bound pagination cursors, and no silent filter
 relaxation. Original candidate labels remain unchanged in detail responses.
-Every response preserves candidate trust language and review state. Detail also
-returns source path and hash, evidence spans, grounding-review worklist status,
-retrieval-confidence semantics, versions, and provenance.
+Retrieval API v3 keeps search agent-compact and moves complete identity,
+evidence, and model provenance to study detail. Search retains bounded evidence
+previews, compact identifiers, preferred access, match reasons, uncertainty,
+review state, and one response-level trust boundary. Detail also returns
+path-safe source references and hashes, evidence spans, grounding-review
+worklist status, retrieval-confidence semantics, versions, and provenance.
 
 Question decomposition remains the MCP host's responsibility. MaryGenAI does
 not receive a patient record, call an LLM, or infer treatment applicability.

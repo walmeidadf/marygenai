@@ -29,13 +29,6 @@ def _labels(values: list[Any]) -> list[str]:
     return labels
 
 
-def _preferred_identity(result: Any) -> tuple[str | None, str | None]:
-    preferred = result.projected_identity.preferred_access_url
-    if preferred is None:
-        return None, None
-    return preferred.url, preferred.label
-
-
 def _condition_labels(metadata: dict[str, Any]) -> list[str]:
     return [
         value.get("normalized_label") or value.get("free_text_label")
@@ -57,51 +50,31 @@ def _population_label(metadata: dict[str, Any]) -> str:
     return population.get("category") or population.get("description") or "not represented"
 
 
-def _match_kind(result: Any, query_terms: list[str]) -> str:
-    if not query_terms:
-        return "direct"
-    metadata = result.retrieval_metadata
-    core_text = " ".join(
-        [
-            result.source_identity.title or "",
-            *_condition_labels(metadata),
-            *_exposure_labels(metadata),
-        ]
-    ).casefold()
-    return (
-        "direct"
-        if all(term.casefold() in core_text for term in query_terms)
-        else "tangential"
-    )
-
-
-def _summary(result: Any, query_terms: list[str] | None = None) -> dict[str, Any]:
-    metadata = result.retrieval_metadata
-    preferred_url, preferred_label = _preferred_identity(result)
-    projected = result.projected_identity
+def _summary(result: Any, *, trust_level: str) -> dict[str, Any]:
+    preferred = result.preferred_access_url
     return {
         "documentId": result.document_id,
-        "title": result.source_identity.title or "Untitled publication",
-        "year": result.source_identity.publication_year,
-        "conditions": _condition_labels(metadata),
-        "cannabinoids": _exposure_labels(metadata),
-        "studyDesign": metadata.get("study_design_category") or "not represented",
-        "population": _population_label(metadata),
-        "outcomeDomains": metadata.get("outcome_domains") or [],
+        "title": result.title or "Untitled publication",
+        "year": result.publication_year,
+        "conditions": result.medical_conditions,
+        "cannabinoids": result.cannabinoids_or_exposures,
+        "studyDesign": result.study_design_category,
+        "population": result.population_category,
+        "outcomeDomains": result.outcome_domains,
         "classificationConfidence": result.classification_confidence,
         "retrievalConfidenceBand": result.retrieval_confidence.band or "low",
         "retrievalConfidenceScore": result.retrieval_confidence.score or 0,
         "reviewState": result.review_state,
-        "trustLevel": result.trust_boundary.trust_level,
+        "trustLevel": trust_level,
         "hasUncertainty": result.has_uncertainty,
-        "matchKind": _match_kind(result, query_terms or []),
+        "matchKind": result.match.kind,
         "identifiers": {
-            "pmid": projected.pmid,
-            "pmcid": projected.pmcid,
-            "doi": projected.doi,
+            "pmid": result.identifiers.pmid,
+            "pmcid": result.identifiers.pmcid,
+            "doi": result.identifiers.doi,
         },
-        "preferredAccessUrl": preferred_url,
-        "preferredAccessLabel": preferred_label,
+        "preferredAccessUrl": preferred.url if preferred else None,
+        "preferredAccessLabel": preferred.label if preferred else None,
     }
 
 
@@ -286,7 +259,10 @@ def create_app(
             "totalPages": total_pages,
             "sort": sort,
             "results": [
-                _summary(result, response.search_trace.query_terms)
+                _summary(
+                    result,
+                    trust_level=response.trust_boundary.trust_level,
+                )
                 for result in response.results
             ],
             "zeroResultMessage": ZERO_RESULT_MESSAGE,

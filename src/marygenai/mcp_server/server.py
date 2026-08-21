@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
@@ -10,7 +9,13 @@ from mcp.types import ToolAnnotations
 
 from marygenai.mcp_server.projection import project_mcp_payload
 from marygenai.retrieval.common import DEFAULT_INDEX_RELATIVE_PATH
-from marygenai.retrieval.models import SearchRequest
+from marygenai.retrieval.models import (
+    FacetsResponse,
+    SearchCapabilities,
+    SearchRequest,
+    SearchResponse,
+    StudyDetailResponse,
+)
 from marygenai.retrieval.service import RetrievalService
 from marygenai.settings import get_settings
 
@@ -36,7 +41,7 @@ def create_mcp_server(
             "search results only as AI-classified candidate matches, not validated relevant "
             "studies. A zero-result search means only that the effective query retrieved no "
             "candidate records from the current index; never infer absence from the scientific "
-            "literature. Include projected_identity.preferred_access_url whenever citing a "
+            "literature. Include results[].preferred_access_url whenever citing a "
             "result. Call get_study for shortlisted records before making detailed evidence "
             "claims, and separate direct matches from tangential matches. Never send "
             "patient-identifying information. "
@@ -70,16 +75,17 @@ def create_mcp_server(
             "non-English scientific concepts into concise English query terms and filter "
             "labels before calling this tool. The server never silently relaxes filters and "
             "returns the effective query, match explanations, uncertainty, review state, and "
-            "source identity. Describe outputs only as candidate matches; zero matches do not "
-            "establish absence from the scientific literature. Include each cited result's "
-            "projected_identity.preferred_access_url, separate direct from tangential matches, "
+            "compact identifiers and preferred access. Describe outputs only as candidate "
+            "matches; zero matches do not establish absence from the scientific literature. "
+            "Include each cited result's preferred_access_url, separate direct from "
+            "tangential matches, "
             "and call get_study before making detailed evidence claims."
         ),
         annotations=read_only,
         structured_output=True,
     )
-    def search_studies(request: SearchRequest) -> dict[str, Any]:
-        return project_mcp_payload(service.search(request).model_dump(mode="json"))
+    def search_studies(request: SearchRequest) -> SearchResponse:
+        return service.search(request)
 
     @mcp.tool(
         title="Get MaryGenAI study detail",
@@ -93,8 +99,9 @@ def create_mcp_server(
         annotations=read_only,
         structured_output=True,
     )
-    def get_study(document_id: str) -> dict[str, Any]:
-        return project_mcp_payload(service.get_study(document_id).model_dump(mode="json"))
+    def get_study(document_id: str) -> StudyDetailResponse:
+        detail = service.get_study(document_id).model_dump(mode="json")
+        return StudyDetailResponse.model_validate(project_mcp_payload(detail))
 
     @mcp.tool(
         title="Get MaryGenAI search facets",
@@ -106,8 +113,8 @@ def create_mcp_server(
         annotations=read_only,
         structured_output=True,
     )
-    def get_facets(request: SearchRequest, top: int = 25) -> dict[str, Any]:
-        return service.facets(request, top=top).model_dump(mode="json")
+    def get_facets(request: SearchRequest, top: int = 25) -> FacetsResponse:
+        return service.facets(request, top=top)
 
     @mcp.tool(
         title="Get MaryGenAI search capabilities",
@@ -119,8 +126,8 @@ def create_mcp_server(
         annotations=read_only,
         structured_output=True,
     )
-    def get_search_capabilities() -> dict[str, Any]:
-        return service.capabilities().model_dump(mode="json")
+    def get_search_capabilities() -> SearchCapabilities:
+        return service.capabilities()
 
     @mcp.resource(
         "marygenai://index/manifest",

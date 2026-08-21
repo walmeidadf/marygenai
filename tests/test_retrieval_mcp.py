@@ -36,6 +36,8 @@ from marygenai.retrieval.models import FilterGroup, SearchFilters, SearchRequest
 from marygenai.retrieval.service import RetrievalService
 from marygenai.viewer.app import create_app as create_viewer_app
 
+MCP_THREE_RESULT_PAYLOAD_BUDGET_BYTES = 20_000
+
 
 def write_jsonl(path: Path, rows: list[dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -471,10 +473,21 @@ def test_search_supports_aliases_all_filters_pagination_and_trace(
     assert response.returned == 1
     assert response.next_cursor is None
     assert response.results[0].document_id == "publication:test:1"
-    assert response.results[0].match.not_represented == ["dose", "comparator"]
-    assert response.results[0].original_corpus_identity.pmid == "10001"
-    assert response.results[0].projected_identity.pmid == "10001"
-    assert response.results[0].projected_identity.preferred_access_url is not None
+    assert response.results[0].identifiers.pmid == "10001"
+    assert response.results[0].preferred_access_url is not None
+    assert response.results[0].match.kind == "direct"
+    assert {
+        (reason.criterion, reason.matched_field)
+        for reason in response.results[0].match.reasons
+    } >= {
+        ("dravet", "medical_conditions"),
+        ("cbd", "cannabinoids_or_exposures"),
+        ("medical_conditions:dravet syndrome", "medical_conditions"),
+        ("cannabinoids_or_exposures:cannabidiol", "cannabinoids_or_exposures"),
+    }
+    assert response.results[0].evidence_preview is not None
+    assert "Dravet syndrome" in response.results[0].evidence_preview.text
+    assert response.search_trace.unsupported_dimensions == ["dose", "comparator"]
     assert response.search_trace.relaxations == []
     assert response.presentation_contract.result_label == (
         "AI-classified candidate matches"
@@ -490,6 +503,80 @@ def test_search_supports_aliases_all_filters_pagination_and_trace(
     assert page_two.returned == 1
     assert {item.document_id for item in page_one.results}.isdisjoint(
         {item.document_id for item in page_two.results}
+    )
+
+
+def test_search_response_is_compact_and_keeps_full_provenance_in_detail(
+    retrieval_index: Path,
+) -> None:
+    service = RetrievalService(retrieval_index)
+    response = service.search(SearchRequest(limit=3))
+    payload = response.model_dump(mode="json")
+    result = payload["results"][0]
+
+    assert "projected_identity" not in result
+    assert "original_corpus_identity" not in result
+    assert "source_identity" not in result
+    assert "classification_id" not in result
+    assert result["preferred_access_url"]["url_kind"] == "pubmed"
+
+    fifteen_results = {
+        **payload,
+        "returned": 15,
+        "results": payload["results"] * 5,
+    }
+    serialized = json.dumps(
+        fifteen_results,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode()
+    assert len(serialized) < 30_000
+
+    detail = service.get_study(result["document_id"])
+    assert detail.projected_identity.identifiers
+    assert detail.original_corpus_identity.pmid == "10001"
+
+
+def test_search_marks_non_core_query_matches_as_tangential(
+    retrieval_index: Path,
+) -> None:
+    response = RetrievalService(retrieval_index).search(
+        SearchRequest(query="safety", limit=3)
+    )
+
+    assert response.returned == 3
+    assert {result.match.kind for result in response.results} == {"tangential"}
+    assert all(
+        any(
+            reason.criterion == "safety"
+            and reason.matched_field == "outcome_domains"
+            for reason in result.match.reasons
+        )
+        for result in response.results
+    )
+
+
+def test_search_marks_non_core_filter_only_matches_as_tangential(
+    retrieval_index: Path,
+) -> None:
+    response = RetrievalService(retrieval_index).search(
+        SearchRequest(
+            filters=SearchFilters(
+                outcome_domains=FilterGroup(values=["safety"]),
+            ),
+            limit=3,
+        )
+    )
+
+    assert response.returned == 3
+    assert {result.match.kind for result in response.results} == {"tangential"}
+    assert all(
+        any(
+            reason.criterion == "outcome_domains:safety"
+            and reason.matched_field == "outcome_domains"
+            for reason in result.match.reasons
+        )
+        for result in response.results
     )
 
 
@@ -765,8 +852,37 @@ async def test_mcp_exposes_only_read_only_candidate_retrieval_tools(
         assert tool.annotations.openWorldHint is False
     assert "Translate non-English scientific concepts" in tools.tools[0].description
     assert "zero matches do not establish absence" in tools.tools[0].description
-    assert "projected_identity.preferred_access_url" in tools.tools[0].description
+    assert "compact identifiers and preferred access" in tools.tools[0].description
+    assert "source identity" not in tools.tools[0].description
+    assert "preferred_access_url" in tools.tools[0].description
     assert "call get_study" in tools.tools[0].description
+    for tool in tools.tools:
+        assert tool.outputSchema is not None
+        assert tool.outputSchema.get("additionalProperties") is not True
+        assert tool.outputSchema.get("properties")
+    assert "results" in tools.tools[0].outputSchema["properties"]
+
+    budget_result = await mcp_client.call_tool(
+        "search_studies",
+        {"request": {"limit": 3}},
+    )
+    assert budget_result.isError is False
+    assert budget_result.structuredContent["returned"] == 3
+    budget_structured = json.dumps(
+        budget_result.structuredContent,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode()
+    budget_compatibility_text = b"".join(
+        block.text.encode()
+        for block in budget_result.content
+        if block.type == "text"
+    )
+    assert budget_compatibility_text
+    assert (
+        len(budget_structured) + len(budget_compatibility_text)
+        < MCP_THREE_RESULT_PAYLOAD_BUDGET_BYTES
+    )
 
     result = await mcp_client.call_tool(
         "search_studies",
@@ -784,8 +900,11 @@ async def test_mcp_exposes_only_read_only_candidate_retrieval_tools(
     )
     assert result.isError is False
     assert result.structuredContent["total"] == 1
-    projected = result.structuredContent["results"][0]["projected_identity"]
-    assert projected["preferred_access_url"]["url_kind"] == "pubmed"
+    search_result = result.structuredContent["results"][0]
+    assert search_result["preferred_access_url"]["url_kind"] == "pubmed"
+    assert search_result["identifiers"]["pmid"] == "10001"
+    assert search_result["match"]["kind"] == "direct"
+    assert search_result["evidence_preview"]["text"]
     presentation = result.structuredContent["presentation_contract"]
     assert presentation["result_label"] == "AI-classified candidate matches"
     assert presentation["distinguish_direct_from_tangential_matches"] is True
@@ -794,18 +913,9 @@ async def test_mcp_exposes_only_read_only_candidate_retrieval_tools(
 
     search_payload = json.dumps(result.structuredContent)
     assert "data/processed" not in search_payload
-    provenance_paths = [
-        item["source_artifact_path"]
-        for identifier in result.structuredContent["results"][0]["projected_identity"][
-            "identifiers"
-        ]
-        for candidate_value in identifier["candidate_values"]
-        for item in candidate_value["provenance"]
-    ]
-    assert provenance_paths
-    assert all(
-        path.startswith("artifact-ref://sha256/") for path in provenance_paths
-    )
+    assert "projected_identity" not in search_result
+    assert "original_corpus_identity" not in search_result
+    assert "source_identity" not in search_result
 
     detail = await mcp_client.call_tool(
         "get_study",
@@ -820,6 +930,14 @@ async def test_mcp_exposes_only_read_only_candidate_retrieval_tools(
     assert detail_payload["candidate_classification"]["evidence_spans"][0][
         "source_text_path"
     ].startswith("artifact-ref://sha256/")
+    provenance_paths = [
+        item["source_artifact_path"]
+        for identifier in detail_payload["projected_identity"]["identifiers"]
+        for candidate_value in identifier["candidate_values"]
+        for item in candidate_value["provenance"]
+    ]
+    assert provenance_paths
+    assert all(path.startswith("artifact-ref://sha256/") for path in provenance_paths)
     serialized_detail = json.dumps(detail_payload)
     assert "data/processed" not in serialized_detail
     assert "data/raw" not in serialized_detail
@@ -852,7 +970,7 @@ async def test_mcp_exposes_only_read_only_candidate_retrieval_tools(
     capabilities_presentation = capabilities.structuredContent["presentation_contract"]
     assert capabilities_presentation["literature_absence_inference_allowed"] is False
     assert capabilities_presentation["preferred_access_url_path"] == (
-        "projected_identity.preferred_access_url"
+        "results[].preferred_access_url"
     )
 
 
@@ -880,6 +998,7 @@ def test_viewer_api_projects_search_and_detail_without_private_paths(
     assert search["total"] == 1
     assert search["results"][0]["matchKind"] == "direct"
     assert search["results"][0]["reviewState"] == "needs_review"
+    assert search["results"][0]["trustLevel"] == "ai_classified_candidate"
     assert "does not establish absence" in search["zeroResultMessage"]
     document_id = search["results"][0]["documentId"]
 

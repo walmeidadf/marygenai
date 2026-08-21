@@ -152,6 +152,12 @@ same JSON types without publishing build-host locations. Source content hashes,
 bibliographic evidence, candidate evidence, and preferred access URLs remain
 available.
 
+Retrieval API v3 keeps `search_studies` agent-compact: each result carries only
+shortlist identity, preferred access, core facets, bounded extractive evidence,
+uncertainty, review state, and deterministic match reasons. `get_study` remains
+the audit-complete interface for identity candidates, full evidence spans, and
+model, prompt, repair, and source provenance.
+
 Retrieval should support:
 
 - structured filters;
